@@ -1,97 +1,209 @@
-# Vienotā transportlīdzekļu īres platforma Latvijā
+# EasyRent
 
-Šis repozitorijs ir **projekta skelets** (Frontend + Backend + DB) vienotai transportlīdzekļu īres platformai Latvijā.
+Mūsdienīga tīmekļa platforma īpašumu iznomāšanai un pārvaldei. EasyRent sniedz vienkāršu un intuitīvu risinājumu īpašumu īrnieki un iznomātājiem.
 
-Mērķis: vienā sistēmā apvienot dažādu transportlīdzekļu (auto, moto, velo, skrejriteņi u.c.) nomu, nodrošinot meklēšanu, filtrēšanu un rezervāciju/maksājumu/atsauksmju datu glabāšanu.
+## 📋 Projekta Apraksts
 
-## Tehnoloģijas
+EasyRent ir pilnfunkcionāla Saas platforma, kas paredzēta rezidenciālo un komerciālo īpašumu īrniecībai. Platforma ļauj īpašniekiem:
 
-- **Frontend:** Vue 3 + Vite + **Vuetify 3**
-- **Backend:** Laravel (REST API)
-- **Datubāze:** MySQL (InnoDB)
-- Papildus: Docker Compose (pēc izvēles)
+- 🏠 Pārvaldīt savu īpašumā portfeli
+- 💰 Izsekot maksājumus un īres naudas plūsmas
+- 📞 Sazināties ar īrniekiem
+- 📋 Pārvaldīt līgumus un dokumentus
+- 📊 Analizēt īpašuma sniegumu
 
-## Repozitorija struktūra
+Īrniekiem platforma nodrošina:
 
-- `frontend/` – Vue + Vuetify aplikācija
-- `backend-template/` – Laravel koda sagatave (migrācijas, modeļi, kontrolieri, maršruti, seederi)
-- `scripts/` – palīgscripts, lai savā datorā ātri uzģenerētu pilnus projektus
+- 🔍 Viegli meklēt un filtrēt īpašumus
+- 📱 Apskatīt detalizētu informāciju par īpašumiem
+- 💬 Tiešā saziņa ar īpašniekiem
+- 📄 Digitāls līgums un dokumentu pārvaldība
 
-> Kāpēc ir `backend-template/`? Šajā vidē netiek piegādāts pilns Laravel framework (`vendor/`). Ideja: izveido tīru Laravel projektu ar Composer un tad **iekopē** šeit sagatavoto kodu (vai izmanto skriptu).
+## 🏗️ Projektā Struktūra
 
-## Funkcionalitāte (MVP)
-
-- Home page ar:
-  - transportlīdzekļu sarakstu,
-  - filtriem: veids, atrašanās vieta, cenu diapazons,
-  - datu ielādi no Laravel API.
-- Laravel API ar endpointiem:
-  - `GET /api/vehicle-types` – transportlīdzekļu veidi
-  - `GET /api/vehicles` – saraksts ar filtriem (`type_id`, `q`, `min_price`, `max_price`, `city`)
-  - `GET /api/vehicles/{id}` – detalizēts ieraksts
-- MySQL shēma atbilstoši datu modelim: `persona`, `klients`, `pakalpojumu_sniedzejs`, `transportlidzekla_veids`, `transportlidzeklis`, `rezervacija`, `maksajums`, `atsauksme`.
-
-## Ātrā palaišana ar Docker (ieteicams)
-
-1) Instalē Docker Desktop.
-2) Repozitorija saknē izpildi:
-
-```bash
-docker compose up -d --build
+```
+EasyRent/
+├── backend/          # Laravel PHP API
+├── frontend/         # Vue.js lietotāja saskarne
+└── README.md         # Šis fails
 ```
 
-3) Atver:
+### Backend
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000/api/vehicles`
+- **Framework:** Laravel 11
+- **Valoda:** PHP 8.2+
+- **Datubāze:** Konfigurējama (MySQL/PostgreSQL)
+- **Autentifikācija:** Laravel Sanctum
 
-> Docker scenārijā backend konteinerī tiks izpildīts `composer install` un migrācijas.
+**Galvenās mapes:**
+- `app/Http/Controllers/` - API kontrolieri
+- `app/Models/` - Datu modeļi
+- `database/migrations/` - Datubāzes migrācijas
+- `routes/` - Maršrutēšana
+- `config/` - Konfigurācijas faili
 
-## Palaišana lokāli (bez Docker)
+### Frontend
 
-### Backend (Laravel)
+- **Framework:** Vue 3
+- **Build rīks:** Vite
+- **Stili:** CSS
+- **Linter:** ESLint
 
-Prasības: PHP 8.2+, Composer, MySQL.
+**Galvenās mapes:**
+- `src/components/` - Vue komponentes
+- `src/pages/` - Lapas/skaņi
+- `src/router/` - Маршутизаторы
+- `src/assets/` - Statiskās iespējas
 
-1) Izveido jaunu Laravel projektu:
+## 🚀 Sākšana
+
+### Priekšnoteikumi
+
+- PHP 8.2 vai jaunāks
+- Node.js 18+ ar npm
+- Composer
+- SQL datubāze (MySQL/PostgreSQL)
+
+### Instalācija
+
+#### 1. Klonēt repozitoriju
 
 ```bash
-composer create-project laravel/laravel backend
+git clone <repository-url>
+cd EasyRent
 ```
 
-2) Iekopē sagataves failus:
-
-```bash
-cp -R backend-template/* backend/
-```
-
-3) Konfigurē `.env` (DB pieslēgums) un izpildi migrācijas + seederus:
+#### 2. Backend Iestatīšana
 
 ```bash
 cd backend
+
+# Instalēt PHP atkarības
+composer install
+
+# Kopēt .env failu
+cp .env.example .env
+
+# Ģenerēt aplikācijas atslēgu
 php artisan key:generate
-php artisan migrate --seed
+
+# Izpildīt datubāzes migrācijas
+php artisan migrate
+
+# (Iespējams) Seed datubāzi ar testa datiem
+php artisan db:seed
+
+# Sākt attīstības serveri
 php artisan serve
 ```
 
-### Frontend (Vue + Vuetify)
+Backend būs pieejams: `http://localhost:8000`
 
-Prasības: Node.js 18+.
+#### 3. Frontend Iestatīšana
 
 ```bash
-cd frontend
+cd ../frontend
+
+# Instalēt JavaScript atkarības
 npm install
+
+# Sākt attīstības serveri
 npm run dev
 ```
 
-## Konfigurācija
+Frontend būs pieejams: `http://localhost:5173` (vai cits ports, ko norāda Vite)
 
-- Frontend API bāzes URL: `frontend/.env.example`
-  - pēc noklusējuma: `VITE_API_BASE_URL=http://localhost:8000/api`
+## 📝 Konfigurācija
 
-## Nākamie soļi (paplašinājumi)
+### Backend (.env)
 
-- Autentifikācija (piem., Laravel Sanctum) un lomu pārvaldība.
-- Rezervācijas izveide/atcelšana, maksājumu ieraksti, atsauksmes.
-- Admin/partnera panelis transportlīdzekļu pārvaldībai.
+Svarīgie mainīgie:
+- `APP_URL` - Aplikācijas URL
+- `DB_CONNECTION` - Datubāzes tips
+- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` - Datubāzes savienojuma dati
+- `SANCTUM_STATEFUL_DOMAINS` - Domēni, kuriem atļauts stateful pieprasījumi
 
+### Frontend (.env)
+
+- `VITE_API_URL` - Backend API URL
+
+## 🧪 Testēšana
+
+### Backend testi
+
+```bash
+cd backend
+
+# Izpildīt vienības testus
+php artisan test
+
+# Ar detalizētu izeju
+php artisan test --verbose
+```
+
+### Frontend testi
+
+```bash
+cd frontend
+
+# Atkarībā no konfigurācijas
+npm run test
+```
+
+## 🔐 Drošība
+
+- Visa komunikācija starp frontend un backend notiek pēc HTTPS (producējot)
+- API autentifikācija izmanto Laravel Sanctum
+- Paroles ir hash ētas ar bcrypt
+- CSRF aizsardzība ir aktivizēta
+
+## 📦 Build un Produktīvajā
+
+### Backend
+
+```bash
+cd backend
+
+# Optimizēt mūžīgo kešu
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# Sagatavoties produktīvajam
+php artisan optimize
+```
+
+### Frontend
+
+```bash
+cd frontend
+
+# Izveidot ražošanas versiju
+npm run build
+```
+
+Apkopojums būs direktorijā `dist/`
+
+## 🤝 Piedāvājumu sūtīšana
+
+1. Fork repozitoriju
+2. Izveidot feature branch (`git checkout -b feature/AmazingFeature`)
+3. Iesniedz savas izmaiņas (`git commit -m 'Add some AmazingFeature'`)
+4. Push uz branch (`git push origin feature/AmazingFeature`)
+5. Atvērt Pull Request
+
+## 📄 Licence
+
+Šis projekts ir licencēts MIT licence. Skatiet `LICENSE` failu detalizētai informācijai.
+
+## 📧 Atbalsts
+
+Ja ir kādi jautājumi vai problēmas, lūdzu izveidojiet Issue vai sazinieties ar komandu.
+
+## 🔄 Versijas Vēsture
+
+- **v1.0.0** - Sākotnējais izlaidums
+
+---
+
+**Pēdējā atjaunināšana:** 2026. gada janvāris
