@@ -31,7 +31,31 @@
 
           <v-divider vertical class="mx-2" />
 
-          <v-btn class="auth-btn" rounded="xl" elevation="6" @click="goAuth">
+          <template v-if="user">
+            <v-menu>
+              <template #activator="{ props }">
+                <v-btn class="auth-btn" rounded="xl" elevation="6" v-bind="props">
+                  <v-icon start>mdi-account</v-icon>
+                  {{ user.vards }}
+                </v-btn>
+              </template>
+
+              <v-list>
+                <v-list-item 
+                  title="Mans profils" 
+                  prepend-icon="mdi-account-circle"
+                  @click="goProfile"
+                />
+                <v-list-item 
+                  title="Izlogoties" 
+                  prepend-icon="mdi-logout"
+                  @click="logout"
+                />
+              </v-list>
+            </v-menu>
+          </template>
+
+          <v-btn v-else class="auth-btn" rounded="xl" elevation="6" @click="goAuth">
             Login/Register
           </v-btn>
         </div>
@@ -59,8 +83,13 @@
 
       <v-list nav density="comfortable">
         <v-list-item title="Sākums" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
-        <v-list-item title="Karte" subtitle="Drīzumā" prepend-icon="mdi-map" disabled />
-        <v-list-item title="Login/Register" prepend-icon="mdi-account" @click="goAuthFromDrawer" />
+        <v-list-item title="Karte" prepend-icon="mdi-map" disabled />
+        <v-divider />
+        <template v-if="user">
+          <v-list-item title="Mans profils" prepend-icon="mdi-account-circle" @click="goProfileFromDrawer" />
+          <v-list-item title="Izlogoties" prepend-icon="mdi-logout" @click="logout" />
+        </template>
+        <v-list-item v-else title="Login/Register" prepend-icon="mdi-account" @click="goAuthFromDrawer" />
       </v-list>
     </v-navigation-drawer>
 
@@ -130,13 +159,23 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import HomePage from './components/HomePage.vue'
 import AuthPage from './components/AuthPage.vue'
 
+const router = useRouter()
 const drawer = ref(false)
 const view = ref('home')
+const user = ref(null)
 const year = computed(() => new Date().getFullYear())
+
+onMounted(() => {
+  const userData = localStorage.getItem('user')
+  if (userData) {
+    user.value = JSON.parse(userData)
+  }
+})
 
 function goHome() {
   view.value = 'home'
@@ -146,6 +185,17 @@ function goHome() {
 function goAuth() {
   view.value = 'auth'
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function goProfile() {
+  if (user.value) {
+    router.push(`/profile`)
+  }
+}
+
+function goProfileFromDrawer() {
+  drawer.value = false
+  setTimeout(goProfile, 50)
 }
 
 function goHomeFromDrawer() {
@@ -158,7 +208,18 @@ function goAuthFromDrawer() {
   setTimeout(goAuth, 50)
 }
 
+function logout() {
+  localStorage.removeItem('user')
+  localStorage.removeItem('token')
+  user.value = null
+  goHome()
+}
+
 function onAuthSuccess() {
+  const userData = localStorage.getItem('user')
+  if (userData) {
+    user.value = JSON.parse(userData)
+  }
   goHome()
 }
 </script>
