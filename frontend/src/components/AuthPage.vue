@@ -64,6 +64,15 @@
                       class="mb-3" 
                     />
 
+                    <!-- Bankas konts (visdiem) -->
+                    <v-text-field 
+                      v-model="reg.bankas_konts" 
+                      label="Banka konta numurs (IBAN)" 
+                      variant="outlined" 
+                      class="mb-3"
+                      placeholder="LV00ABCD1234567890123"
+                    />
+
                     <!-- Pakalpojumu sniedzējs fields -->
                     <template v-if="reg.loma === 'pakalpojumu_sniedzejs'">
                       <v-text-field 
@@ -143,6 +152,7 @@ const reg = ref({
   lietotajvards: '',
   registracijas_numurs: '',
   atrasanas_adrese: '',
+  bankas_konts: '',
 })
 
 const lomas = [
@@ -180,6 +190,7 @@ async function submitRegister() {
       password: reg.value.password,
       password_confirmation: reg.value.password_confirmation,
       loma: reg.value.loma,
+      bankas_konts: reg.value.bankas_konts,
     }
 
     if (reg.value.loma === 'klients') {
@@ -224,6 +235,7 @@ async function submitRegister() {
       lietotajvards: '',
       registracijas_numurs: '',
       atrasanas_adrese: '',
+      bankas_konts: '',
     }
 
     // Informēt parent par sekmīgu reģistrāciju

@@ -36,7 +36,7 @@
               <template #activator="{ props }">
                 <v-btn class="auth-btn" rounded="xl" elevation="6" v-bind="props">
                   <v-icon start>mdi-account</v-icon>
-                  {{ user.vards }}
+                  {{ getUserDisplayName() }}
                 </v-btn>
               </template>
 
@@ -213,6 +213,18 @@ function logout() {
   localStorage.removeItem('token')
   user.value = null
   goHome()
+}
+
+function getUserDisplayName() {
+  if (!user.value) return 'Profils'
+  
+  // Ja klients, rādi lietotajvardu
+  if (user.value.loma === 'klients' && user.value.klients?.lietotajvards) {
+    return user.value.klients.lietotajvards
+  }
+  
+  // Ja pakalpojumu sniedzējs, rādi vārdu
+  return user.value.vards || 'Profils'
 }
 
 function onAuthSuccess() {
