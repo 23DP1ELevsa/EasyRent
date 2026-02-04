@@ -94,8 +94,9 @@
     </v-navigation-drawer>
 
     <v-main class="main">
-      <HomePage v-if="view === 'home'" />
-      <AuthPage v-else @auth-success="onAuthSuccess" />
+      <HomePage v-if="view === 'home' && route.path === '/'" />
+      <AuthPage v-else-if="view === 'auth' && route.path === '/auth'" @auth-success="onAuthSuccess" />
+      <RouterView v-else />
     </v-main>
 
     <v-footer class="footer" flat>
@@ -159,12 +160,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import HomePage from './components/HomePage.vue'
 import AuthPage from './components/AuthPage.vue'
 
 const router = useRouter()
+const route = useRoute()
 const drawer = ref(false)
 const view = ref('home')
 const user = ref(null)
@@ -175,15 +177,38 @@ onMounted(() => {
   if (userData) {
     user.value = JSON.parse(userData)
   }
+
+  // Listen for user profile updates from profile.vue
+  window.addEventListener('user-updated', (event) => {
+    user.value = event.detail
+  })
+
+  // Listen for logout from profile.vue
+  window.addEventListener('user-logged-out', () => {
+    user.value = null
+    goHome()
+  })
+})
+
+// Watch route changes to keep view in sync for home/auth, but allow RouterView to handle other routes
+watch(() => route.path, (newPath) => {
+  if (newPath === '/' || newPath === '') {
+    view.value = 'home'
+  } else if (newPath === '/auth') {
+    view.value = 'auth'
+  }
+  // For other routes like /profile, view stays as is and RouterView handles it
 })
 
 function goHome() {
   view.value = 'home'
+  router.push('/')
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function goAuth() {
   view.value = 'auth'
+  router.push('/auth')
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -212,6 +237,7 @@ function logout() {
   localStorage.removeItem('user')
   localStorage.removeItem('token')
   user.value = null
+  drawer.value = false
   goHome()
 }
 

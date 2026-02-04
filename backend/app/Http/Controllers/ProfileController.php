@@ -7,6 +7,7 @@ use App\Models\Klients;
 use App\Models\PakalpojumuSniedzejs;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
@@ -25,20 +26,52 @@ class ProfileController extends Controller
     {
         $persona = Persona::findOrFail($personaId);
 
-        $data = $request->validate([
+        // Check if trying to change loma or email
+        if ($request->has('loma')) {
+            return response()->json([
+                'message' => 'Lomu mainīt nevar',
+                'errors' => ['loma' => ['Lomu mainīt nevar.']]
+            ], 422);
+        }
+
+        if ($request->has('epasts') || $request->has('email')) {
+            return response()->json([
+                'message' => 'E-pastu mainīt nevar',
+                'errors' => ['epasts' => ['E-pastu mainīt nevar.']]
+            ], 422);
+        }
+
+        // Build validation rules dynamically
+        $rules = [
             'vards' => ['sometimes', 'string', 'min:2', 'max:50'],
             'uzvards' => ['sometimes', 'string', 'max:50'],
-            'kontakttalrunis' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'bankas_konts' => ['sometimes', 'nullable', 'string', 'max:34'],
+            'kontakttalrunis' => ['sometimes', 'nullable', 'string', 'min:6', 'max:20'],
+            'bankas_konts' => ['sometimes', 'nullable', 'string', 'min:15', 'max:34'],
             'password' => ['sometimes', 'string', 'min:8'],
-            // Для klients
-            'lietotajvards' => ['sometimes', 'string', 'max:30'],
-            // Для pakalpojumu_sniedzejs
             'registracijas_numurs' => ['sometimes', 'string', 'max:20'],
             'atrasanas_adrese' => ['sometimes', 'string', 'max:255'],
+        ];
+
+        // Add unique rule for lietotajvards only for klients
+        if ($persona->loma === 'klients') {
+            $klients = Klients::where('persona_id', $persona->persona_id)->first();
+            $rules['lietotajvards'] = [
+                'sometimes',
+                'string',
+                'max:30',
+                Rule::unique('klients', 'lietotajvards')->ignore($klients?->klients_id, 'klients_id')
+            ];
+        }
+
+        $data = $request->validate($rules, [
+            'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
+            'kontakttalrunis.min' => 'Tālrunim jābūt vismaz 6 simbolu garam.',
+            'kontakttalrunis.max' => 'Tālruņa garums nedrīkst pārsniegt 20 simbolus.',
+            'bankas_konts.min' => 'IBAN jābūt vismaz 15 simbolu garam.',
+            'bankas_konts.max' => 'IBAN nedrīkst būt garāks par 34 simboliem.',
         ]);
 
-        // Обновляем персону
+        // Update persona fields (only those that are present)
         $updateData = [];
         if (isset($data['vards'])) $updateData['vards'] = $data['vards'];
         if (isset($data['uzvards'])) $updateData['uzvards'] = $data['uzvards'];
@@ -50,7 +83,7 @@ class ProfileController extends Controller
             $persona->update($updateData);
         }
 
-        // Обновляем данные связанной модели
+        // Update klients or PakalpojumuSniedzejs
         if ($persona->loma === 'klients') {
             $klients = Klients::where('persona_id', $persona->persona_id)->first();
             if ($klients && isset($data['lietotajvards'])) {
@@ -76,3 +109,4 @@ class ProfileController extends Controller
         ]);
     }
 }
+
