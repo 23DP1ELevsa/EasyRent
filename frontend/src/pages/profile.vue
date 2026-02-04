@@ -171,7 +171,7 @@
                     <v-text-field
                       v-model="form.password"
                       type="password"
-                      label="Jauna parole (atstāj tukšu, ja nemainīs)"
+                      label="Jauna parole"
                       variant="outlined"
                       density="compact"
                       :rules="passwordRules"
@@ -300,11 +300,11 @@ const usernameRules = [
 ]
 
 const regNumRules = [
-  v => !!v || 'Reģistrācijas numurs ir obligāts'
+  v => !v || (v && v.length >= 1) || 'Reģistrācijas numurs nedrīkst būt tukšs'
 ]
 
 const addressRules = [
-  v => !!v || 'Atrašanās adrese ir obligāta'
+  v => !v || (v && v.length >= 1) || 'Atrašanās adrese nedrīkst būt tukša'
 ]
 
 const passwordRules = [
@@ -333,9 +333,12 @@ onMounted(() => {
 
   if (userData.loma === 'klients' && userData.klients) {
     form.value.lietotajvards = userData.klients.lietotajvards || ''
-  } else if (userData.loma === 'pakalpojumu_sniedzejs' && userData.pakalpojumuSniedzejs) {
-    form.value.registracijas_numurs = userData.pakalpojumuSniedzejs.registracijas_numurs || ''
-    form.value.atrasanas_adrese = userData.pakalpojumuSniedzejs.atrasanas_adrese || ''
+  } else if (userData.loma === 'pakalpojumu_sniedzejs') {
+    const sniedzejs = userData.pakalpojumuSniedzejs || userData.pakalpojumu_sniedzejs || null
+    if (sniedzejs) {
+      form.value.registracijas_numurs = sniedzejs.registracijas_numurs || ''
+      form.value.atrasanas_adrese = sniedzejs.atrasanas_adrese || ''
+    }
   }
 })
 
