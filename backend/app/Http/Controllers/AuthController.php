@@ -13,25 +13,31 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        // Vispirms validēt — ja neiziet, Laravel automātiski atgriež 422
         $data = $request->validate([
             'name' => ['required','string','min:2','max:255'],
             'email' => ['required','email','max:255','unique:persona,epasts'],
             'password' => ['required', 'confirmed', Password::min(8)],
             'loma' => ['required','in:klients,pakalpojumu_sniedzejs'],
-            // Для klients
-            'lietotajvards' => ['required_if:loma,klients', 'string', 'max:30'],
-            // Для pakalpojumu_sniedzejs
+            'kontakttalrunis' => ['required', 'string', 'max:20'],
+            'bankas_konts' => ['required', 'string', 'max:34'],
+            'lietotajvards' => ['required_if:loma,klients', 'string', 'max:30', 'unique:klients,lietotajvards'],
             'registracijas_numurs' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:20'],
             'atrasanas_adrese' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:255'],
-            'kontakttalrunis' => ['nullable', 'string', 'max:20'],
+        ], [
+            'email.unique' => 'E-pasts jau ir reģistrēts.',
+            'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
+            'name.required' => 'Vārds un uzvārds ir obligāts.',
+            'password.required' => 'Parole ir obligāta.',
+            'kontakttalrunis.required' => 'Tālrunis ir obligāts.',
+            'bankas_konts.required' => 'Banka konta numurs (IBAN) ir obligāts.',
         ]);
 
-        // Разделяем имя на имя и фамилию
+        // Pēc validācijas — saglabāt datus (validācija jau pārbaudīta)
         $nameParts = explode(' ', trim($data['name']), 2);
         $vards = $nameParts[0];
         $uzvards = $nameParts[1] ?? '';
 
-        // Создаем персону
         $persona = Persona::create([
             'vards' => $vards,
             'uzvards' => $uzvards,
@@ -39,9 +45,9 @@ class AuthController extends Controller
             'parole' => Hash::make($data['password']),
             'loma' => $data['loma'],
             'kontakttalrunis' => $data['kontakttalrunis'] ?? null,
+            'bankas_konts' => $data['bankas_konts'] ?? null,
         ]);
 
-        // Создаем связанную запись в klients или pakalpojumu_sniedzejs
         if ($data['loma'] === 'klients') {
             Klients::create([
                 'persona_id' => $persona->persona_id,
@@ -55,7 +61,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // Создаем токен
         $token = bin2hex(random_bytes(32));
 
         return response()->json([

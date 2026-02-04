@@ -35,14 +35,15 @@
                 <!-- REGISTER -->
                 <div v-else>
                   <v-form ref="regForm" @submit.prevent="submitRegister">
-                    <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" />
-                    <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" />
+                    <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" />
+                    <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" />
                     <v-text-field 
                       v-model="reg.kontakttalrunis" 
                       label="Tālrunis" 
                       variant="outlined" 
                       class="mb-3"
                       placeholder="+371 26123456"
+                      :rules="phoneRules"
                     />
                     <v-select
                       v-model="reg.loma"
@@ -62,6 +63,7 @@
                       label="Lietotājvārds" 
                       variant="outlined" 
                       class="mb-3" 
+                      :rules="usernameRules"
                     />
 
                     <!-- Bankas konts (visdiem) -->
@@ -71,6 +73,7 @@
                       variant="outlined" 
                       class="mb-3"
                       placeholder="LV00ABCD1234567890123"
+                      :rules="ibanRules"
                     />
 
                     <!-- Pakalpojumu sniedzējs fields -->
@@ -80,22 +83,25 @@
                         label="Reģistrācijas numurs" 
                         variant="outlined" 
                         class="mb-3" 
+                        :rules="regNumRules"
                       />
                       <v-text-field 
                         v-model="reg.atrasanas_adrese" 
                         label="Atrašanās adrese" 
                         variant="outlined" 
                         class="mb-3" 
+                        :rules="addressRules"
                       />
                     </template>
 
-                    <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" />
+                    <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" />
                     <v-text-field
                       v-model="reg.password_confirmation"
                       label="Parole vēlreiz"
                       variant="outlined"
                       type="password"
                       class="mb-4"
+                      :rules="passwordConfirmRules"
                     />
 
                     <v-btn type="submit" block size="large" rounded="xl" elevation="6" :loading="loading">
@@ -106,7 +112,7 @@
                 </div>
 
                 <v-alert v-if="errorText" type="error" variant="tonal" class="mt-6">
-                  {{ errorText }}
+                  <div v-html="errorText.split('. ').filter(e => e).map(e => e + (e.endsWith('.') ? '' : '.')).join('<br/>')"></div>
                 </v-alert>
 
                 <v-alert v-if="okText" type="success" variant="tonal" class="mt-6">
@@ -114,12 +120,8 @@
                 </v-alert>
 
               </v-card-text>
-            </v-card>
-
-            <div class="text-caption opacity-70 mt-4 text-center">
-              API: {{ apiBase }}
-            </div>
-          </v-col>
+              </v-card>
+            </v-col>
         </v-row>
 
       </div>
@@ -174,12 +176,94 @@ function getApiBase() {
   return import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 }
 
-const apiBase = computed(() => getApiBase())
+// IBAN validation (basic, standard mod-97 check)
+function ibanIsValid(iban) {
+  if (!iban) return false
+  const value = iban.replace(/\s+/g, '').toUpperCase()
+  if (!/^[A-Z0-9]+$/.test(value) || value.length < 15 || value.length > 34) return false
+  const rearranged = value.slice(4) + value.slice(0, 4)
+  const converted = rearranged.split('').map(ch => {
+    const code = ch.charCodeAt(0)
+    if (code >= 65 && code <= 90) return (code - 55).toString()
+    return ch
+  }).join('')
+  let remainder = '0'
+  for (let i = 0; i < converted.length; i += 7) {
+    const block = remainder + converted.substr(i, 7)
+    remainder = (BigInt(block) % 97n).toString()
+  }
+  return remainder === '1'
+}
+
+const phoneRules = [
+  v => !!v || 'Tālrunis ir obligāts',
+  v => (v && v.length >= 6) || 'Tālrunim jābūt vismaz 6 simbolu garam',
+  v => (v && v.length <= 20) || 'Tālruņa garums nedrīkst pārsniegt 20 simbolus',
+  v => !v || /^\+?[0-9 \-()]+$/.test(v) || 'Ievadiet derīgu telefona numuru (piem., +371 26123456)'
+]
+
+const ibanRules = [
+  v => !!v || 'IBAN ir obligāts',
+  v => (v && v.length >= 15) || 'IBAN jābūt vismaz 15 simbolu garam',
+  v => (v && v.length <= 34) || 'IBAN nedrīkst būt garāks par 34 simboliem',
+  v => !v || ibanIsValid(v) || 'Ievadiet derīgu IBAN'
+]
+
+// Required / conditional rules
+const nameRules = [
+  v => !!v || 'Vārds un uzvārds ir obligāts',
+  v => (v && v.trim().split(' ')[0].length >= 2) || 'Vārdam jābūt vismaz 2 simbolu garam'
+]
+
+const emailRules = [
+  v => !!v || 'E-pasts ir obligāts',
+  v => /.+@.+\..+/.test(v) || 'Ievadiet derīgu e-pasta adresi'
+]
+
+const passwordRules = [
+  v => !!v || 'Parole ir obligāta',
+  v => (v && v.length >= 8) || 'Parolei jābūt vismaz 8 simbolu garai'
+]
+
+const passwordConfirmRules = [
+  v => !!v || 'Lūdzu, apstipriniet paroli',
+  v => v === reg.value.password || 'Paroles nesakrīt'
+]
+
+const usernameRules = [
+  v => (reg.value.loma !== 'klients') || (!!v && v.length >= 3) || 'Lietotājvārdam jābūt vismaz 3 simbolu garam'
+]
+
+const regNumRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Reģistrācijas numurs ir obligāts'
+]
+
+const addressRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Atrašanās adrese ir obligāta'
+]
 
 async function submitRegister() {
   errorText.value = ''
   okText.value = ''
   loading.value = true
+  // Manuāla validācija tikai obligātajiem laukiem
+  const errors = []
+  if (!reg.value.name || reg.value.name.trim().length < 2) errors.push('Vārds un uzvārds ir obligāts (vismaz 2 simboli).')
+  if (!reg.value.email || !/.+@.+\..+/.test(reg.value.email)) errors.push('Ievadiet derīgu e-pasta adresi.')
+  if (!reg.value.password || reg.value.password.length < 8) errors.push('Parolei jābūt vismaz 8 simbolu garai.')
+  if (!reg.value.password_confirmation || reg.value.password !== reg.value.password_confirmation) errors.push('Paroles nesakrīt vai nav apstiprinātas.')
+  if (!reg.value.kontakttalrunis || reg.value.kontakttalrunis.length < 6) errors.push('Tālrunis ir obligāts (vismaz 6 simboli).')
+  if (!reg.value.bankas_konts || reg.value.bankas_konts.length < 15) errors.push('IBAN ir obligāts.')
+  if (reg.value.loma === 'klients' && (!reg.value.lietotajvards || reg.value.lietotajvards.length < 3)) errors.push('Lietotājvārds ir obligāts (vismaz 3 simboli).')
+  if (reg.value.loma === 'pakalpojumu_sniedzejs') {
+    if (!reg.value.registracijas_numurs) errors.push('Reģistrācijas numurs ir obligāts.')
+    if (!reg.value.atrasanas_adrese) errors.push('Atrašanās adrese ir obligāta.')
+  }
+  if (errors.length) {
+    errorText.value = errors.join(' ')
+    loading.value = false
+    return
+  }
   try {
     const API = getApiBase()
 
@@ -214,9 +298,11 @@ async function submitRegister() {
     const data = await r.json().catch(() => ({}))
 
     if (!r.ok) {
-      const msg = data?.message || 'Neizdevās reģistrēties'
-      const details = data?.errors ? Object.values(data.errors).flat().join(' ') : ''
-      throw new Error(details ? `${msg}: ${details}` : msg)
+      if (data?.errors && Object.keys(data.errors).length > 0) {
+        const allErrors = Object.values(data.errors).flat().filter(e => e)
+        throw new Error(allErrors.join('. '))
+      }
+      throw new Error(data?.message || 'Neizdevās reģistrēties')
     }
 
     localStorage.setItem('token', data.token)
@@ -243,7 +329,7 @@ async function submitRegister() {
       emit('auth-success')
     }, 1500)
   } catch (e) {
-    errorText.value = e?.message || 'Kļūda: Failed to fetch'
+    errorText.value = e?.message || 'Kļūda: Neizdevās savienot ar serveri'
   } finally {
     loading.value = false
   }
@@ -287,7 +373,7 @@ async function submitLogin() {
       emit('auth-success')
     }, 1500)
   } catch (e) {
-    errorText.value = e?.message || 'Kļūda: Failed to fetch'
+    errorText.value = e?.message || 'Kļūda: Neizdevās savienot ar serveri'
   } finally {
     loading.value = false
   }
