@@ -36,7 +36,7 @@
                     </div>
 
                     <div class="text-caption opacity-70">
-                      Poga “Pāriet uz karti” būs aktīva, kad pievienosim kartes lapu un maršrutu.
+                      Poga “Pāriet uz karti” būs aktīva, kad būs pievienota kartes lapa un maršruts.
                     </div>
                   </v-col>
 

@@ -3,7 +3,7 @@
     "allowJs": true,
     "target": "es5",
     "module": "esnext",
-    "baseUrl": "./",
+    "baseUrl": "./frontend/src/components/HomePage.vue",
     "moduleResolution": "bundler",
     "paths": {
       "@/*": [

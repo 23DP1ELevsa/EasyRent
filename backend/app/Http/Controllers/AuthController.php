@@ -84,7 +84,7 @@ class AuthController extends Controller
 
         $token = bin2hex(random_bytes(32));
 
-        // Загружаем связанные данные в зависимости от роли
+        // Lai atgrieztu arī klients/pakalpojumu sniedzējs datus, jānosaka attiecība
         $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
 
         return response()->json([
