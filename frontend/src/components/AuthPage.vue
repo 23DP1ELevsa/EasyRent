@@ -86,11 +86,38 @@
                         :rules="regNumRules"
                       />
                       <v-text-field 
-                        v-model="reg.atrasanas_adrese" 
-                        label="Atrašanās adrese" 
+                        v-model="reg.iela" 
+                        label="Iela" 
                         variant="outlined" 
                         class="mb-3" 
-                        :rules="addressRules"
+                        :rules="streetRules"
+                      />
+                      <v-text-field 
+                        v-model="reg.majas_numurs" 
+                        label="Mājas numurs" 
+                        variant="outlined" 
+                        class="mb-3" 
+                        :rules="houseNumberRules"
+                      />
+                      <v-text-field 
+                        v-model="reg.dzivokla_numurs" 
+                        label="Dzīvokļa numurs (neobligāts)" 
+                        variant="outlined" 
+                        class="mb-3"
+                      />
+                      <v-text-field 
+                        v-model="reg.pilseta" 
+                        label="Pilsēta" 
+                        variant="outlined" 
+                        class="mb-3" 
+                        :rules="cityRules"
+                      />
+                      <v-text-field 
+                        v-model="reg.pasta_indekss" 
+                        label="Pasta indekss" 
+                        variant="outlined" 
+                        class="mb-3" 
+                        :rules="postalCodeRules"
                       />
                     </template>
 
@@ -153,7 +180,11 @@ const reg = ref({
   loma: 'klients',
   lietotajvards: '',
   registracijas_numurs: '',
-  atrasanas_adrese: '',
+  iela: '',
+  majas_numurs: '',
+  dzivokla_numurs: '',
+  pilseta: '',
+  pasta_indekss: '',
   bankas_konts: '',
 })
 
@@ -166,7 +197,11 @@ function updateRegFields() {
   // Notīrīt laukus kad mainas lomu
   if (reg.value.loma === 'klients') {
     reg.value.registracijas_numurs = ''
-    reg.value.atrasanas_adrese = ''
+    reg.value.iela = ''
+    reg.value.majas_numurs = ''
+    reg.value.dzivokla_numurs = ''
+    reg.value.pilseta = ''
+    reg.value.pasta_indekss = ''
   } else {
     reg.value.lietotajvards = ''
   }
@@ -238,8 +273,20 @@ const regNumRules = [
   v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Reģistrācijas numurs ir obligāts'
 ]
 
-const addressRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Atrašanās adrese ir obligāta'
+const streetRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Iela ir obligāta'
+]
+
+const houseNumberRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Mājas numurs ir obligāts'
+]
+
+const cityRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Pilsēta ir obligāta'
+]
+
+const postalCodeRules = [
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Pasta indekss ir obligāts'
 ]
 
 async function submitRegister() {
@@ -257,7 +304,10 @@ async function submitRegister() {
   if (reg.value.loma === 'klients' && (!reg.value.lietotajvards || reg.value.lietotajvards.length < 3)) errors.push('Lietotājvārds ir obligāts (vismaz 3 simboli).')
   if (reg.value.loma === 'pakalpojumu_sniedzejs') {
     if (!reg.value.registracijas_numurs) errors.push('Reģistrācijas numurs ir obligāts.')
-    if (!reg.value.atrasanas_adrese) errors.push('Atrašanās adrese ir obligāta.')
+    if (!reg.value.iela) errors.push('Iela ir obligāta.')
+    if (!reg.value.majas_numurs) errors.push('Mājas numurs ir obligāts.')
+    if (!reg.value.pilseta) errors.push('Pilsēta ir obligāta.')
+    if (!reg.value.pasta_indekss) errors.push('Pasta indekss ir obligāts.')
   }
   if (errors.length) {
     errorText.value = errors.join(' ')
@@ -281,7 +331,11 @@ async function submitRegister() {
       payload.lietotajvards = reg.value.lietotajvards
     } else {
       payload.registracijas_numurs = reg.value.registracijas_numurs
-      payload.atrasanas_adrese = reg.value.atrasanas_adrese
+      payload.iela = reg.value.iela
+      payload.majas_numurs = reg.value.majas_numurs
+      if (reg.value.dzivokla_numurs) payload.dzivokla_numurs = reg.value.dzivokla_numurs
+      payload.pilseta = reg.value.pilseta
+      payload.pasta_indekss = reg.value.pasta_indekss
     }
 
     console.log('REG PAYLOAD:', payload)
@@ -320,7 +374,11 @@ async function submitRegister() {
       loma: 'klients',
       lietotajvards: '',
       registracijas_numurs: '',
-      atrasanas_adrese: '',
+      iela: '',
+      majas_numurs: '',
+      dzivokla_numurs: '',
+      pilseta: '',
+      pasta_indekss: '',
       bankas_konts: '',
     }
 

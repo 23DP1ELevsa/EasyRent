@@ -14,7 +14,11 @@ class PakalpojumuSniedzejs extends Model
     protected $fillable = [
         'persona_id',
         'registracijas_numurs',
-        'atrasanas_adrese',
+        'iela',
+        'majas_numurs',
+        'dzivokla_numurs',
+        'pilseta',
+        'pasta_indekss',
     ];
 
     public function persona(): BelongsTo

@@ -23,7 +23,11 @@ class AuthController extends Controller
             'bankas_konts' => ['required', 'string', 'max:34'],
             'lietotajvards' => ['required_if:loma,klients', 'string', 'max:30', 'unique:klients,lietotajvards'],
             'registracijas_numurs' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:20'],
-            'atrasanas_adrese' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:255'],
+            'iela' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:150'],
+            'majas_numurs' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:20'],
+            'dzivokla_numurs' => ['nullable', 'string', 'max:20'],
+            'pilseta' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:100'],
+            'pasta_indekss' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:20'],
         ], [
             'email.unique' => 'E-pasts jau ir reģistrēts.',
             'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
@@ -57,7 +61,11 @@ class AuthController extends Controller
             PakalpojumuSniedzejs::create([
                 'persona_id' => $persona->persona_id,
                 'registracijas_numurs' => $data['registracijas_numurs'],
-                'atrasanas_adrese' => $data['atrasanas_adrese'],
+                'iela' => $data['iela'],
+                'majas_numurs' => $data['majas_numurs'],
+                'dzivokla_numurs' => $data['dzivokla_numurs'] ?? null,
+                'pilseta' => $data['pilseta'],
+                'pasta_indekss' => $data['pasta_indekss'],
             ]);
         }
 

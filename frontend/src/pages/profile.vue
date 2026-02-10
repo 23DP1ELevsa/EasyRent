@@ -150,13 +150,60 @@
 
                     <v-col cols="12">
                       <v-text-field
-                        v-model="form.atrasanas_adrese"
-                        label="Atrašanās adrese"
+                        v-model="form.iela"
+                        label="Iela"
                         variant="outlined"
                         density="compact"
-                        :rules="addressRules"
-                        :error="!!fieldErrors.atrasanas_adrese"
-                        :error-messages="fieldErrors.atrasanas_adrese ? [fieldErrors.atrasanas_adrese] : []"
+                        :rules="streetRules"
+                        :error="!!fieldErrors.iela"
+                        :error-messages="fieldErrors.iela ? [fieldErrors.iela] : []"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.majas_numurs"
+                        label="Mājas numurs"
+                        variant="outlined"
+                        density="compact"
+                        :rules="houseNumberRules"
+                        :error="!!fieldErrors.majas_numurs"
+                        :error-messages="fieldErrors.majas_numurs ? [fieldErrors.majas_numurs] : []"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.dzivokla_numurs"
+                        label="Dzīvokļa numurs (neobligāts)"
+                        variant="outlined"
+                        density="compact"
+                        :error="!!fieldErrors.dzivokla_numurs"
+                        :error-messages="fieldErrors.dzivokla_numurs ? [fieldErrors.dzivokla_numurs] : []"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.pilseta"
+                        label="Pilsēta"
+                        variant="outlined"
+                        density="compact"
+                        :rules="cityRules"
+                        :error="!!fieldErrors.pilseta"
+                        :error-messages="fieldErrors.pilseta ? [fieldErrors.pilseta] : []"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.pasta_indekss"
+                        label="Pasta indekss"
+                        variant="outlined"
+                        density="compact"
+                        :rules="postalCodeRules"
+                        :error="!!fieldErrors.pasta_indekss"
+                        :error-messages="fieldErrors.pasta_indekss ? [fieldErrors.pasta_indekss] : []"
                       />
                     </v-col>
                   </v-row>
@@ -252,7 +299,11 @@ const form = ref({
   kontakttalrunis: '',
   lietotajvards: '',
   registracijas_numurs: '',
-  atrasanas_adrese: '',
+  iela: '',
+  majas_numurs: '',
+  dzivokla_numurs: '',
+  pilseta: '',
+  pasta_indekss: '',
   bankas_konts: '',
   password: '',
 })
@@ -303,8 +354,20 @@ const regNumRules = [
   v => !v || (v && v.length >= 1) || 'Reģistrācijas numurs nedrīkst būt tukšs'
 ]
 
-const addressRules = [
-  v => !v || (v && v.length >= 1) || 'Atrašanās adrese nedrīkst būt tukša'
+const streetRules = [
+  v => !v || (v && v.length >= 1) || 'Iela nedrīkst būt tukša'
+]
+
+const houseNumberRules = [
+  v => !v || (v && v.length >= 1) || 'Mājas numurs nedrīkst būt tukšs'
+]
+
+const cityRules = [
+  v => !v || (v && v.length >= 1) || 'Pilsēta nedrīkst būt tukša'
+]
+
+const postalCodeRules = [
+  v => !v || (v && v.length >= 1) || 'Pasta indekss nedrīkst būt tukšs'
 ]
 
 const passwordRules = [
@@ -337,7 +400,11 @@ onMounted(() => {
     const sniedzejs = userData.pakalpojumuSniedzejs || userData.pakalpojumu_sniedzejs || null
     if (sniedzejs) {
       form.value.registracijas_numurs = sniedzejs.registracijas_numurs || ''
-      form.value.atrasanas_adrese = sniedzejs.atrasanas_adrese || ''
+      form.value.iela = sniedzejs.iela || ''
+      form.value.majas_numurs = sniedzejs.majas_numurs || ''
+      form.value.dzivokla_numurs = sniedzejs.dzivokla_numurs || ''
+      form.value.pilseta = sniedzejs.pilseta || ''
+      form.value.pasta_indekss = sniedzejs.pasta_indekss || ''
     }
   }
 })
@@ -383,7 +450,11 @@ async function updateProfile() {
       updateData.lietotajvards = form.value.lietotajvards
     } else if (loma.value === 'pakalpojumu_sniedzejs') {
       if (form.value.registracijas_numurs) updateData.registracijas_numurs = form.value.registracijas_numurs
-      if (form.value.atrasanas_adrese) updateData.atrasanas_adrese = form.value.atrasanas_adrese
+      if (form.value.iela) updateData.iela = form.value.iela
+      if (form.value.majas_numurs) updateData.majas_numurs = form.value.majas_numurs
+      if (form.value.dzivokla_numurs) updateData.dzivokla_numurs = form.value.dzivokla_numurs
+      if (form.value.pilseta) updateData.pilseta = form.value.pilseta
+      if (form.value.pasta_indekss) updateData.pasta_indekss = form.value.pasta_indekss
     }
 
     console.log('Sending profile update to:', `${API_BASE}/api/profile/${user.persona_id}`)

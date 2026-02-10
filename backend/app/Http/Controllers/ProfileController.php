@@ -49,7 +49,11 @@ class ProfileController extends Controller
             'bankas_konts' => ['sometimes', 'nullable', 'string', 'min:15', 'max:34'],
             'password' => ['sometimes', 'string', 'min:8'],
             'registracijas_numurs' => ['sometimes', 'string', 'max:20'],
-            'atrasanas_adrese' => ['sometimes', 'string', 'max:255'],
+            'iela' => ['sometimes', 'string', 'max:150'],
+            'majas_numurs' => ['sometimes', 'string', 'max:20'],
+            'dzivokla_numurs' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'pilseta' => ['sometimes', 'string', 'max:100'],
+            'pasta_indekss' => ['sometimes', 'string', 'max:20'],
         ];
 
         // Add unique rule for lietotajvards only for klients
@@ -94,7 +98,11 @@ class ProfileController extends Controller
             if ($sniedzejs) {
                 $updateSniedzejs = [];
                 if (isset($data['registracijas_numurs'])) $updateSniedzejs['registracijas_numurs'] = $data['registracijas_numurs'];
-                if (isset($data['atrasanas_adrese'])) $updateSniedzejs['atrasanas_adrese'] = $data['atrasanas_adrese'];
+                if (isset($data['iela'])) $updateSniedzejs['iela'] = $data['iela'];
+                if (isset($data['majas_numurs'])) $updateSniedzejs['majas_numurs'] = $data['majas_numurs'];
+                if (array_key_exists('dzivokla_numurs', $data)) $updateSniedzejs['dzivokla_numurs'] = $data['dzivokla_numurs'];
+                if (isset($data['pilseta'])) $updateSniedzejs['pilseta'] = $data['pilseta'];
+                if (isset($data['pasta_indekss'])) $updateSniedzejs['pasta_indekss'] = $data['pasta_indekss'];
                 if (!empty($updateSniedzejs)) {
                     $sniedzejs->update($updateSniedzejs);
                 }
