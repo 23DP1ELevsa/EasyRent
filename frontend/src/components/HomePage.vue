@@ -24,19 +24,10 @@
                     </div>
 
                     <div class="d-flex flex-column flex-sm-row justify-center justify-md-start ga-3 mb-6">
-                      <v-btn size="x-large" rounded="xl" elevation="6" disabled>
+                      <v-btn size="x-large" rounded="xl" elevation="6" @click="goMap">
                         <v-icon start>mdi-map</v-icon>
                         Pāriet uz karti
                       </v-btn>
-
-                      <v-btn size="x-large" rounded="xl" variant="tonal" disabled>
-                        <v-icon start>mdi-filter-variant</v-icon>
-                        Filtri (drīzumā)
-                      </v-btn>
-                    </div>
-
-                    <div class="text-caption opacity-70">
-                      Poga “Pāriet uz karti” būs aktīva, kad būs pievienota kartes lapa un maršruts.
                     </div>
                   </v-col>
 
@@ -339,6 +330,9 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const formRef = ref(null)
 const name = ref('')
@@ -357,6 +351,11 @@ function resetForm() {
   email.value = ''
   comment.value = ''
   formRef.value?.resetValidation()
+}
+
+function goMap() {
+  router.push('/map')
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function submitContact() {

@@ -211,6 +211,35 @@ function getApiBase() {
   return import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 }
 
+function buildProviderAddress() {
+  const parts = [
+    reg.value.iela,
+    reg.value.majas_numurs,
+    reg.value.pilseta,
+    reg.value.pasta_indekss,
+    'Latvia',
+  ].filter(part => part && String(part).trim().length > 0)
+  return parts.join(', ')
+}
+
+async function geocodeAddress(address) {
+  if (!address) return null
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
+    const response = await fetch(url)
+    const data = await response.json()
+    if (!Array.isArray(data) || !data.length) return null
+    const result = data[0]
+    if (!result?.lat || !result?.lon) return null
+    return {
+      lat: Number(result.lat),
+      lng: Number(result.lon),
+    }
+  } catch (error) {
+    return null
+  }
+}
+
 // IBAN validation (basic, standard mod-97 check)
 function ibanIsValid(iban) {
   if (!iban) return false
@@ -330,12 +359,19 @@ async function submitRegister() {
     if (reg.value.loma === 'klients') {
       payload.lietotajvards = reg.value.lietotajvards
     } else {
+      const address = buildProviderAddress()
+      const coords = await geocodeAddress(address)
+
       payload.registracijas_numurs = reg.value.registracijas_numurs
       payload.iela = reg.value.iela
       payload.majas_numurs = reg.value.majas_numurs
       if (reg.value.dzivokla_numurs) payload.dzivokla_numurs = reg.value.dzivokla_numurs
       payload.pilseta = reg.value.pilseta
       payload.pasta_indekss = reg.value.pasta_indekss
+      if (coords) {
+        payload.latitude = coords.lat
+        payload.longitude = coords.lng
+      }
     }
 
     console.log('REG PAYLOAD:', payload)

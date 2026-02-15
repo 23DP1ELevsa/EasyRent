@@ -6,6 +6,7 @@ use App\Models\Persona;
 use App\Models\Klients;
 use App\Models\PakalpojumuSniedzejs;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
@@ -28,6 +29,8 @@ class AuthController extends Controller
             'dzivokla_numurs' => ['nullable', 'string', 'max:20'],
             'pilseta' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:100'],
             'pasta_indekss' => ['required_if:loma,pakalpojumu_sniedzejs', 'string', 'max:20'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ], [
             'email.unique' => 'E-pasts jau ir reģistrēts.',
             'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
@@ -58,6 +61,26 @@ class AuthController extends Controller
                 'lietotajvards' => $data['lietotajvards'],
             ]);
         } else {
+            $coords = [
+                'lat' => $data['latitude'] ?? null,
+                'lng' => $data['longitude'] ?? null,
+            ];
+
+            if ($coords['lat'] === null || $coords['lng'] === null) {
+                $coords = $this->geocodeAddress([
+                $data['iela'] ?? null,
+                $data['majas_numurs'] ?? null,
+                $data['pilseta'] ?? null,
+                $data['pasta_indekss'] ?? null,
+                'Latvia',
+            ], [
+                $data['iela'] ?? null,
+                $data['pilseta'] ?? null,
+                $data['pasta_indekss'] ?? null,
+                'Latvia',
+            ]);
+            }
+
             PakalpojumuSniedzejs::create([
                 'persona_id' => $persona->persona_id,
                 'registracijas_numurs' => $data['registracijas_numurs'],
@@ -66,6 +89,8 @@ class AuthController extends Controller
                 'dzivokla_numurs' => $data['dzivokla_numurs'] ?? null,
                 'pilseta' => $data['pilseta'],
                 'pasta_indekss' => $data['pasta_indekss'],
+                'latitude' => $coords['lat'],
+                'longitude' => $coords['lng'],
             ]);
         }
 
@@ -109,5 +134,49 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json(['user' => $request->user()]);
+    }
+
+    private function geocodeAddress(array $parts, array $fallbackParts = []): array
+    {
+        $candidates = [$parts];
+        if (!empty($fallbackParts)) {
+            $candidates[] = $fallbackParts;
+        }
+
+        foreach ($candidates as $candidate) {
+            $address = implode(', ', array_filter($candidate, fn ($part) => $part && trim((string) $part) !== ''));
+            if ($address === '') {
+                continue;
+            }
+
+            try {
+                $response = Http::withHeaders([
+                    'User-Agent' => 'EasyRent/1.0 (contact@easyrent.local)',
+                    'Accept' => 'application/json',
+                ])->timeout(6)->retry(1, 200)->get('https://nominatim.openstreetmap.org/search', [
+                    'format' => 'json',
+                    'limit' => 1,
+                    'q' => $address,
+                ]);
+
+                if (!$response->ok()) {
+                    continue;
+                }
+
+                $data = $response->json();
+                if (!is_array($data) || empty($data[0]['lat']) || empty($data[0]['lon'])) {
+                    continue;
+                }
+
+                return [
+                    'lat' => (float) $data[0]['lat'],
+                    'lng' => (float) $data[0]['lon'],
+                ];
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return ['lat' => null, 'lng' => null];
     }
 }

@@ -10,7 +10,7 @@ class TransportliedzieklsVeids extends Model
     protected $table = 'transportlidzekla_veids';
     protected $primaryKey = 'veids_id';
 
-    protected $fillable = ['nosaukums'];
+    protected $fillable = ['nosaukums', 'tips'];
 
     public function transportlidzekli(): HasMany
     {

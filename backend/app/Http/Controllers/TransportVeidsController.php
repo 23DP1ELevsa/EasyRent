@@ -16,7 +16,12 @@ class TransportVeidsController extends Controller
     {
         $data = $request->validate([
             'nosaukums' => ['required', 'string', 'max:50', 'unique:transportlidzekla_veids,nosaukums'],
+            'tips' => ['nullable', 'string', 'max:50'],
         ]);
+
+        if (empty($data['tips'])) {
+            $data['tips'] = $data['nosaukums'];
+        }
 
         $veids = TransportliedzieklsVeids::create($data);
 

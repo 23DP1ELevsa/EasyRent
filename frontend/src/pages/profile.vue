@@ -226,6 +226,11 @@
                         placeholder="24.1052"
                       />
                     </v-col>
+
+                    <v-col cols="12">
+                      <div v-if="geocodeLoading" class="text-caption opacity-70">Meklējam koordinātes no adreses...</div>
+                      <div v-else-if="geocodeError" class="text-caption text-error">{{ geocodeError }}</div>
+                    </v-col>
                   </v-row>
                 </template>
 
@@ -365,6 +370,8 @@ const fieldErrors = ref({})
 const reservations = ref([])
 const reservationsLoading = ref(false)
 const reservationsError = ref('')
+const geocodeLoading = ref(false)
+const geocodeError = ref('')
 
 const email = ref('')
 const loma = ref('')
@@ -520,6 +527,42 @@ function formatPrice(value) {
   return `${num.toFixed(2)} €`
 }
 
+function buildFullAddress() {
+  const parts = [
+    form.value.iela,
+    form.value.majas_numurs,
+    form.value.pilseta,
+    form.value.pasta_indekss,
+    'Latvia',
+  ].filter(part => part && String(part).trim().length > 0)
+  return parts.join(', ')
+}
+
+function hasMinimalAddress() {
+  return Boolean(form.value.iela && form.value.pilseta)
+}
+
+async function geocodeCoordinates(address) {
+  if (!address) return null
+  geocodeLoading.value = true
+  geocodeError.value = ''
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
+    const response = await fetch(url)
+    const data = await response.json()
+    if (!Array.isArray(data) || !data.length) return null
+    const result = data[0]
+    return {
+      lat: result?.lat ? Number(result.lat) : null,
+      lng: result?.lon ? Number(result.lon) : null,
+    }
+  } catch (error) {
+    return null
+  } finally {
+    geocodeLoading.value = false
+  }
+}
+
 // Update Profile
 async function updateProfile() {
   errorText.value = ''
@@ -566,6 +609,22 @@ async function updateProfile() {
       if (form.value.dzivokla_numurs) updateData.dzivokla_numurs = form.value.dzivokla_numurs
       if (form.value.pilseta) updateData.pilseta = form.value.pilseta
       if (form.value.pasta_indekss) updateData.pasta_indekss = form.value.pasta_indekss
+      const needsCoords = form.value.latitude === '' || form.value.longitude === ''
+      if (needsCoords) {
+        if (!hasMinimalAddress()) {
+          geocodeError.value = 'Norādi vismaz ielu un pilsētu, lai automātiski atrastu koordinātes.'
+        } else {
+          const address = buildFullAddress()
+          const coords = await geocodeCoordinates(address)
+          if (coords && coords.lat !== null && coords.lng !== null) {
+            form.value.latitude = coords.lat
+            form.value.longitude = coords.lng
+            geocodeError.value = ''
+          } else if (address) {
+            geocodeError.value = 'Neizdevās atrast koordinātes no adreses.'
+          }
+        }
+      }
       if (form.value.latitude !== '') updateData.latitude = Number(form.value.latitude)
       if (form.value.longitude !== '') updateData.longitude = Number(form.value.longitude)
     }

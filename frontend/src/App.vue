@@ -99,7 +99,7 @@
       <RouterView v-else />
     </v-main>
 
-    <v-footer class="footer" flat>
+    <v-footer v-if="route.path !== '/map'" class="footer" flat>
       <v-container>
         <v-row class="py-10" align="start">
           <v-col cols="12" md="4">
