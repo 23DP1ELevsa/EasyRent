@@ -54,6 +54,8 @@ class ProfileController extends Controller
             'dzivokla_numurs' => ['sometimes', 'nullable', 'string', 'max:20'],
             'pilseta' => ['sometimes', 'string', 'max:100'],
             'pasta_indekss' => ['sometimes', 'string', 'max:20'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
         ];
 
         // Add unique rule for lietotajvards only for klients
@@ -103,6 +105,8 @@ class ProfileController extends Controller
                 if (array_key_exists('dzivokla_numurs', $data)) $updateSniedzejs['dzivokla_numurs'] = $data['dzivokla_numurs'];
                 if (isset($data['pilseta'])) $updateSniedzejs['pilseta'] = $data['pilseta'];
                 if (isset($data['pasta_indekss'])) $updateSniedzejs['pasta_indekss'] = $data['pasta_indekss'];
+                if (array_key_exists('latitude', $data)) $updateSniedzejs['latitude'] = $data['latitude'];
+                if (array_key_exists('longitude', $data)) $updateSniedzejs['longitude'] = $data['longitude'];
                 if (!empty($updateSniedzejs)) {
                     $sniedzejs->update($updateSniedzejs);
                 }

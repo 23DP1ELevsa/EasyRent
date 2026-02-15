@@ -19,6 +19,8 @@ class PakalpojumuSniedzejs extends Model
         'dzivokla_numurs',
         'pilseta',
         'pasta_indekss',
+        'latitude',
+        'longitude',
     ];
 
     public function persona(): BelongsTo

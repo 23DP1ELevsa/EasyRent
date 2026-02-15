@@ -206,6 +206,26 @@
                         :error-messages="fieldErrors.pasta_indekss ? [fieldErrors.pasta_indekss] : []"
                       />
                     </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.latitude"
+                        label="Platums (latitude)"
+                        variant="outlined"
+                        density="compact"
+                        placeholder="56.9496"
+                      />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                      <v-text-field
+                        v-model="form.longitude"
+                        label="Garums (longitude)"
+                        variant="outlined"
+                        density="compact"
+                        placeholder="24.1052"
+                      />
+                    </v-col>
                   </v-row>
                 </template>
 
@@ -274,6 +294,58 @@
               </v-form>
             </v-card-text>
           </v-card>
+
+          <!-- Reservations Card (Clients only) -->
+          <v-card v-if="loma === 'klients'" class="surface mt-6" elevation="12">
+            <v-card-title class="pa-6 pa-sm-8">
+              <div class="text-h5 font-weight-bold">Rezervācijas</div>
+            </v-card-title>
+            <v-divider />
+            <v-card-text class="pa-6 pa-sm-8">
+              <v-alert v-if="reservationsError" type="error" variant="tonal" class="mb-4">
+                {{ reservationsError }}
+              </v-alert>
+
+              <div v-if="reservationsLoading" class="text-body-2 opacity-70">Ielādē...</div>
+              <div v-else-if="!reservations.length" class="text-body-2 opacity-70">
+                Vēl nav rezervāciju.
+              </div>
+              <div v-else class="d-flex flex-column ga-3">
+                <v-card
+                  v-for="item in reservations"
+                  :key="item.rezervacija_id"
+                  class="reservation-card"
+                  elevation="4"
+                >
+                  <v-card-text class="pa-4">
+                    <div class="d-flex justify-space-between flex-wrap gap-2">
+                      <div>
+                        <div class="font-weight-bold">
+                          {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                        </div>
+                        <div class="text-caption opacity-70">
+                          {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
+                        </div>
+                        <div class="text-caption opacity-70">
+                          {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
+                        <v-chip
+                          size="small"
+                          :color="item.apmaksas_statuss === 'apmaksata' ? 'success' : 'grey'"
+                          variant="tonal"
+                        >
+                          {{ item.apmaksas_statuss === 'apmaksata' ? 'Apmaksāts' : 'Neapmaksāts' }}
+                        </v-chip>
+                      </div>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </div>
+            </v-card-text>
+          </v-card>
         </v-col>
       </v-row>
     </v-container>
@@ -290,6 +362,9 @@ const loading = ref(false)
 const errorText = ref('')
 const successText = ref('')
 const fieldErrors = ref({})
+const reservations = ref([])
+const reservationsLoading = ref(false)
+const reservationsError = ref('')
 
 const email = ref('')
 const loma = ref('')
@@ -305,6 +380,8 @@ const form = ref({
   pilseta: '',
   pasta_indekss: '',
   bankas_konts: '',
+  latitude: '',
+  longitude: '',
   password: '',
 })
 
@@ -396,6 +473,7 @@ onMounted(() => {
 
   if (userData.loma === 'klients' && userData.klients) {
     form.value.lietotajvards = userData.klients.lietotajvards || ''
+    loadReservations(userData.klients.klients_id)
   } else if (userData.loma === 'pakalpojumu_sniedzejs') {
     const sniedzejs = userData.pakalpojumuSniedzejs || userData.pakalpojumu_sniedzejs || null
     if (sniedzejs) {
@@ -405,9 +483,42 @@ onMounted(() => {
       form.value.dzivokla_numurs = sniedzejs.dzivokla_numurs || ''
       form.value.pilseta = sniedzejs.pilseta || ''
       form.value.pasta_indekss = sniedzejs.pasta_indekss || ''
+      form.value.latitude = sniedzejs.latitude ?? ''
+      form.value.longitude = sniedzejs.longitude ?? ''
     }
   }
 })
+
+async function loadReservations(klientsId) {
+  if (!klientsId) return
+  reservationsLoading.value = true
+  reservationsError.value = ''
+  try {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const response = await fetch(`${API_BASE}/api/rezervacijas?klients_id=${klientsId}`)
+    const data = await response.json()
+    if (!response.ok) {
+      reservationsError.value = data?.message || 'Neizdevās ielādēt rezervācijas.'
+      return
+    }
+    reservations.value = data
+  } catch (error) {
+    reservationsError.value = 'Kļūda: Neizdevās ielādēt rezervācijas.'
+  } finally {
+    reservationsLoading.value = false
+  }
+}
+
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return date.toLocaleString('lv-LV')
+}
+
+function formatPrice(value) {
+  const num = Number(value || 0)
+  return `${num.toFixed(2)} €`
+}
 
 // Update Profile
 async function updateProfile() {
@@ -455,6 +566,8 @@ async function updateProfile() {
       if (form.value.dzivokla_numurs) updateData.dzivokla_numurs = form.value.dzivokla_numurs
       if (form.value.pilseta) updateData.pilseta = form.value.pilseta
       if (form.value.pasta_indekss) updateData.pasta_indekss = form.value.pasta_indekss
+      if (form.value.latitude !== '') updateData.latitude = Number(form.value.latitude)
+      if (form.value.longitude !== '') updateData.longitude = Number(form.value.longitude)
     }
 
     console.log('Sending profile update to:', `${API_BASE}/api/profile/${user.persona_id}`)
@@ -563,6 +676,10 @@ function logout() {
   color: rgba(15, 23, 42, 0.85);
   text-transform: uppercase;
   opacity: 0.7;
+}
+
+.reservation-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .badge-info {

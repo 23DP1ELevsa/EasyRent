@@ -24,7 +24,7 @@
             Sākums
           </v-btn>
 
-          <v-btn variant="text" disabled>
+          <v-btn variant="text" @click="goMap">
             <v-icon start>mdi-map</v-icon>
             Karte
           </v-btn>
@@ -83,7 +83,7 @@
 
       <v-list nav density="comfortable">
         <v-list-item title="Sākums" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
-        <v-list-item title="Karte" prepend-icon="mdi-map" disabled />
+        <v-list-item title="Karte" prepend-icon="mdi-map" @click="goMapFromDrawer" />
         <v-divider />
         <template v-if="user">
           <v-list-item title="Mans profils" prepend-icon="mdi-account-circle" @click="goProfileFromDrawer" />
@@ -125,14 +125,14 @@
           <v-col cols="6" sm="4" md="2">
             <div class="footer-title">Lietotājiem</div>
             <div class="footer-link" @click="goHome">Sākums</div>
-            <div class="footer-link is-disabled">Karte</div>
+            <div class="footer-link" @click="goMap">Karte</div>
             <div class="footer-link is-disabled">Rezervācijas</div>
           </v-col>
 
           <v-col cols="6" sm="4" md="3">
             <div class="footer-title">Pakalpojumu sniedzējiem</div>
-            <div class="footer-link is-disabled">Pievienot transportu</div>
-            <div class="footer-link is-disabled">Pārvaldīt pieejamību</div>
+            <div class="footer-link" @click="goMap">Pievienot transportu</div>
+            <div class="footer-link" @click="goMap">Pārvaldīt pieejamību</div>
             <div class="footer-link is-disabled">Pasūtījumi</div>
           </v-col>
 
@@ -206,6 +206,12 @@ function goHome() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+function goMap() {
+  view.value = 'map'
+  router.push('/map')
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function goAuth() {
   view.value = 'auth'
   router.push('/auth')
@@ -221,6 +227,11 @@ function goProfile() {
 function goProfileFromDrawer() {
   drawer.value = false
   setTimeout(goProfile, 50)
+}
+
+function goMapFromDrawer() {
+  drawer.value = false
+  setTimeout(goMap, 50)
 }
 
 function goHomeFromDrawer() {
