@@ -372,6 +372,17 @@ const reservationsLoading = ref(false)
 const reservationsError = ref('')
 const geocodeLoading = ref(false)
 const geocodeError = ref('')
+const initialProviderAddress = ref({
+  iela: '',
+  majas_numurs: '',
+  dzivokla_numurs: '',
+  pilseta: '',
+  pasta_indekss: '',
+})
+const initialProviderCoords = ref({
+  latitude: '',
+  longitude: '',
+})
 
 const email = ref('')
 const loma = ref('')
@@ -492,6 +503,17 @@ onMounted(() => {
       form.value.pasta_indekss = sniedzejs.pasta_indekss || ''
       form.value.latitude = sniedzejs.latitude ?? ''
       form.value.longitude = sniedzejs.longitude ?? ''
+      initialProviderAddress.value = {
+        iela: form.value.iela,
+        majas_numurs: form.value.majas_numurs,
+        dzivokla_numurs: form.value.dzivokla_numurs,
+        pilseta: form.value.pilseta,
+        pasta_indekss: form.value.pasta_indekss,
+      }
+      initialProviderCoords.value = {
+        latitude: form.value.latitude,
+        longitude: form.value.longitude,
+      }
     }
   }
 })
@@ -540,6 +562,23 @@ function buildFullAddress() {
 
 function hasMinimalAddress() {
   return Boolean(form.value.iela && form.value.pilseta)
+}
+
+function isProviderAddressChanged() {
+  return [
+    ['iela', form.value.iela, initialProviderAddress.value.iela],
+    ['majas_numurs', form.value.majas_numurs, initialProviderAddress.value.majas_numurs],
+    ['dzivokla_numurs', form.value.dzivokla_numurs, initialProviderAddress.value.dzivokla_numurs],
+    ['pilseta', form.value.pilseta, initialProviderAddress.value.pilseta],
+    ['pasta_indekss', form.value.pasta_indekss, initialProviderAddress.value.pasta_indekss],
+  ].some(([, current, original]) => String(current ?? '').trim() !== String(original ?? '').trim())
+}
+
+function areProviderCoordsChanged() {
+  return [
+    ['latitude', form.value.latitude, initialProviderCoords.value.latitude],
+    ['longitude', form.value.longitude, initialProviderCoords.value.longitude],
+  ].some(([, current, original]) => String(current ?? '').trim() !== String(original ?? '').trim())
 }
 
 async function geocodeCoordinates(address) {
@@ -609,10 +648,15 @@ async function updateProfile() {
       if (form.value.dzivokla_numurs) updateData.dzivokla_numurs = form.value.dzivokla_numurs
       if (form.value.pilseta) updateData.pilseta = form.value.pilseta
       if (form.value.pasta_indekss) updateData.pasta_indekss = form.value.pasta_indekss
+      const addressChanged = isProviderAddressChanged()
+      const coordsChanged = areProviderCoordsChanged()
       const needsCoords = form.value.latitude === '' || form.value.longitude === ''
-      if (needsCoords) {
+      const shouldGeocode = (needsCoords || addressChanged) && !coordsChanged
+      if (shouldGeocode) {
         if (!hasMinimalAddress()) {
           geocodeError.value = 'Norādi vismaz ielu un pilsētu, lai automātiski atrastu koordinātes.'
+          loading.value = false
+          return
         } else {
           const address = buildFullAddress()
           const coords = await geocodeCoordinates(address)
@@ -622,6 +666,8 @@ async function updateProfile() {
             geocodeError.value = ''
           } else if (address) {
             geocodeError.value = 'Neizdevās atrast koordinātes no adreses.'
+            loading.value = false
+            return
           }
         }
       }
@@ -677,6 +723,19 @@ async function updateProfile() {
     
     successText.value = 'Profils atjaunināts sekmīgi!'
     form.value.password = ''
+    if (loma.value === 'pakalpojumu_sniedzejs') {
+      initialProviderAddress.value = {
+        iela: form.value.iela,
+        majas_numurs: form.value.majas_numurs,
+        dzivokla_numurs: form.value.dzivokla_numurs,
+        pilseta: form.value.pilseta,
+        pasta_indekss: form.value.pasta_indekss,
+      }
+      initialProviderCoords.value = {
+        latitude: form.value.latitude,
+        longitude: form.value.longitude,
+      }
+    }
   } catch (error) {
     console.error('Profile update error:', error)
     errorText.value = error?.message || 'Kļūda: Neizdevās savienot ar serveri'
