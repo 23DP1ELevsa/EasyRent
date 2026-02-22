@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PakalpojumuSniedzejs;
 use App\Models\Transportlidzeklis;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class TransportController extends Controller
 {
@@ -49,13 +51,15 @@ class TransportController extends Controller
             'veids_id' => ['required', 'integer', 'exists:transportlidzekla_veids,veids_id'],
             'marka' => ['required', 'string', 'max:50'],
             'modelis' => ['required', 'string', 'max:50'],
-            'atrumkarba' => ['nullable', 'string', 'max:20'],
-            'degvielas_veids' => ['nullable', 'string', 'max:20'],
+            'atrumkarba' => ['required', 'in:Automāts,Mehānika,-'],
+            'degvielas_veids' => ['required', 'in:Benzīns,Dīzelis,Elektro,-'],
             'dienas_nomas_cena' => ['required', 'numeric', 'min:0'],
-            'adrese' => ['required', 'string', 'max:255'],
             'statuss' => ['required', 'in:pieejams,aiznemts,neaktivs'],
             'registracijas_numurs' => ['required', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs'],
         ]);
+
+        $provider = PakalpojumuSniedzejs::findOrFail($data['sniedzejs_id']);
+        $data['adrese'] = $this->buildProviderAddress($provider);
 
         $transport = Transportlidzeklis::create($data);
 
@@ -75,10 +79,9 @@ class TransportController extends Controller
             'veids_id' => ['sometimes', 'integer', 'exists:transportlidzekla_veids,veids_id'],
             'marka' => ['sometimes', 'string', 'max:50'],
             'modelis' => ['sometimes', 'string', 'max:50'],
-            'atrumkarba' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'degvielas_veids' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'atrumkarba' => ['sometimes', 'in:Automāts,Mehānika,-'],
+            'degvielas_veids' => ['sometimes', 'in:Benzīns,Dīzelis,Elektro,-'],
             'dienas_nomas_cena' => ['sometimes', 'numeric', 'min:0'],
-            'adrese' => ['sometimes', 'string', 'max:255'],
             'statuss' => ['sometimes', 'in:pieejams,aiznemts,neaktivs'],
             'registracijas_numurs' => ['sometimes', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs,' . $transport->transportlidzeklis_id . ',transportlidzeklis_id'],
         ]);
@@ -87,8 +90,34 @@ class TransportController extends Controller
             return response()->json(['message' => 'Nav atļauts mainīt cita sniedzēja transportu'], 403);
         }
 
+        if ($request->hasAny(['marka', 'modelis', 'atrumkarba', 'degvielas_veids', 'dienas_nomas_cena', 'statuss', 'veids_id', 'registracijas_numurs'])) {
+            $provider = PakalpojumuSniedzejs::findOrFail($transport->sniedzejs_id);
+            $data['adrese'] = $this->buildProviderAddress($provider);
+        }
+
         $transport->update($data);
 
         return response()->json($transport->load(['sniedzejs.persona', 'veids', 'rezervacijas']));
+    }
+
+    private function buildProviderAddress(PakalpojumuSniedzejs $provider): string
+    {
+        $street = trim((string) ($provider->iela ?? ''));
+        $houseNo = trim((string) ($provider->majas_numurs ?? ''));
+        $apartmentNo = trim((string) ($provider->dzivokla_numurs ?? ''));
+        $city = trim((string) ($provider->pilseta ?? ''));
+
+        if ($street === '' || $houseNo === '' || $city === '') {
+            throw ValidationException::withMessages([
+                'adrese' => ['Lai pievienotu transportu, profilā jānorāda pilna adrese (iela, mājas numurs, pilsēta).'],
+            ]);
+        }
+
+        $addressLine = $street . ' ' . $houseNo;
+        if ($apartmentNo !== '') {
+            $addressLine .= '-' . $apartmentNo;
+        }
+
+        return $addressLine . ', ' . $city;
     }
 }

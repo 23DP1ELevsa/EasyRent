@@ -17,251 +17,279 @@
 
 		<v-navigation-drawer v-model="drawer" temporary location="left" width="360" class="map-drawer">
 			<div class="drawer-header">
-				<div>
-					<div class="text-h6 font-weight-bold">Karte un īres punkti</div>
-					<div class="text-caption opacity-70">Filtri, punkti un rezervācijas vienuviet.</div>
-				</div>
-				<div class="d-flex align-center ga-2">
-					<v-chip v-if="user" color="primary" size="small" variant="tonal">
+				<div class="drawer-header-main">
+					<div class="text-h6 font-weight-bold header-title">Karte un īres punkti</div>
+					<div class="text-caption header-subtitle">Filtri, punkti un rezervācijas vienuviet.</div>
+					<v-chip v-if="user" color="primary" size="small" variant="tonal" class="mt-2 text-black">
 						{{ roleLabel }}
 					</v-chip>
-					<v-btn icon variant="text" @click="drawer = false" aria-label="Aizvērt">
-						<v-icon>mdi-close</v-icon>
-					</v-btn>
 				</div>
-			</div>
-
-			<div class="drawer-actions">
-				<v-btn variant="outlined" block @click="goHome">
-					<v-icon start>mdi-arrow-left</v-icon>
-					Uz sākumu
+				<v-btn class="header-close-btn" icon variant="text" @click="drawer = false" aria-label="Aizvērt">
+					<v-icon>mdi-close</v-icon>
 				</v-btn>
 			</div>
 
 			<v-divider />
 
 			<div class="drawer-scroll">
-				<v-card class="surface pa-4" elevation="10">
-					<div class="text-subtitle-1 font-weight-bold mb-2">Filtri</div>
-					<v-text-field
-						v-model="filters.q"
-						label="Meklēt pēc nosaukuma vai pilsētas"
-						variant="outlined"
-						density="compact"
-					/>
-					<v-select
-						v-model="filters.companyId"
-						:items="companyOptions"
-						item-title="title"
-						item-value="value"
-						label="Kompānija"
-						variant="outlined"
-						density="compact"
-						clearable
-					/>
-					<v-select
-						v-model="filters.typeId"
-						:items="typeOptions"
-						item-title="title"
-						item-value="value"
-						label="Transporta veids"
-						variant="outlined"
-						density="compact"
-						clearable
-					/>
-					<v-row dense>
-						<v-col cols="6">
+				<v-expansion-panels v-model="expandedPanels" multiple variant="accordion" class="drawer-panels">
+					<v-expansion-panel value="filters" class="surface">
+						<v-expansion-panel-title>
+							<div class="text-subtitle-1 font-weight-bold">Filtri</div>
+						</v-expansion-panel-title>
+						<v-expansion-panel-text>
 							<v-text-field
-								v-model.number="filters.minPrice"
-								label="Cena no (€)"
+								v-model="filters.q"
+								label="Meklēt pēc nosaukuma vai pilsētas"
 								variant="outlined"
 								density="compact"
-								type="number"
-								min="0"
 							/>
-						</v-col>
-						<v-col cols="6">
-							<v-text-field
-								v-model.number="filters.maxPrice"
-								label="Cena līdz (€)"
+							<v-select
+								v-model="filters.companyId"
+								:items="companyOptions"
+								item-title="title"
+								item-value="value"
+								label="Kompānija"
 								variant="outlined"
 								density="compact"
-								type="number"
-								min="0"
+								clearable
 							/>
-						</v-col>
-					</v-row>
-					<v-switch
-						v-model="filters.onlyAvailable"
-						label="Rādīt tikai pieejamo"
-						inset
-						density="compact"
-					/>
-					<v-divider class="my-3" />
-					<div class="text-subtitle-2 font-weight-bold mb-2">Rezervācijas laiks</div>
-					<v-row dense>
-						<v-col cols="7">
-							<v-text-field
-								v-model="reservation.date"
-								label="Datums"
+							<v-select
+								v-model="filters.typeId"
+								:items="typeOptions"
+								item-title="title"
+								item-value="value"
+								label="Transporta veids"
 								variant="outlined"
 								density="compact"
-								type="date"
+								clearable
 							/>
-						</v-col>
-						<v-col cols="5">
-							<v-text-field
-								v-model="reservation.time"
-								label="Laiks"
-								variant="outlined"
+							<v-row dense>
+								<v-col cols="6">
+									<v-text-field
+										v-model.number="filters.minPrice"
+										label="Cena no (€)"
+										variant="outlined"
+										density="compact"
+										type="number"
+										min="0"
+									/>
+								</v-col>
+								<v-col cols="6">
+									<v-text-field
+										v-model.number="filters.maxPrice"
+										label="Cena līdz (€)"
+										variant="outlined"
+										density="compact"
+										type="number"
+										min="0"
+									/>
+								</v-col>
+							</v-row>
+							<v-switch
+								v-model="filters.onlyAvailable"
+								label="Rādīt tikai pieejamo"
+								inset
 								density="compact"
-								type="time"
 							/>
-						</v-col>
-						<v-col cols="12">
-							<v-text-field
-								v-model.number="reservation.days"
-								label="Dienu skaits"
-								variant="outlined"
-								density="compact"
-								type="number"
-								min="1"
-							/>
-						</v-col>
-					</v-row>
-				</v-card>
+							<v-divider class="my-3" />
+							<div class="text-subtitle-2 font-weight-bold mb-2">Rezervācijas laiks</div>
+							<v-row dense>
+								<v-col cols="7">
+									<v-text-field
+										v-model="reservation.date"
+										label="Datums"
+										variant="outlined"
+										density="compact"
+										type="date"
+									/>
+								</v-col>
+								<v-col cols="5">
+									<v-text-field
+										v-model="reservation.time"
+										label="Laiks"
+										variant="outlined"
+										density="compact"
+										type="time"
+									/>
+								</v-col>
+								<v-col cols="12">
+									<v-text-field
+										v-model.number="reservation.days"
+										label="Dienu skaits"
+										variant="outlined"
+										density="compact"
+										type="number"
+										min="1"
+									/>
+								</v-col>
+							</v-row>
+						</v-expansion-panel-text>
+					</v-expansion-panel>
 
-				<v-card class="surface mt-4" elevation="10">
-					<div class="d-flex align-center justify-space-between pa-4">
-						<div class="text-subtitle-1 font-weight-bold">Īres punkti</div>
-						<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
-					</div>
-					<v-divider />
-					<div class="list-wrap">
-						<div v-if="loading" class="pa-4 text-body-2">Ielādē...</div>
-						<div v-else-if="errorText" class="pa-4 text-error">{{ errorText }}</div>
-						<div v-else-if="!filteredPoints.length" class="pa-4 text-body-2 opacity-70">Nav rezultātu.</div>
-						<div v-else class="pa-4 d-flex flex-column ga-3">
-							<v-card
-								v-for="point in filteredPoints"
-								:key="point.id"
-								class="point-card"
-								elevation="4"
-								@click="selectPoint(point.id)"
-							>
-								<v-card-text class="pa-4">
-									<div class="d-flex align-center justify-space-between">
-										<div>
-											<div class="text-subtitle-1 font-weight-bold">{{ point.name }}</div>
-											<div class="text-caption opacity-70">{{ point.address }}</div>
-											<div class="text-caption opacity-70">{{ point.city }}</div>
-										</div>
-										<v-chip size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
-											{{ point.availableCount }}/{{ point.vehicles.length }}
-										</v-chip>
-									</div>
-									<div class="text-caption mt-2" v-if="!point.hasCoords">Nav koordināšu kartē</div>
-								</v-card-text>
-							</v-card>
-						</div>
-					</div>
-				</v-card>
-
-				<v-card v-if="selectedPoint" class="surface mt-4" elevation="10">
-					<v-card-title class="d-flex align-center justify-space-between">
-						<div>
-							<div class="text-h6 font-weight-bold">{{ selectedPoint.name }}</div>
-							<div class="text-caption opacity-70">{{ selectedPoint.address }} • {{ selectedPoint.city }}</div>
-						</div>
-						<v-btn icon variant="text" @click="selectedPointId = null" aria-label="Aizvērt">
-							<v-icon>mdi-close</v-icon>
-						</v-btn>
-					</v-card-title>
-					<v-divider />
-					<v-card-text class="pa-4">
-						<div v-if="!selectedPoint.vehicles.length" class="text-body-2 opacity-70">Nav transporta.</div>
-						<div v-else class="d-flex flex-column ga-3">
-							<div
-								v-for="vehicle in selectedPoint.vehicles"
-								:key="vehicle.transportlidzeklis_id"
-								class="vehicle-row"
-								:class="{ 'is-unavailable': !isVehicleAvailable(vehicle) }"
-							>
-								<div>
-									<div class="font-weight-bold">
-										{{ vehicle.marka }} {{ vehicle.modelis }}
-									</div>
-									<div class="text-caption opacity-70">
-										{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
-									</div>
-								</div>
-								<div class="d-flex align-center ga-2">
-									<v-chip
-										size="small"
-										:color="isVehicleAvailable(vehicle) ? 'success' : 'grey'"
-										variant="tonal"
+					<v-expansion-panel value="points" class="surface mt-4">
+						<v-expansion-panel-title>
+							<div class="d-flex align-center justify-space-between w-100 pr-2">
+								<div class="text-subtitle-1 font-weight-bold">Īres punkti</div>
+								<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
+							</div>
+						</v-expansion-panel-title>
+						<v-expansion-panel-text>
+							<div class="list-wrap">
+								<div v-if="loading" class="pa-2 text-body-2">Ielādē...</div>
+								<div v-else-if="errorText" class="pa-2 text-error">{{ errorText }}</div>
+								<div v-else-if="!filteredPoints.length" class="pa-2 text-body-2 opacity-70">Nav rezultātu.</div>
+								<div v-else class="pa-2 d-flex flex-column ga-3">
+									<v-card
+										v-for="point in filteredPoints"
+										:key="point.id"
+										class="point-card"
+										elevation="4"
+										@click="selectPoint(point.id)"
 									>
-										{{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Aizņemts' }}
-									</v-chip>
-									<v-btn
-										v-if="isClient"
-										size="small"
-										color="primary"
-										:disabled="!isVehicleAvailable(vehicle)"
-										@click="openReservation(vehicle)"
-									>
-										Rezervēt
-									</v-btn>
-									<v-btn
-										v-else-if="isProvider && isOwnVehicle(vehicle)"
-										size="small"
-										variant="tonal"
-										@click="openEditVehicle(vehicle)"
-									>
-										Rediģēt
-									</v-btn>
+										<v-card-text class="pa-4">
+											<div class="d-flex align-center justify-space-between">
+												<div>
+													<div class="text-subtitle-1 font-weight-bold">{{ point.name }}</div>
+													<div class="text-caption opacity-70">{{ point.address }}</div>
+													<div class="text-caption opacity-70">{{ point.city }}</div>
+												</div>
+												<v-chip size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
+													{{ point.availableCount }}/{{ point.vehicles.length }}
+												</v-chip>
+											</div>
+											<div class="text-caption mt-2" v-if="!point.hasCoords">Nav koordināšu kartē</div>
+										</v-card-text>
+									</v-card>
 								</div>
 							</div>
-						</div>
-					</v-card-text>
-				</v-card>
 
-				<v-card v-if="isProvider" class="surface mt-4 pa-4" elevation="10">
-					<div class="text-subtitle-1 font-weight-bold mb-2">Pievienot transportu</div>
-					<v-alert v-if="providerError" type="error" variant="tonal" class="mb-3" density="compact">
-						{{ providerError }}
-					</v-alert>
-					<v-alert v-if="providerSuccess" type="success" variant="tonal" class="mb-3" density="compact">
-						{{ providerSuccess }}
-					</v-alert>
-					<v-form @submit.prevent="submitVehicle">
-						<v-select
-							v-model="newVehicle.veids_id"
-							:items="typeOptions"
-							item-title="title"
-							item-value="value"
-							label="Transporta veids"
-							variant="outlined"
-							density="compact"
-							:disabled="typeOptions.length === 0"
-						/>
-						<v-text-field v-model="newVehicle.marka" label="Marka" variant="outlined" density="compact" />
-						<v-text-field v-model="newVehicle.modelis" label="Modelis" variant="outlined" density="compact" />
-						<v-text-field v-model="newVehicle.registracijas_numurs" label="Reģistrācijas nr." variant="outlined" density="compact" />
-						<v-text-field v-model="newVehicle.adrese" label="Adrese" variant="outlined" density="compact" />
-						<v-text-field v-model.number="newVehicle.dienas_nomas_cena" label="Cena (€ / diena)" type="number" min="0" variant="outlined" density="compact" />
-						<v-select
-							v-model="newVehicle.statuss"
-							:items="statusOptions"
-							label="Statuss"
-							variant="outlined"
-							density="compact"
-						/>
-						<v-btn type="submit" block color="primary" :loading="providerLoading" class="mt-2">
-							Pievienot
-						</v-btn>
-					</v-form>
-				</v-card>
+							<v-card v-if="selectedPoint" class="surface mt-4" elevation="10">
+								<v-card-title class="d-flex align-center justify-space-between">
+									<div>
+										<div class="text-h6 font-weight-bold">{{ selectedPoint.name }}</div>
+										<div class="text-caption opacity-70">{{ selectedPoint.address }} • {{ selectedPoint.city }}</div>
+									</div>
+									<v-btn icon variant="text" @click="selectedPointId = null" aria-label="Aizvērt">
+										<v-icon>mdi-close</v-icon>
+									</v-btn>
+								</v-card-title>
+								<v-divider />
+								<v-card-text class="pa-4">
+									<div v-if="!selectedPoint.vehicles.length" class="text-body-2 opacity-70">Nav transporta.</div>
+									<div v-else class="d-flex flex-column ga-3">
+										<div
+											v-for="vehicle in selectedPoint.vehicles"
+											:key="vehicle.transportlidzeklis_id"
+											class="vehicle-row"
+											:class="{ 'is-unavailable': !isVehicleAvailable(vehicle) }"
+										>
+											<div>
+												<div class="font-weight-bold">
+													{{ vehicle.marka }} {{ vehicle.modelis }}
+												</div>
+												<div class="text-caption opacity-70">
+													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
+												</div>
+											</div>
+											<div class="d-flex align-center ga-2">
+												<v-chip
+													size="small"
+													:color="isVehicleAvailable(vehicle) ? 'success' : 'grey'"
+													variant="tonal"
+												>
+													{{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Aizņemts' }}
+												</v-chip>
+												<v-btn
+													v-if="isClient"
+													size="small"
+													color="primary"
+													:disabled="!isVehicleAvailable(vehicle)"
+													@click="openReservation(vehicle)"
+												>
+													Rezervēt
+												</v-btn>
+												<v-btn
+													v-else-if="isProvider && isOwnVehicle(vehicle)"
+													size="small"
+													variant="tonal"
+													@click="openEditVehicle(vehicle)"
+												>
+													Rediģēt
+												</v-btn>
+											</div>
+										</div>
+									</div>
+								</v-card-text>
+							</v-card>
+						</v-expansion-panel-text>
+					</v-expansion-panel>
+
+					<v-expansion-panel v-if="isProvider" value="add-vehicle" class="surface mt-4">
+						<v-expansion-panel-title>
+							<div class="text-subtitle-1 font-weight-bold">Pievienot transportu</div>
+						</v-expansion-panel-title>
+						<v-expansion-panel-text>
+							<v-alert v-if="providerError" type="error" variant="tonal" class="mb-3" density="compact">
+								{{ providerError }}
+							</v-alert>
+							<v-alert v-if="providerSuccess" type="success" variant="tonal" class="mb-3" density="compact">
+								{{ providerSuccess }}
+							</v-alert>
+							<v-form @submit.prevent="submitVehicle">
+								<v-select
+									v-model="newVehicle.veids_id"
+									:items="typeOptions"
+									item-title="title"
+									item-value="value"
+									label="Transporta veids"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-text-field v-model="newVehicle.marka" label="Marka" variant="outlined" density="compact" />
+								<v-text-field v-model="newVehicle.modelis" label="Modelis" variant="outlined" density="compact" />
+								<v-select
+									v-model="newVehicle.atrumkarba"
+									:items="gearboxOptions"
+									label="Ātrumkārba"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-select
+									v-model="newVehicle.degvielas_veids"
+									:items="fuelOptions"
+									label="Degvielas veids"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-text-field
+									v-model.number="newVehicle.dienas_nomas_cena"
+									label="Dienas nomas cena"
+									type="number"
+									min="0"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-select
+									v-model="newVehicle.statuss"
+									:items="statusOptions"
+									label="Statuss"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-text-field
+									v-model="newVehicle.registracijas_numurs"
+									label="Reģistrācijas numurs"
+									variant="outlined"
+									density="compact"
+								/>
+								<v-btn type="submit" block color="primary" :loading="providerLoading" class="mt-2">
+									Pievienot
+								</v-btn>
+							</v-form>
+						</v-expansion-panel-text>
+					</v-expansion-panel>
+				</v-expansion-panels>
 			</div>
 		</v-navigation-drawer>
 
@@ -368,6 +396,7 @@ const transportTypes = ref([])
 const loading = ref(false)
 const errorText = ref('')
 const drawer = ref(false)
+const expandedPanels = ref([])
 
 const filters = ref({
 	q: '',
@@ -410,13 +439,16 @@ const newVehicle = ref({
 	veids_id: null,
 	marka: '',
 	modelis: '',
+	atrumkarba: '-',
+	degvielas_veids: '-',
 	registracijas_numurs: '',
-	adrese: '',
 	dienas_nomas_cena: null,
 	statuss: 'pieejams',
 })
 
 const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
+const gearboxOptions = ['Automāts', 'Mehānika', '-']
+const fuelOptions = ['Benzīns', 'Dīzelis', 'Elektro', '-']
 
 const roleLabel = computed(() => {
 	if (!user.value) return 'Viesis'
@@ -493,10 +525,6 @@ const reservationTotal = computed(() => {
 
 let mapInstance = null
 let markers = []
-
-function goHome() {
-	router.push('/')
-}
 
 function formatPrice(value) {
 	const num = Number(value || 0)
@@ -680,8 +708,9 @@ async function submitVehicle() {
 			veids_id: newVehicle.value.veids_id,
 			marka: newVehicle.value.marka,
 			modelis: newVehicle.value.modelis,
+			atrumkarba: newVehicle.value.atrumkarba || null,
+			degvielas_veids: newVehicle.value.degvielas_veids || null,
 			registracijas_numurs: newVehicle.value.registracijas_numurs,
-			adrese: newVehicle.value.adrese,
 			dienas_nomas_cena: newVehicle.value.dienas_nomas_cena,
 			statuss: newVehicle.value.statuss,
 		}
@@ -703,8 +732,9 @@ async function submitVehicle() {
 			veids_id: null,
 			marka: '',
 			modelis: '',
+			atrumkarba: '-',
+			degvielas_veids: '-',
 			registracijas_numurs: '',
-			adrese: '',
 			dienas_nomas_cena: null,
 			statuss: 'pieejams',
 		}
@@ -872,12 +902,25 @@ watch(drawer, async () => {
 	padding: 16px;
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: center;
 	gap: 12px;
+	position: relative;
+	text-align: center;
 }
 
-.drawer-actions {
-	padding: 0 16px 16px;
+.drawer-header-main {
+	width: 100%;
+}
+
+.header-title,
+.header-subtitle {
+	color: #000;
+}
+
+.header-close-btn {
+	position: absolute;
+	right: 8px;
+	top: 8px;
 }
 
 .drawer-scroll {

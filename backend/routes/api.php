@@ -14,10 +14,10 @@ Route::get('/health', function () {
 Route::prefix('transport')->group(function () {
     Route::get('/', [TransportController::class, 'index']);
     Route::post('/', [TransportController::class, 'store']);
-    Route::get('/{id}', [TransportController::class, 'show']);
-    Route::put('/{id}', [TransportController::class, 'update']);
     Route::get('/veidi', [TransportVeidsController::class, 'index']);
     Route::post('/veidi', [TransportVeidsController::class, 'store']);
+    Route::get('/{id}', [TransportController::class, 'show']);
+    Route::put('/{id}', [TransportController::class, 'update']);
 });
 
 // Auth API (JSON)
