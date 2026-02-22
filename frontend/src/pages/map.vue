@@ -148,7 +148,7 @@
 										@click="selectPoint(point.id)"
 									>
 										<v-card-text class="pa-4">
-											<div class="d-flex align-center justify-space-between">
+											<div class="point-card-header d-flex align-center justify-space-between">
 												<div>
 													<div class="text-subtitle-1 font-weight-bold">{{ point.name }}</div>
 													<div class="text-caption opacity-70">{{ point.address }}</div>
@@ -165,7 +165,7 @@
 							</div>
 
 							<v-card v-if="selectedPoint" class="surface mt-4" elevation="10">
-								<v-card-title class="d-flex align-center justify-space-between">
+								<v-card-title class="selected-point-title d-flex align-center justify-space-between">
 									<div>
 										<div class="text-h6 font-weight-bold">{{ selectedPoint.name }}</div>
 										<div class="text-caption opacity-70">{{ selectedPoint.address }} • {{ selectedPoint.city }}</div>
@@ -182,9 +182,13 @@
 											v-for="vehicle in selectedPoint.vehicles"
 											:key="vehicle.transportlidzeklis_id"
 											class="vehicle-row"
-											:class="{ 'is-unavailable': !isVehicleAvailable(vehicle) }"
+											:class="{
+												'is-available': isVehicleAvailable(vehicle),
+												'is-unavailable': !isVehicleAvailable(vehicle) && vehicle.statuss !== 'neaktivs',
+												'is-inactive': vehicle.statuss === 'neaktivs',
+											}"
 										>
-											<div>
+											<div class="vehicle-main">
 												<div class="font-weight-bold">
 													{{ vehicle.marka }} {{ vehicle.modelis }}
 												</div>
@@ -192,10 +196,11 @@
 													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
 												</div>
 											</div>
-											<div class="d-flex align-center ga-2">
+											<div class="vehicle-actions d-flex align-center ga-2">
 												<v-chip
 													size="small"
-													:color="isVehicleAvailable(vehicle) ? 'success' : 'grey'"
+													:color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
+													:class="{ 'status-chip-unavailable': !isVehicleAvailable(vehicle) }"
 													variant="tonal"
 												>
 													{{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Aizņemts' }}
@@ -306,11 +311,23 @@
 							{{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
 						</div>
 					</div>
-					<v-text-field v-model="reservation.date" label="Datums" type="date" variant="outlined" density="compact" />
-					<v-text-field v-model="reservation.time" label="Laiks" type="time" variant="outlined" density="compact" />
-					<v-text-field v-model.number="reservation.days" label="Dienu skaits" type="number" min="1" variant="outlined" density="compact" />
-					<div class="text-body-2 mt-2">
-						Summa: <strong>{{ reservationTotal }}</strong>
+					<div class="text-body-2 mb-2">Izvēlieties sākuma datumu, laiku un nomas ilgumu.</div>
+					<v-row dense>
+						<v-col cols="7">
+							<v-text-field v-model="reservation.date" label="Sākuma datums" type="date" variant="outlined" density="compact" />
+						</v-col>
+						<v-col cols="5">
+							<v-text-field v-model="reservation.time" label="Sākuma laiks" type="time" variant="outlined" density="compact" />
+						</v-col>
+						<v-col cols="12">
+							<v-text-field v-model.number="reservation.days" label="Dienu skaits" type="number" min="1" variant="outlined" density="compact" />
+						</v-col>
+					</v-row>
+
+					<div class="reservation-summary mt-2">
+						<div><strong>Periods:</strong> {{ reservationPeriodText }}</div>
+						<div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+						<div><strong>Kopā:</strong> {{ reservationTotal }}</div>
 					</div>
 					<v-alert v-if="reservationError" type="error" variant="tonal" class="mt-3" density="compact">
 						{{ reservationError }}
@@ -319,7 +336,7 @@
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
 					<v-btn variant="text" @click="reservationDialog = false">Atcelt</v-btn>
-					<v-btn color="primary" :loading="reservationLoading" @click="createReservation">Rezervēt</v-btn>
+					<v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">Rezervēt</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -344,7 +361,7 @@
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" @click="paymentDialog = false">Aizvērt</v-btn>
+					<v-btn variant="text" @click="closePaymentDialog">Aizvērt</v-btn>
 					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Maksāt</v-btn>
 				</v-card-actions>
 			</v-card>
@@ -355,11 +372,42 @@
 				<v-card-title class="font-weight-bold">Rediģēt transportu</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
+					<v-select
+						v-model="editVehicle.veids_id"
+						:items="typeOptions"
+						item-title="title"
+						item-value="value"
+						label="Transporta veids"
+						variant="outlined"
+						density="compact"
+					/>
+					<v-text-field v-model="editVehicle.marka" label="Marka" variant="outlined" density="compact" />
+					<v-text-field v-model="editVehicle.modelis" label="Modelis" variant="outlined" density="compact" />
+					<v-select
+						v-model="editVehicle.atrumkarba"
+						:items="gearboxOptions"
+						label="Ātrumkārba"
+						variant="outlined"
+						density="compact"
+					/>
+					<v-select
+						v-model="editVehicle.degvielas_veids"
+						:items="fuelOptions"
+						label="Degvielas veids"
+						variant="outlined"
+						density="compact"
+					/>
 					<v-text-field v-model.number="editVehicle.dienas_nomas_cena" label="Cena (€ / diena)" type="number" min="0" variant="outlined" density="compact" />
 					<v-select
 						v-model="editVehicle.statuss"
 						:items="statusOptions"
 						label="Statuss"
+						variant="outlined"
+						density="compact"
+					/>
+					<v-text-field
+						v-model="editVehicle.registracijas_numurs"
+						label="Reģistrācijas numurs"
 						variant="outlined"
 						density="compact"
 					/>
@@ -464,6 +512,26 @@ const providerId = computed(() =>
 
 const typeOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
 
+function toValidCoordinate(value, type) {
+	if (value === null || value === undefined || value === '') return null
+	const num = Number(value)
+	if (!Number.isFinite(num)) return null
+	if (type === 'lat' && (num < -90 || num > 90)) return null
+	if (type === 'lng' && (num < -180 || num > 180)) return null
+	return num
+}
+
+function getPointFallbackCoords(pointId) {
+	const baseLat = 56.9496
+	const baseLng = 24.1052
+	const id = Number(pointId) || 1
+	const offset = ((id % 25) - 12) * 0.004
+	return {
+		lat: baseLat + offset,
+		lng: baseLng - offset,
+	}
+}
+
 const points = computed(() => {
 	const map = new Map()
 	transportItems.value.forEach(item => {
@@ -471,6 +539,8 @@ const points = computed(() => {
 		if (!sniedzejs) return
 		const id = sniedzejs.sniedzejs_id
 		if (!map.has(id)) {
+			const lat = toValidCoordinate(sniedzejs.latitude, 'lat')
+			const lng = toValidCoordinate(sniedzejs.longitude, 'lng')
 			const persona = sniedzejs.persona
 			const name = persona ? `${persona.vards} ${persona.uzvards}`.trim() : `Pakalpojumu sniedzējs #${id}`
 			const address = [sniedzejs.iela, sniedzejs.majas_numurs, sniedzejs.dzivokla_numurs].filter(Boolean).join(' ')
@@ -479,9 +549,9 @@ const points = computed(() => {
 				name,
 				address: address || 'Nav norādīta adrese',
 				city: sniedzejs.pilseta || 'Nav norādīta pilsēta',
-				lat: sniedzejs.latitude !== null && sniedzejs.latitude !== undefined ? Number(sniedzejs.latitude) : null,
-				lng: sniedzejs.longitude !== null && sniedzejs.longitude !== undefined ? Number(sniedzejs.longitude) : null,
-				hasCoords: sniedzejs.latitude !== null && sniedzejs.latitude !== undefined && sniedzejs.longitude !== null && sniedzejs.longitude !== undefined,
+				lat,
+				lng,
+				hasCoords: lat !== null && lng !== null,
 				vehicles: [],
 			})
 		}
@@ -515,6 +585,24 @@ const filteredPoints = computed(() => {
 
 const selectedPointId = ref(null)
 const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
+const pointCoordsOverride = ref({})
+
+const mappablePoints = computed(() => {
+	return points.value.map(point => {
+		const fallback = pointCoordsOverride.value[point.id]
+		const synthetic = getPointFallbackCoords(point.id)
+		const lat = point.hasCoords ? point.lat : fallback?.lat ?? synthetic.lat
+		const lng = point.hasCoords ? point.lng : fallback?.lng ?? synthetic.lng
+		const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
+
+		return {
+			...point,
+			lat,
+			lng,
+			hasCoords,
+		}
+	})
+})
 
 const reservationTotal = computed(() => {
 	if (!activeVehicle.value) return '0 €'
@@ -523,12 +611,40 @@ const reservationTotal = computed(() => {
 	return formatPrice(sum)
 })
 
+const isReservationFormValid = computed(() => {
+	const days = Number(reservation.value.days)
+	if (!reservation.value.date || !reservation.value.time) return false
+	if (!Number.isFinite(days) || days < 1) return false
+
+	const start = new Date(`${reservation.value.date}T${reservation.value.time}:00`)
+	return !Number.isNaN(start.getTime())
+})
+
+const reservationPeriodText = computed(() => {
+	if (!isReservationFormValid.value) return 'Norādiet derīgu datumu, laiku un dienu skaitu.'
+	const { start, end } = getReservationRange()
+	return `${formatDateTime(start)} → ${formatDateTime(end)}`
+})
+
 let mapInstance = null
 let markers = []
 
 function formatPrice(value) {
 	const num = Number(value || 0)
 	return `${num.toFixed(2)} €`
+}
+
+function formatDateTime(value) {
+	const date = value instanceof Date ? value : new Date(value)
+	if (Number.isNaN(date.getTime())) return '—'
+	return new Intl.DateTimeFormat('lv-LV', {
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false,
+	}).format(date)
 }
 
 function getReservationRange() {
@@ -587,6 +703,11 @@ function openReservation(vehicle) {
 async function createReservation() {
 	if (!activeVehicle.value || !user.value?.klients?.klients_id) {
 		reservationError.value = 'Nav klienta datu.'
+		return
+	}
+
+	if (!isReservationFormValid.value) {
+		reservationError.value = 'Lūdzu, aizpildiet korektu datumu, laiku un dienu skaitu.'
 		return
 	}
 
@@ -654,11 +775,28 @@ async function confirmPayment() {
 	}
 }
 
+function closePaymentDialog() {
+	paymentDialog.value = false
+	if (pendingReservation.value?.apmaksas_statuss !== 'apmaksata') {
+		snackbar.value = {
+			show: true,
+			text: 'Rezervācija ir izveidota, bet neapmaksāta. To var apmaksāt Profilā.',
+			color: 'warning',
+		}
+	}
+}
+
 function openEditVehicle(vehicle) {
 	editVehicle.value = {
 		transportlidzeklis_id: vehicle.transportlidzeklis_id,
+		veids_id: vehicle.veids_id,
+		marka: vehicle.marka,
+		modelis: vehicle.modelis,
+		atrumkarba: vehicle.atrumkarba || '-',
+		degvielas_veids: vehicle.degvielas_veids || '-',
 		dienas_nomas_cena: vehicle.dienas_nomas_cena,
 		statuss: vehicle.statuss,
+		registracijas_numurs: vehicle.registracijas_numurs,
 	}
 	editError.value = ''
 	editDialog.value = true
@@ -673,8 +811,14 @@ async function saveVehicle() {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				sniedzejs_id: providerId.value,
+				veids_id: editVehicle.value.veids_id,
+				marka: editVehicle.value.marka,
+				modelis: editVehicle.value.modelis,
+				atrumkarba: editVehicle.value.atrumkarba,
+				degvielas_veids: editVehicle.value.degvielas_veids,
 				dienas_nomas_cena: editVehicle.value.dienas_nomas_cena,
 				statuss: editVehicle.value.statuss,
+				registracijas_numurs: editVehicle.value.registracijas_numurs,
 			}),
 		})
 		const result = await response.json()
@@ -791,17 +935,55 @@ function renderMarkers() {
 	markers.forEach(marker => mapInstance.removeLayer(marker))
 	markers = []
 
-	filteredPoints.value.forEach(point => {
+	mappablePoints.value.forEach(point => {
 		if (!point.hasCoords) return
+
 		const marker = L.marker([point.lat, point.lng], {
 			icon: L.divIcon({
-				className: 'marker-dot',
+				className: 'marker-point',
 				html: '<span></span>',
 			}),
 		}).addTo(mapInstance)
+
+		marker.bindPopup(`
+			<div>
+				<strong>${point.name}</strong><br/>
+				${point.address}, ${point.city}<br/>
+				Transporti: ${point.vehicles.length} (${point.availableCount} pieejami)
+			</div>
+		`)
+
 		marker.on('click', () => selectPoint(point.id))
 		markers.push(marker)
 	})
+}
+
+async function resolveMissingPointCoords() {
+	const toResolve = points.value.filter(point => !point.hasCoords && !pointCoordsOverride.value[point.id])
+
+	for (const point of toResolve) {
+		if (!point.address || point.address === 'Nav norādīta adrese') continue
+		if (!point.city || point.city === 'Nav norādīta pilsēta') continue
+
+		try {
+			const query = encodeURIComponent(`${point.address}, ${point.city}, Latvia`)
+			const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`)
+			if (!response.ok) continue
+			const result = await response.json()
+			const first = result?.[0]
+			if (!first) continue
+
+			pointCoordsOverride.value = {
+				...pointCoordsOverride.value,
+				[point.id]: {
+					lat: Number(first.lat),
+					lng: Number(first.lon),
+				},
+			}
+		} catch {
+			continue
+		}
+	}
 }
 
 function locateUser() {
@@ -821,12 +1003,14 @@ onMounted(async () => {
 	if (userStr) user.value = JSON.parse(userStr)
 	await loadTypes()
 	await loadTransport()
+	await resolveMissingPointCoords()
 	await nextTick()
 	initMap()
 	renderMarkers()
 })
 
-watch(filteredPoints, () => {
+watch(points, async () => {
+	await resolveMissingPointCoords()
 	nextTick().then(renderMarkers)
 })
 
@@ -929,6 +1113,17 @@ watch(drawer, async () => {
 	max-height: calc(100vh - 72px - 120px);
 }
 
+.drawer-panels,
+.drawer-panels :deep(.v-expansion-panel-text__wrapper) {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.drawer-panels :deep(.v-expansion-panel-title__overlay),
+.drawer-panels :deep(.v-expansion-panel-title) {
+	border-radius: 12px;
+}
+
 .list-wrap {
 	max-height: 260px;
 	overflow-y: auto;
@@ -937,34 +1132,109 @@ watch(drawer, async () => {
 .point-card {
 	cursor: pointer;
 	border: 1px solid rgba(15, 23, 42, 0.12);
+	max-width: 100%;
+	overflow: hidden;
 }
 
 .point-card:hover {
 	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
 
+.point-card-header {
+	justify-content: center;
+	text-align: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.selected-point-title {
+	justify-content: center;
+	text-align: center;
+	position: relative;
+	padding-right: 44px;
+	word-break: break-word;
+}
+
+.selected-point-title :deep(.v-btn) {
+	position: absolute;
+	right: 8px;
+	top: 8px;
+}
+
 .vehicle-row {
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: center;
+	text-align: center;
 	gap: 12px;
 	padding: 12px;
 	border-radius: 12px;
 	border: 1px solid rgba(15, 23, 42, 0.12);
 	background: rgba(15, 23, 42, 0.04);
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.vehicle-row.is-available {
+	border-color: rgba(22, 163, 74, 0.65);
+	box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.35);
 }
 
 .vehicle-row.is-unavailable {
-	opacity: 0.6;
-	text-decoration: line-through;
+	border-color: #dc2626;
+	box-shadow: inset 0 0 0 1px #dc2626;
 }
 
-.marker-dot span {
+.vehicle-row.is-inactive {
+	opacity: 0.7;
+	text-decoration: line-through;
+	border-color: rgba(71, 85, 105, 0.45);
+	background: rgba(100, 116, 139, 0.08);
+}
+
+.vehicle-main,
+.vehicle-actions {
+	width: 100%;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.status-chip-unavailable {
+	border: 1px solid #dc2626 !important;
+	background: #fee2e2 !important;
+}
+
+.status-chip-unavailable :deep(.v-chip__content) {
+	color: #b91c1c !important;
+	font-weight: 600;
+}
+
+.reservation-summary {
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid rgba(15, 23, 42, 0.12);
+	background: rgba(15, 23, 42, 0.04);
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 0.9rem;
+}
+
+.drawer-scroll :deep(.v-input),
+.drawer-scroll :deep(.v-field),
+.drawer-scroll :deep(.v-btn),
+.drawer-scroll :deep(.v-card) {
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+:deep(.marker-point span) {
 	display: block;
 	width: 18px;
 	height: 18px;
 	border-radius: 6px;
-	background: #3b82f6;
+	background: #2563eb;
 	border: 2px solid #0f172a;
 	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
 }

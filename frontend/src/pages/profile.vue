@@ -307,48 +307,110 @@
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-6 pa-sm-8">
+              <v-alert
+                v-if="unpaidReservations.length"
+                type="warning"
+                variant="tonal"
+                class="mb-4"
+              >
+                Jums ir {{ unpaidReservations.length }} neapmaksāta(s) rezervācija(s).
+              </v-alert>
+
               <v-alert v-if="reservationsError" type="error" variant="tonal" class="mb-4">
                 {{ reservationsError }}
+              </v-alert>
+
+              <v-alert v-if="reservationsSuccess" type="success" variant="tonal" class="mb-4">
+                {{ reservationsSuccess }}
               </v-alert>
 
               <div v-if="reservationsLoading" class="text-body-2 opacity-70">Ielādē...</div>
               <div v-else-if="!reservations.length" class="text-body-2 opacity-70">
                 Vēl nav rezervāciju.
               </div>
-              <div v-else class="d-flex flex-column ga-3">
-                <v-card
-                  v-for="item in reservations"
-                  :key="item.rezervacija_id"
-                  class="reservation-card"
-                  elevation="4"
-                >
-                  <v-card-text class="pa-4">
-                    <div class="d-flex justify-space-between flex-wrap gap-2">
-                      <div>
-                        <div class="font-weight-bold">
-                          {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+
+              <template v-else>
+                <div class="section-title mb-3">Aktīvās rezervācijas</div>
+
+                <div v-if="!activeReservations.length" class="text-body-2 opacity-70 mb-4">
+                  Nav aktīvu rezervāciju.
+                </div>
+
+                <div v-else class="d-flex flex-column ga-3 mb-6">
+                  <v-card
+                    v-for="item in activeReservations"
+                    :key="`active-${item.rezervacija_id}`"
+                    class="reservation-card"
+                    elevation="4"
+                  >
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between flex-wrap gap-2">
+                        <div>
+                          <div class="font-weight-bold">
+                            {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          </div>
+                          <div class="text-caption opacity-70">
+                            {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
+                          </div>
+                          <div class="text-caption opacity-70">
+                            {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
+                          </div>
                         </div>
-                        <div class="text-caption opacity-70">
-                          {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
-                        </div>
-                        <div class="text-caption opacity-70">
-                          {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
+                        <div class="text-right">
+                          <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
+                          <v-chip size="small" color="success" variant="tonal">Apmaksāts</v-chip>
                         </div>
                       </div>
-                      <div class="text-right">
-                        <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
-                        <v-chip
-                          size="small"
-                          :color="item.apmaksas_statuss === 'apmaksata' ? 'success' : 'grey'"
-                          variant="tonal"
-                        >
-                          {{ item.apmaksas_statuss === 'apmaksata' ? 'Apmaksāts' : 'Neapmaksāts' }}
-                        </v-chip>
+                    </v-card-text>
+                  </v-card>
+                </div>
+
+                <div class="section-title mb-3">Neapmaksātās rezervācijas</div>
+
+                <div v-if="!unpaidReservations.length" class="text-body-2 opacity-70">
+                  Nav neapmaksātu rezervāciju.
+                </div>
+
+                <div v-else class="d-flex flex-column ga-3">
+                  <v-card
+                    v-for="item in unpaidReservations"
+                    :key="`unpaid-${item.rezervacija_id}`"
+                    class="reservation-card reservation-card-unpaid"
+                    elevation="4"
+                  >
+                    <v-card-text class="pa-4">
+                      <div class="d-flex justify-space-between flex-wrap gap-2 mb-3">
+                        <div>
+                          <div class="font-weight-bold">
+                            {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          </div>
+                          <div class="text-caption opacity-70">
+                            {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
+                          </div>
+                          <div class="text-caption opacity-70">
+                            {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
+                          </div>
+                        </div>
+                        <div class="text-right">
+                          <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
+                          <v-chip size="small" color="warning" variant="tonal">Neapmaksāts</v-chip>
+                        </div>
                       </div>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </div>
+
+                      <v-btn
+                        color="primary"
+                        variant="outlined"
+                        size="small"
+                        :loading="payingReservationId === item.rezervacija_id"
+                        @click="payReservation(item.rezervacija_id)"
+                      >
+                        Apmaksāt tagad
+                      </v-btn>
+                    </v-card-text>
+                  </v-card>
+                </div>
+              </template>
+
             </v-card-text>
           </v-card>
         </v-col>
@@ -358,7 +420,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -370,6 +432,9 @@ const fieldErrors = ref({})
 const reservations = ref([])
 const reservationsLoading = ref(false)
 const reservationsError = ref('')
+const reservationsSuccess = ref('')
+const payingReservationId = ref(null)
+const currentClientId = ref(null)
 const geocodeLoading = ref(false)
 const geocodeError = ref('')
 const initialProviderAddress = ref({
@@ -469,6 +534,19 @@ const passwordRules = [
   v => !v || (v && v.length >= 8) || 'Parolei jābūt vismaz 8 simbolu garai'
 ]
 
+const unpaidReservations = computed(() =>
+  reservations.value.filter(item => item.apmaksas_statuss !== 'apmaksata')
+)
+
+const activeReservations = computed(() => {
+  const now = new Date()
+  return reservations.value.filter(item => {
+    if (item.apmaksas_statuss !== 'apmaksata') return false
+    const end = new Date(item.beigu_laiks)
+    return !Number.isNaN(end.getTime()) && end >= now
+  })
+})
+
 // Load user data
 onMounted(() => {
   const userStr = localStorage.getItem('user')
@@ -490,6 +568,7 @@ onMounted(() => {
   form.value.bankas_konts = userData.bankas_konts || ''
 
   if (userData.loma === 'klients' && userData.klients) {
+    currentClientId.value = userData.klients.klients_id
     form.value.lietotajvards = userData.klients.lietotajvards || ''
     loadReservations(userData.klients.klients_id)
   } else if (userData.loma === 'pakalpojumu_sniedzejs') {
@@ -538,6 +617,32 @@ async function loadReservations(klientsId) {
   }
 }
 
+
+async function payReservation(rezervacijaId) {
+  if (!currentClientId.value || !rezervacijaId) return
+  payingReservationId.value = rezervacijaId
+  reservationsError.value = ''
+  reservationsSuccess.value = ''
+  try {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const response = await fetch(`${API_BASE}/api/rezervacijas/${rezervacijaId}/pay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ klients_id: currentClientId.value }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      reservationsError.value = data?.message || 'Neizdevās apmaksāt rezervāciju.'
+      return
+    }
+    reservationsSuccess.value = 'Rezervācija apmaksāta veiksmīgi.'
+    await loadReservations(currentClientId.value)
+  } catch {
+    reservationsError.value = 'Kļūda: Neizdevās apmaksāt rezervāciju.'
+  } finally {
+    payingReservationId.value = null
+  }
+}
 function formatDateTime(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -798,6 +903,11 @@ function logout() {
 
 .reservation-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.reservation-card-unpaid {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.06);
 }
 
 .badge-info {
