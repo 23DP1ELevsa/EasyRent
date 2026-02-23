@@ -11,8 +11,17 @@ use Illuminate\Support\Str;
 
 class RezervacijaController extends Controller
 {
+    private function cleanupExpiredUnpaidReservations(): void
+    {
+        Rezervacija::where('apmaksas_statuss', 'neapmaksata')
+            ->where('sakuma_laiks', '<=', Carbon::now())
+            ->delete();
+    }
+
     public function index(Request $request)
     {
+        $this->cleanupExpiredUnpaidReservations();
+
         $data = $request->validate([
             'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
         ]);
@@ -27,6 +36,8 @@ class RezervacijaController extends Controller
 
     public function store(Request $request)
     {
+        $this->cleanupExpiredUnpaidReservations();
+
         $data = $request->validate([
             'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
             'transportlidzeklis_id' => ['required', 'integer', 'exists:transportlidzeklis,transportlidzeklis_id'],
@@ -43,6 +54,10 @@ class RezervacijaController extends Controller
         $start = Carbon::parse($data['sakuma_laiks']);
         $end = Carbon::parse($data['beigu_laiks']);
 
+        if ($start->lessThanOrEqualTo(Carbon::now())) {
+            return response()->json(['message' => 'Sākuma laikam jābūt nākotnē.'], 422);
+        }
+
         $conflict = Rezervacija::where('transportlidzeklis_id', $transport->transportlidzeklis_id)
             ->where(function ($query) use ($start, $end) {
                 $query->where('sakuma_laiks', '<', $end)
@@ -54,7 +69,8 @@ class RezervacijaController extends Controller
             return response()->json(['message' => 'Transportlīdzeklis vairs nav pieejams izvēlētajā laikā.'], 409);
         }
 
-        $days = max(1, $start->diffInDays($end));
+        $seconds = max(1, $start->diffInSeconds($end));
+        $days = max(1, (int) ceil($seconds / 86400));
         $sum = $days * $transport->dienas_nomas_cena;
 
         $rezervacija = Rezervacija::create([
@@ -74,6 +90,8 @@ class RezervacijaController extends Controller
 
     public function pay(Request $request, $id)
     {
+        $this->cleanupExpiredUnpaidReservations();
+
         $data = $request->validate([
             'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
         ]);
@@ -86,6 +104,11 @@ class RezervacijaController extends Controller
 
         if ($rezervacija->apmaksas_statuss === 'apmaksata') {
             return response()->json(['message' => 'Rezervācija jau apmaksāta.'], 409);
+        }
+
+        if ($rezervacija->apmaksas_statuss === 'neapmaksata' && Carbon::now()->greaterThanOrEqualTo($rezervacija->sakuma_laiks)) {
+            $rezervacija->delete();
+            return response()->json(['message' => 'Rezervācija automātiski atcelta, jo netika apmaksāta līdz sākuma laikam.'], 409);
         }
 
         $transaction = 'TX-' . strtoupper(Str::random(12));

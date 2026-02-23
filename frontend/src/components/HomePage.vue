@@ -396,17 +396,22 @@ async function submitContact() {
 .surface-panels { width: 100%; }
 
 .surface {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 20px;
   color: #0f172a;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 }
 
 .surface :deep(.v-card-text),
 .surface :deep(.v-card-title),
 .surface :deep(.v-card-subtitle) { color: #0f172a; }
 
-.section-title { padding-left: 4px; color: rgba(255, 255, 255, 0.92); }
+.section-title {
+  padding-left: 8px;
+  color: rgba(255, 255, 255, 0.94);
+  border-left: 3px solid rgba(96, 165, 250, 0.85);
+}
 .section-head { color: rgba(255, 255, 255, 0.92); }
 
 .surface-panels :deep(.v-expansion-panel) {
@@ -417,7 +422,20 @@ async function submitContact() {
 .surface-panels :deep(.v-expansion-panel + .v-expansion-panel) { margin-top: 10px; }
 
 .feature-col { display: flex; }
-.feature-card { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.feature-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 16px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.13);
+}
 .card-desc { flex-grow: 1; min-height: 56px; }
 
 .hero-title { font-weight: 900; letter-spacing: -0.02em; line-height: 1.05; font-size: clamp(44px, 6vw, 72px); }
@@ -427,9 +445,9 @@ async function submitContact() {
 
 .hero-media {
   width: 100%;
-  border-radius: 22px;
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.10);
+  border: 1px solid rgba(148, 163, 184, 0.28);
   background: rgba(255,255,255,0.06);
 }
 .hero-img {

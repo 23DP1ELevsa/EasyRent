@@ -3,14 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\PakalpojumuSniedzejs;
+use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class TransportController extends Controller
 {
+    private function cleanupExpiredUnpaidReservations(): void
+    {
+        Rezervacija::where('apmaksas_statuss', 'neapmaksata')
+            ->where('sakuma_laiks', '<=', Carbon::now())
+            ->delete();
+    }
+
     public function index(Request $request)
     {
+        $this->cleanupExpiredUnpaidReservations();
+
         $query = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas']);
         
         // Filtri
@@ -35,6 +46,8 @@ class TransportController extends Controller
 
     public function show($id)
     {
+        $this->cleanupExpiredUnpaidReservations();
+
         $transport = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas', 'atsauksmes'])->find($id);
         
         if (!$transport) {

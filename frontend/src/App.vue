@@ -275,20 +275,22 @@ function onAuthSuccess() {
 
 <style>
 .appbar {
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.78));
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
 }
 
 .auth-btn {
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.16);
-  color: rgba(255,255,255,0.92);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  color: rgba(248, 250, 252, 0.95);
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 
 .footer {
-  background: rgba(15, 23, 42, 0.92);
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .footer-title {
@@ -302,6 +304,7 @@ function onAuthSuccess() {
   margin: 8px 0;
   color: rgba(255,255,255,0.78);
   cursor: pointer;
+  transition: color 0.2s ease;
 }
 
 .footer-link:hover { color: rgba(255,255,255,0.95); }
@@ -312,7 +315,9 @@ function onAuthSuccess() {
 .footer-mini:hover { color: rgba(255,255,255,0.95); }
 
 .is-disabled { opacity: 0.55; cursor: default; }
-.drawer { background: rgba(255, 255, 255, 0.96); }
+.drawer {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98));
+}
 
 .brand__title { font-weight: 800; line-height: 1.05; color: rgba(255,255,255,0.92); }
 .brand__subtitle { font-size: 12px; opacity: 0.8; color: rgba(255,255,255,0.78); }

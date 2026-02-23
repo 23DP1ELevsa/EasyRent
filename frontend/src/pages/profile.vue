@@ -6,12 +6,14 @@
         <v-col cols="12" md="8" lg="7">
           <v-card class="surface profile-header mb-6" elevation="12">
             <v-card-text class="pa-8">
-              <div class="d-flex align-center justify-space-between">
+              <div class="d-flex align-center justify-space-between flex-wrap ga-4">
                 <div>
+                  <div class="text-overline opacity-70 mb-1">Profils</div>
                   <div class="text-h4 font-weight-bold mb-2">{{ form.vards }} {{ form.uzvards }}</div>
-                  <div class="text-body-2 opacity-80">
+                  <div class="text-body-2 opacity-80 d-flex align-center ga-2 flex-wrap">
                     <span v-if="loma === 'klients'" class="badge-info">🔹 Klients</span>
                     <span v-else class="badge-info">🏢 Pakalpojumu sniedzējs</span>
+                    <span class="profile-email">{{ email }}</span>
                   </div>
                 </div>
                 <v-avatar size="80" variant="tonal" class="avatar-icon">
@@ -24,7 +26,10 @@
           <!-- Edit Form Card -->
           <v-card class="surface" elevation="12">
             <v-card-title class="pa-6 pa-sm-8">
-              <div class="text-h5 font-weight-bold">Rediģēt profilu</div>
+              <div>
+                <div class="text-h5 font-weight-bold">Rediģēt profilu</div>
+                <div class="text-caption opacity-70 mt-1">Atjaunojiet kontaktus, bankas datus un profila informāciju.</div>
+              </div>
             </v-card-title>
 
             <v-divider />
@@ -260,7 +265,7 @@
                       type="submit"
                       size="large"
                       rounded="xl"
-                      elevation="6"
+                      elevation="4"
                       :loading="loading"
                       min-width="160"
                     >
@@ -273,10 +278,11 @@
                     <v-btn
                       size="large"
                       rounded="xl"
-                      variant="tonal"
+                      variant="flat"
                       :disabled="loading"
                       @click="logout"
                       min-width="160"
+                      class="logout-btn"
                     >
                       <v-icon start>mdi-logout</v-icon>
                       Izlogoties
@@ -290,6 +296,7 @@
                       variant="outlined"
                       to="/"
                       min-width="160"
+                      class="back-btn"
                     >
                       <v-icon start>mdi-arrow-left</v-icon>
                       Atpakaļ
@@ -301,9 +308,12 @@
           </v-card>
 
           <!-- Reservations Card (Clients only) -->
-          <v-card v-if="loma === 'klients'" class="surface mt-6" elevation="12">
+          <v-card v-if="loma === 'klients'" class="surface mt-6 profile-reservations" elevation="12">
             <v-card-title class="pa-6 pa-sm-8">
-              <div class="text-h5 font-weight-bold">Rezervācijas</div>
+              <div>
+                <div class="text-h5 font-weight-bold">Rezervācijas</div>
+                <div class="text-caption opacity-70 mt-1">Pārskatiet aktīvās un neapmaksātās rezervācijas.</div>
+              </div>
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-6 pa-sm-8">
@@ -871,58 +881,98 @@ function logout() {
 }
 
 .surface {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 22px;
   color: #0f172a;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .surface:hover {
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
 }
 
 .profile-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.90));
-  border: 2px solid rgba(15, 23, 42, 0.1);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.99), rgba(241, 245, 249, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .avatar-icon {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1));
-  border: 2px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(59, 130, 246, 0.26);
 }
 
 .section-title {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   letter-spacing: 0.5px;
-  color: rgba(15, 23, 42, 0.85);
+  color: rgba(15, 23, 42, 0.72);
   text-transform: uppercase;
-  opacity: 0.7;
+  opacity: 0.95;
+  padding-left: 10px;
+  border-left: 3px solid rgba(37, 99, 235, 0.7);
 }
 
 .reservation-card {
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .reservation-card-unpaid {
   border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(245, 158, 11, 0.06);
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.95), rgba(255, 247, 237, 0.88));
+}
+
+.profile-reservations,
+.profile-reservations :deep(.v-card-title),
+.profile-reservations :deep(.v-card-text),
+.profile-reservations .text-h5,
+.profile-reservations .text-body-2,
+.profile-reservations .text-caption,
+.profile-reservations .section-title,
+.profile-reservations .font-weight-bold {
+  color: #0f172a !important;
 }
 
 .badge-info {
   display: inline-block;
   padding: 6px 12px;
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
   border-radius: 20px;
-  font-size: 0.875rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.26);
+}
+
+.profile-email {
+  font-size: 0.82rem;
+  color: rgba(15, 23, 42, 0.62);
+}
+
+.logout-btn {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.38);
+  color: #7f1d1d !important;
+}
+
+.back-btn {
+  border-color: rgba(148, 163, 184, 0.45) !important;
 }
 
 .gap-3 {
   gap: 12px !important;
+}
+
+.surface :deep(.v-field) {
+  border-radius: 12px;
+}
+
+.surface :deep(.v-btn) {
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 
 /* Responsive Adjustments */

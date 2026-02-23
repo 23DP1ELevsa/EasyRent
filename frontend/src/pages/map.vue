@@ -95,32 +95,40 @@
 							<v-divider class="my-3" />
 							<div class="text-subtitle-2 font-weight-bold mb-2">Rezervācijas laiks</div>
 							<v-row dense>
-								<v-col cols="7">
+								<v-col cols="6">
 									<v-text-field
-										v-model="reservation.date"
-										label="Datums"
+										v-model="reservation.startDate"
+										label="No datuma"
 										variant="outlined"
 										density="compact"
 										type="date"
 									/>
 								</v-col>
-								<v-col cols="5">
+								<v-col cols="6">
 									<v-text-field
-										v-model="reservation.time"
-										label="Laiks"
+										v-model="reservation.startTime"
+										label="No laika"
 										variant="outlined"
 										density="compact"
 										type="time"
 									/>
 								</v-col>
-								<v-col cols="12">
+								<v-col cols="6">
 									<v-text-field
-										v-model.number="reservation.days"
-										label="Dienu skaits"
+										v-model="reservation.endDate"
+										label="Līdz datumam"
 										variant="outlined"
 										density="compact"
-										type="number"
-										min="1"
+										type="date"
+									/>
+								</v-col>
+								<v-col cols="6">
+									<v-text-field
+										v-model="reservation.endTime"
+										label="Līdz laikam"
+										variant="outlined"
+										density="compact"
+										type="time"
 									/>
 								</v-col>
 							</v-row>
@@ -313,19 +321,23 @@
 					</div>
 					<div class="text-body-2 mb-2">Izvēlieties sākuma datumu, laiku un nomas ilgumu.</div>
 					<v-row dense>
-						<v-col cols="7">
-							<v-text-field v-model="reservation.date" label="Sākuma datums" type="date" variant="outlined" density="compact" />
+						<v-col cols="6">
+							<v-text-field v-model="reservation.startDate" label="No datuma" type="date" variant="outlined" density="compact" />
 						</v-col>
-						<v-col cols="5">
-							<v-text-field v-model="reservation.time" label="Sākuma laiks" type="time" variant="outlined" density="compact" />
+						<v-col cols="6">
+							<v-text-field v-model="reservation.startTime" label="No laika" type="time" variant="outlined" density="compact" />
 						</v-col>
-						<v-col cols="12">
-							<v-text-field v-model.number="reservation.days" label="Dienu skaits" type="number" min="1" variant="outlined" density="compact" />
+						<v-col cols="6">
+							<v-text-field v-model="reservation.endDate" label="Līdz datumam" type="date" variant="outlined" density="compact" />
+						</v-col>
+						<v-col cols="6">
+							<v-text-field v-model="reservation.endTime" label="Līdz laikam" type="time" variant="outlined" density="compact" />
 						</v-col>
 					</v-row>
 
 					<div class="reservation-summary mt-2">
 						<div><strong>Periods:</strong> {{ reservationPeriodText }}</div>
+						<div><strong>Apmaksas dienas:</strong> {{ reservationBillableDays }}</div>
 						<div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
 						<div><strong>Kopā:</strong> {{ reservationTotal }}</div>
 					</div>
@@ -347,7 +359,7 @@
 				<v-divider />
 				<v-card-text class="pa-4">
 					<div class="text-body-2">
-						Vai tiešām vēlaties apmaksāt rezervāciju?
+						Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.
 					</div>
 					<div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
 						Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
@@ -361,8 +373,8 @@
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" @click="closePaymentDialog">Aizvērt</v-btn>
-					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Maksāt</v-btn>
+					<v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
+					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -455,10 +467,42 @@ const filters = ref({
 	onlyAvailable: false,
 })
 
+function buildDefaultReservationWindow() {
+	const now = new Date()
+	now.setSeconds(0, 0)
+	now.setMinutes(now.getMinutes() + 30)
+
+	const end = new Date(now)
+	end.setDate(end.getDate() + 1)
+
+	const toDate = value => {
+		const year = value.getFullYear()
+		const month = String(value.getMonth() + 1).padStart(2, '0')
+		const day = String(value.getDate()).padStart(2, '0')
+		return `${year}-${month}-${day}`
+	}
+
+	const toTime = value => {
+		const hours = String(value.getHours()).padStart(2, '0')
+		const minutes = String(value.getMinutes()).padStart(2, '0')
+		return `${hours}:${minutes}`
+	}
+
+	return {
+		startDate: toDate(now),
+		startTime: toTime(now),
+		endDate: toDate(end),
+		endTime: toTime(now),
+	}
+}
+
+const defaultReservationWindow = buildDefaultReservationWindow()
+
 const reservation = ref({
-	date: new Date().toISOString().slice(0, 10),
-	time: '10:00',
-	days: 1,
+	startDate: defaultReservationWindow.startDate,
+	startTime: defaultReservationWindow.startTime,
+	endDate: defaultReservationWindow.endDate,
+	endTime: defaultReservationWindow.endTime,
 })
 
 const reservationDialog = ref(false)
@@ -606,28 +650,44 @@ const mappablePoints = computed(() => {
 
 const reservationTotal = computed(() => {
 	if (!activeVehicle.value) return '0 €'
-	const days = Math.max(1, Number(reservation.value.days || 1))
+	const days = getBillableDays()
 	const sum = days * Number(activeVehicle.value.dienas_nomas_cena || 0)
 	return formatPrice(sum)
 })
 
-const isReservationFormValid = computed(() => {
-	const days = Number(reservation.value.days)
-	if (!reservation.value.date || !reservation.value.time) return false
-	if (!Number.isFinite(days) || days < 1) return false
+const reservationBillableDays = computed(() => getBillableDays())
 
-	const start = new Date(`${reservation.value.date}T${reservation.value.time}:00`)
-	return !Number.isNaN(start.getTime())
+const isReservationFormValid = computed(() => {
+	if (!reservation.value.startDate || !reservation.value.startTime) return false
+	if (!reservation.value.endDate || !reservation.value.endTime) return false
+
+	const { start, end } = getReservationRange()
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+	if (end <= start) return false
+	if (start <= new Date()) return false
+	return true
 })
 
 const reservationPeriodText = computed(() => {
-	if (!isReservationFormValid.value) return 'Norādiet derīgu datumu, laiku un dienu skaitu.'
+	if (!reservation.value.startDate || !reservation.value.startTime || !reservation.value.endDate || !reservation.value.endTime) {
+		return 'Norādiet periodu no/līdz.'
+	}
 	const { start, end } = getReservationRange()
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+		return 'Norādiet derīgu periodu no/līdz.'
+	}
+	if (start <= new Date()) {
+		return 'Sākuma laikam jābūt nākotnē.'
+	}
+	if (end <= start) {
+		return 'Beigu laikam jābūt pēc sākuma laika.'
+	}
 	return `${formatDateTime(start)} → ${formatDateTime(end)}`
 })
 
 let mapInstance = null
 let markers = []
+let paymentSuccessTimer = null
 
 function formatPrice(value) {
 	const num = Number(value || 0)
@@ -647,14 +707,36 @@ function formatDateTime(value) {
 	}).format(date)
 }
 
+function formatApiDateTime(value) {
+	const date = value instanceof Date ? value : new Date(value)
+	if (Number.isNaN(date.getTime())) return null
+
+	const year = date.getFullYear()
+	const month = String(date.getMonth() + 1).padStart(2, '0')
+	const day = String(date.getDate()).padStart(2, '0')
+	const hours = String(date.getHours()).padStart(2, '0')
+	const minutes = String(date.getMinutes()).padStart(2, '0')
+	const seconds = String(date.getSeconds()).padStart(2, '0')
+
+	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 function getReservationRange() {
-	const date = reservation.value.date || new Date().toISOString().slice(0, 10)
-	const time = reservation.value.time || '10:00'
-	const start = new Date(`${date}T${time}:00`)
-	const days = Math.max(1, Number(reservation.value.days || 1))
-	const end = new Date(start)
-	end.setDate(end.getDate() + days)
+	const startDate = reservation.value.startDate || new Date().toISOString().slice(0, 10)
+	const startTime = reservation.value.startTime || '10:00'
+	const endDate = reservation.value.endDate || startDate
+	const endTime = reservation.value.endTime || startTime
+	const start = new Date(`${startDate}T${startTime}:00`)
+	const end = new Date(`${endDate}T${endTime}:00`)
 	return { start, end }
+}
+
+function getBillableDays() {
+	if (!isReservationFormValid.value) return 1
+	const { start, end } = getReservationRange()
+	const diffMs = end.getTime() - start.getTime()
+	if (!Number.isFinite(diffMs) || diffMs <= 0) return 1
+	return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)))
 }
 
 function isVehicleAvailable(vehicle) {
@@ -707,7 +789,7 @@ async function createReservation() {
 	}
 
 	if (!isReservationFormValid.value) {
-		reservationError.value = 'Lūdzu, aizpildiet korektu datumu, laiku un dienu skaitu.'
+		reservationError.value = 'Lūdzu, izvēlieties periodu nākotnē (beigu laiks pēc sākuma laika).'
 		return
 	}
 
@@ -718,14 +800,22 @@ async function createReservation() {
 
 	try {
 		const { start, end } = getReservationRange()
+		const startApi = formatApiDateTime(start)
+		const endApi = formatApiDateTime(end)
+
+		if (!startApi || !endApi) {
+			reservationError.value = 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.'
+			return
+		}
+
 		const response = await fetch(`${API_BASE}/api/rezervacijas`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				klients_id: user.value.klients.klients_id,
 				transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
-				sakuma_laiks: start.toISOString(),
-				beigu_laiks: end.toISOString(),
+				sakuma_laiks: startApi,
+				beigu_laiks: endApi,
 			}),
 		})
 
@@ -768,6 +858,15 @@ async function confirmPayment() {
 		paymentSuccess.value = 'Apmaksāts veiksmīgi!'
 		pendingReservation.value = result.rezervacija
 		await loadTransport()
+
+		if (paymentSuccessTimer) {
+			clearTimeout(paymentSuccessTimer)
+		}
+		paymentSuccessTimer = setTimeout(() => {
+			paymentDialog.value = false
+			paymentSuccess.value = ''
+			paymentError.value = ''
+		}, 1200)
 	} catch (error) {
 		paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
 	} finally {
@@ -784,6 +883,10 @@ function closePaymentDialog() {
 			color: 'warning',
 		}
 	}
+}
+
+function payLater() {
+	closePaymentDialog()
 }
 
 function openEditVehicle(vehicle) {
@@ -1025,14 +1128,16 @@ watch(drawer, async () => {
 	position: relative;
 	height: calc(100vh - 72px);
 	width: 100%;
-	background: #0f172a;
+	background: radial-gradient(1100px circle at 8% 12%, rgba(255,255,255,0.10), transparent 46%),
+		linear-gradient(135deg, #0f172a, #111827, #0b1020);
 }
 
 .surface {
-	background: rgba(255, 255, 255, 0.94);
-	border: 1px solid rgba(15, 23, 42, 0.08);
+	background: rgba(255, 255, 255, 0.96);
+	border: 1px solid rgba(148, 163, 184, 0.24);
+	border-radius: 16px;
 	color: #0f172a;
-	backdrop-filter: blur(6px);
+	backdrop-filter: blur(10px);
 }
 
 .map-canvas {
@@ -1045,6 +1150,7 @@ watch(drawer, async () => {
 	top: 16px;
 	left: 16px;
 	z-index: 500;
+	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
 }
 
 .floating-actions {
@@ -1057,12 +1163,14 @@ watch(drawer, async () => {
 }
 
 .action-btn {
-	background: #0b1020;
-	color: #f8fafc;
+	background: rgba(255, 255, 255, 0.96);
+	color: #0f172a;
+	border: 1px solid rgba(148, 163, 184, 0.32);
+	backdrop-filter: blur(8px);
 }
 
 .action-btn:hover {
-	background: #0f172a;
+	background: #ffffff;
 }
 
 
@@ -1079,17 +1187,18 @@ watch(drawer, async () => {
 }
 
 .map-drawer {
-	background: rgba(255, 255, 255, 0.98);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(248, 250, 252, 0.975));
 }
 
 .drawer-header {
 	padding: 16px;
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 12px;
 	position: relative;
-	text-align: center;
+	text-align: left;
+	border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .drawer-header-main {
@@ -1098,7 +1207,7 @@ watch(drawer, async () => {
 
 .header-title,
 .header-subtitle {
-	color: #000;
+	color: #020617;
 }
 
 .header-close-btn {
@@ -1124,6 +1233,12 @@ watch(drawer, async () => {
 	border-radius: 12px;
 }
 
+.drawer-panels :deep(.v-expansion-panel) {
+	border: 1px solid rgba(148, 163, 184, 0.26);
+	border-radius: 14px;
+	overflow: hidden;
+}
+
 .list-wrap {
 	max-height: 260px;
 	overflow-y: auto;
@@ -1131,13 +1246,16 @@ watch(drawer, async () => {
 
 .point-card {
 	cursor: pointer;
-	border: 1px solid rgba(15, 23, 42, 0.12);
+	border: 1px solid rgba(148, 163, 184, 0.3);
+	border-radius: 14px;
 	max-width: 100%;
 	overflow: hidden;
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .point-card:hover {
-	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+	transform: translateY(-1px);
+	box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
 }
 
 .point-card-header {
@@ -1148,8 +1266,8 @@ watch(drawer, async () => {
 }
 
 .selected-point-title {
-	justify-content: center;
-	text-align: center;
+	justify-content: flex-start;
+	text-align: left;
 	position: relative;
 	padding-right: 44px;
 	word-break: break-word;
@@ -1170,8 +1288,8 @@ watch(drawer, async () => {
 	gap: 12px;
 	padding: 12px;
 	border-radius: 12px;
-	border: 1px solid rgba(15, 23, 42, 0.12);
-	background: rgba(15, 23, 42, 0.04);
+	border: 1px solid rgba(148, 163, 184, 0.3);
+	background: rgba(248, 250, 252, 0.95);
 	max-width: 100%;
 	overflow: hidden;
 }
@@ -1213,8 +1331,8 @@ watch(drawer, async () => {
 .reservation-summary {
 	padding: 10px 12px;
 	border-radius: 10px;
-	border: 1px solid rgba(15, 23, 42, 0.12);
-	background: rgba(15, 23, 42, 0.04);
+	border: 1px solid rgba(148, 163, 184, 0.28);
+	background: rgba(248, 250, 252, 0.95);
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -1234,7 +1352,7 @@ watch(drawer, async () => {
 	width: 18px;
 	height: 18px;
 	border-radius: 6px;
-	background: #2563eb;
+	background: linear-gradient(135deg, #2563eb, #1d4ed8);
 	border: 2px solid #0f172a;
 	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
 }

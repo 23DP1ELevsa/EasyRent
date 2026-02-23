@@ -1,49 +1,52 @@
 <template>
   <div class="bg">
-    <v-container class="fill-height py-12">
+    <v-container class="fill-height py-12 py-md-16">
       <div class="page-wrap">
-
-        <!-- AUTH: Login/Register -->
-        <v-row justify="center">
-          <v-col cols="12" sm="10" md="7" lg="5">
+        <v-row align="stretch" justify="center" class="auth-layout">
+        <v-col cols="12" sm="11" md="8" lg="6" xl="5">
             <v-card class="surface" elevation="12">
               <v-card-text class="pa-6 pa-md-8">
+                <div class="d-flex align-center justify-space-between mb-5">
+                  <div>
+                    <div class="text-h5 font-weight-bold mb-1">Autorizācija</div>
+                    <div class="text-body-2 opacity-75">Ieiet vai izveidot jaunu profilu.</div>
+                  </div>
+                  <v-avatar size="42" variant="tonal" class="auth-avatar">
+                    <v-icon>mdi-account-circle</v-icon>
+                  </v-avatar>
+                </div>
 
-                <div class="text-h5 font-weight-bold mb-2">Autorizācija</div>
-                <div class="text-body-2 opacity-80 mb-6">Ieiet vai izveidot jaunu profilu.</div>
-
-                <v-tabs v-model="tab" grow>
+                <v-tabs v-model="tab" grow class="auth-tabs" color="primary">
                   <v-tab value="login">Pieslēgties</v-tab>
                   <v-tab value="register">Reģistrēties</v-tab>
                 </v-tabs>
 
                 <v-divider class="my-6" />
 
-                <!-- LOGIN -->
                 <div v-if="tab === 'login'">
                   <v-form ref="loginForm" @submit.prevent="submitLogin">
-                    <v-text-field v-model="login.email" label="E-pasts" variant="outlined" class="mb-3" />
-                    <v-text-field v-model="login.password" label="Parole" variant="outlined" type="password" class="mb-4" />
+                    <v-text-field v-model="login.email" label="E-pasts" variant="outlined" class="mb-3" prepend-inner-icon="mdi-email-outline" />
+                    <v-text-field v-model="login.password" label="Parole" variant="outlined" type="password" class="mb-4" prepend-inner-icon="mdi-lock-outline" />
 
-                    <v-btn type="submit" block size="large" rounded="xl" elevation="6" :loading="loading">
+                    <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
                       <v-icon start>mdi-login</v-icon>
                       Pieslēgties
                     </v-btn>
                   </v-form>
                 </div>
 
-                <!-- REGISTER -->
                 <div v-else>
                   <v-form ref="regForm" @submit.prevent="submitRegister">
-                    <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" />
-                    <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" />
-                    <v-text-field 
-                      v-model="reg.kontakttalrunis" 
-                      label="Tālrunis" 
-                      variant="outlined" 
+                    <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" prepend-inner-icon="mdi-account-outline" />
+                    <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" prepend-inner-icon="mdi-email-outline" />
+                    <v-text-field
+                      v-model="reg.kontakttalrunis"
+                      label="Tālrunis"
+                      variant="outlined"
                       class="mb-3"
                       placeholder="+371 26123456"
                       :rules="phoneRules"
+                      prepend-inner-icon="mdi-phone-outline"
                     />
                     <v-select
                       v-model="reg.loma"
@@ -53,75 +56,81 @@
                       label="Loma"
                       variant="outlined"
                       class="mb-3"
+                      prepend-inner-icon="mdi-account-switch-outline"
                       @update:model-value="updateRegFields"
                     />
 
-                    <!-- Klients fields -->
-                    <v-text-field 
+                    <v-text-field
                       v-if="reg.loma === 'klients'"
-                      v-model="reg.lietotajvards" 
-                      label="Lietotājvārds" 
-                      variant="outlined" 
-                      class="mb-3" 
+                      v-model="reg.lietotajvards"
+                      label="Lietotājvārds"
+                      variant="outlined"
+                      class="mb-3"
                       :rules="usernameRules"
+                      prepend-inner-icon="mdi-at"
                     />
 
-                    <!-- Bankas konts (visdiem) -->
-                    <v-text-field 
-                      v-model="reg.bankas_konts" 
-                      label="Banka konta numurs (IBAN)" 
-                      variant="outlined" 
+                    <v-text-field
+                      v-model="reg.bankas_konts"
+                      label="Banka konta numurs (IBAN)"
+                      variant="outlined"
                       class="mb-3"
                       placeholder="LV00ABCD1234567890123"
                       :rules="ibanRules"
+                      prepend-inner-icon="mdi-bank-outline"
                     />
 
-                    <!-- Pakalpojumu sniedzējs fields -->
                     <template v-if="reg.loma === 'pakalpojumu_sniedzejs'">
-                      <v-text-field 
-                        v-model="reg.registracijas_numurs" 
-                        label="Reģistrācijas numurs" 
-                        variant="outlined" 
-                        class="mb-3" 
-                        :rules="regNumRules"
-                      />
-                      <v-text-field 
-                        v-model="reg.iela" 
-                        label="Iela" 
-                        variant="outlined" 
-                        class="mb-3" 
-                        :rules="streetRules"
-                      />
-                      <v-text-field 
-                        v-model="reg.majas_numurs" 
-                        label="Mājas numurs" 
-                        variant="outlined" 
-                        class="mb-3" 
-                        :rules="houseNumberRules"
-                      />
-                      <v-text-field 
-                        v-model="reg.dzivokla_numurs" 
-                        label="Dzīvokļa numurs (neobligāts)" 
-                        variant="outlined" 
+                      <v-text-field
+                        v-model="reg.registracijas_numurs"
+                        label="Reģistrācijas numurs"
+                        variant="outlined"
                         class="mb-3"
+                        :rules="regNumRules"
+                        prepend-inner-icon="mdi-file-document-outline"
                       />
-                      <v-text-field 
-                        v-model="reg.pilseta" 
-                        label="Pilsēta" 
-                        variant="outlined" 
-                        class="mb-3" 
+                      <v-text-field
+                        v-model="reg.iela"
+                        label="Iela"
+                        variant="outlined"
+                        class="mb-3"
+                        :rules="streetRules"
+                        prepend-inner-icon="mdi-road-variant"
+                      />
+                      <v-text-field
+                        v-model="reg.majas_numurs"
+                        label="Mājas numurs"
+                        variant="outlined"
+                        class="mb-3"
+                        :rules="houseNumberRules"
+                        prepend-inner-icon="mdi-home-outline"
+                      />
+                      <v-text-field
+                        v-model="reg.dzivokla_numurs"
+                        label="Dzīvokļa numurs (neobligāts)"
+                        variant="outlined"
+                        class="mb-3"
+                        prepend-inner-icon="mdi-door"
+                      />
+                      <v-text-field
+                        v-model="reg.pilseta"
+                        label="Pilsēta"
+                        variant="outlined"
+                        class="mb-3"
                         :rules="cityRules"
+                        prepend-inner-icon="mdi-city-variant-outline"
                       />
-                      <v-text-field 
-                        v-model="reg.pasta_indekss" 
-                        label="Pasta indekss" 
-                        variant="outlined" 
-                        class="mb-3" 
+                      <v-text-field
+                        v-model="reg.pasta_indekss"
+                        label="Pasta indekss"
+                        variant="outlined"
+                        class="mb-3"
                         :rules="postalCodeRules"
+                        prepend-inner-icon="mdi-mailbox-outline"
                       />
                     </template>
 
-                    <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" />
+                    <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" prepend-inner-icon="mdi-lock-outline" />
                     <v-text-field
                       v-model="reg.password_confirmation"
                       label="Parole vēlreiz"
@@ -129,9 +138,10 @@
                       type="password"
                       class="mb-4"
                       :rules="passwordConfirmRules"
+                      prepend-inner-icon="mdi-lock-check-outline"
                     />
 
-                    <v-btn type="submit" block size="large" rounded="xl" elevation="6" :loading="loading">
+                    <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
                       <v-icon start>mdi-account-plus</v-icon>
                       Reģistrēties
                     </v-btn>
@@ -145,12 +155,10 @@
                 <v-alert v-if="okText" type="success" variant="tonal" class="mt-6">
                   {{ okText }}
                 </v-alert>
-
               </v-card-text>
-              </v-card>
-            </v-col>
+            </v-card>
+          </v-col>
         </v-row>
-
       </div>
     </v-container>
   </div>
@@ -484,10 +492,36 @@ async function submitLogin() {
 
 .page-wrap { width: min(1200px, 100%); margin: 0 auto; }
 
+.auth-layout {
+  row-gap: 20px;
+}
+
 .surface {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 22px;
   color: #0f172a;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(12px);
+}
+
+.auth-avatar {
+  border: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.auth-tabs {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(241, 245, 249, 0.95);
+  padding: 4px;
+}
+
+.submit-btn {
+  min-height: 46px;
+}
+
+@media (max-width: 1280px) {
+  .page-wrap {
+    width: min(1060px, 100%);
+  }
 }
 </style>
