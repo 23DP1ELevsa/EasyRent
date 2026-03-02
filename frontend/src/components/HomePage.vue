@@ -119,7 +119,7 @@
         <!-- KĀPĒC EASYRENT? -->
         <v-row class="mt-12" justify="center">
           <v-col cols="12">
-            <div class="section-head mb-6 text-center text-md-left">
+            <div class="section-title mb-6 text-center text-md-left">
               <div class="text-h5 font-weight-bold">Kāpēc EasyRent?</div>
               <div class="text-body-2 opacity-80">
                 Vienkārša platforma, lai atrastu, salīdzinātu un rezervētu transportu Latvijā.
