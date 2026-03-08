@@ -96,40 +96,73 @@
 							<div class="text-subtitle-2 font-weight-bold mb-2">Rezervācijas laiks</div>
 							<v-row dense>
 								<v-col cols="6">
-									<v-text-field
-										v-model="reservation.startDate"
-										label="No datuma"
+									<v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
+										<template #activator="{ props }">
+											<v-text-field
+												v-bind="props"
+												:model-value="reservationStartDateDisplay"
+												label="No datums"
+												variant="outlined"
+												density="compact"
+												placeholder="DD/MM/YYYY"
+												prepend-inner-icon="mdi-calendar"
+												readonly
+											/>
+										</template>
+										<v-date-picker
+											:model-value="reservationStartDate"
+											@update:model-value="onStartDatePicked"
+											:min="minReservationDate"
+											color="primary"
+											locale="lv"
+											hide-header
+										/>
+									</v-menu>
+								</v-col>
+								<v-col cols="6">
+									<v-select
+										v-model="reservationStartTime"
+										:items="availableStartTimeOptions"
+										label="No laiks"
 										variant="outlined"
 										density="compact"
-										type="date"
 									/>
 								</v-col>
 								<v-col cols="6">
-									<v-text-field
-										v-model="reservation.startTime"
-										label="No laika"
-										variant="outlined"
-										density="compact"
-										type="time"
-									/>
+									<v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
+										<template #activator="{ props }">
+											<v-text-field
+												v-bind="props"
+												:model-value="reservationEndDateDisplay"
+												label="Līdz datumam"
+												variant="outlined"
+												density="compact"
+												placeholder="DD/MM/YYYY"
+												prepend-inner-icon="mdi-calendar"
+												readonly
+											/>
+										</template>
+										<v-date-picker
+											:model-value="reservationEndDate"
+											@update:model-value="onEndDatePicked"
+											:min="minReservationDate"
+											color="primary"
+											locale="lv"
+											hide-header
+										/>
+									</v-menu>
 								</v-col>
 								<v-col cols="6">
-									<v-text-field
-										v-model="reservation.endDate"
-										label="Līdz datumam"
-										variant="outlined"
-										density="compact"
-										type="date"
-									/>
-								</v-col>
-								<v-col cols="6">
-									<v-text-field
-										v-model="reservation.endTime"
+									<v-select
+										v-model="reservationEndTime"
+										:items="availableEndTimeOptions"
 										label="Līdz laikam"
 										variant="outlined"
 										density="compact"
-										type="time"
 									/>
+								</v-col>
+								<v-col cols="12">
+									<div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
 								</v-col>
 							</v-row>
 						</v-expansion-panel-text>
@@ -319,19 +352,64 @@
 							{{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
 						</div>
 					</div>
-					<div class="text-body-2 mb-2">Izvēlieties sākuma datumu, laiku un nomas ilgumu.</div>
+					<div class="text-body-2 mb-2">Izvēlieties nomas periodu.</div>
 					<v-row dense>
 						<v-col cols="6">
-							<v-text-field v-model="reservation.startDate" label="No datuma" type="date" variant="outlined" density="compact" />
+							<v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
+								<template #activator="{ props }">
+									<v-text-field
+										v-bind="props"
+										:model-value="reservationStartDateDisplay"
+										label="No datums"
+										variant="outlined"
+										density="compact"
+										placeholder="DD/MM/YYYY"
+										prepend-inner-icon="mdi-calendar"
+										readonly
+									/>
+								</template>
+								<v-date-picker
+									:model-value="reservationStartDate"
+									@update:model-value="onStartDatePicked"
+									:min="minReservationDate"
+									color="primary"
+									locale="lv"
+									hide-header
+								/>
+							</v-menu>
 						</v-col>
 						<v-col cols="6">
-							<v-text-field v-model="reservation.startTime" label="No laika" type="time" variant="outlined" density="compact" />
+							<v-select v-model="reservationStartTime" :items="availableStartTimeOptions" label="No laiks" variant="outlined" density="compact" />
 						</v-col>
 						<v-col cols="6">
-							<v-text-field v-model="reservation.endDate" label="Līdz datumam" type="date" variant="outlined" density="compact" />
+							<v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
+								<template #activator="{ props }">
+									<v-text-field
+										v-bind="props"
+										:model-value="reservationEndDateDisplay"
+										label="Līdz datumam"
+										variant="outlined"
+										density="compact"
+										placeholder="DD/MM/YYYY"
+										prepend-inner-icon="mdi-calendar"
+										readonly
+									/>
+								</template>
+								<v-date-picker
+									:model-value="reservationEndDate"
+									@update:model-value="onEndDatePicked"
+									:min="minReservationDate"
+									color="primary"
+									locale="lv"
+									hide-header
+								/>
+							</v-menu>
 						</v-col>
 						<v-col cols="6">
-							<v-text-field v-model="reservation.endTime" label="Līdz laikam" type="time" variant="outlined" density="compact" />
+							<v-select v-model="reservationEndTime" :items="availableEndTimeOptions" label="Līdz laikam" variant="outlined" density="compact" />
+						</v-col>
+						<v-col cols="12">
+							<div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
 						</v-col>
 					</v-row>
 
@@ -373,8 +451,24 @@
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
+					<v-btn variant="text" color="error" :disabled="paymentLoading" @click="cancelDialog = true">Atcelt rezervāciju</v-btn>
 					<v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
 					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
+		<v-dialog v-model="cancelDialog" max-width="420">
+			<v-card>
+				<v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
+				<v-divider />
+				<v-card-text class="pa-4">
+					Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
+				</v-card-text>
+				<v-card-actions class="px-4 pb-4">
+					<v-spacer />
+					<v-btn variant="text" :disabled="paymentLoading" @click="cancelDialog = false">Nē</v-btn>
+					<v-btn color="error" :loading="paymentLoading" @click="cancelPendingReservation">Jā, atcelt</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -475,34 +569,203 @@ function buildDefaultReservationWindow() {
 	const end = new Date(now)
 	end.setDate(end.getDate() + 1)
 
-	const toDate = value => {
+	const toDateTimeLocal = value => {
 		const year = value.getFullYear()
 		const month = String(value.getMonth() + 1).padStart(2, '0')
 		const day = String(value.getDate()).padStart(2, '0')
-		return `${year}-${month}-${day}`
-	}
-
-	const toTime = value => {
 		const hours = String(value.getHours()).padStart(2, '0')
 		const minutes = String(value.getMinutes()).padStart(2, '0')
-		return `${hours}:${minutes}`
+		return `${year}-${month}-${day}T${hours}:${minutes}`
 	}
 
 	return {
-		startDate: toDate(now),
-		startTime: toTime(now),
-		endDate: toDate(end),
-		endTime: toTime(now),
+		startAt: toDateTimeLocal(now),
+		endAt: toDateTimeLocal(end),
 	}
 }
 
 const defaultReservationWindow = buildDefaultReservationWindow()
 
 const reservation = ref({
-	startDate: defaultReservationWindow.startDate,
-	startTime: defaultReservationWindow.startTime,
-	endDate: defaultReservationWindow.endDate,
-	endTime: defaultReservationWindow.endTime,
+	startAt: defaultReservationWindow.startAt,
+	endAt: defaultReservationWindow.endAt,
+})
+
+function toIsoDateFromDate(value) {
+	const year = value.getFullYear()
+	const month = String(value.getMonth() + 1).padStart(2, '0')
+	const day = String(value.getDate()).padStart(2, '0')
+	return `${year}-${month}-${day}`
+}
+
+function toTimeFromDate(value) {
+	const hours = String(value.getHours()).padStart(2, '0')
+	const minutes = String(value.getMinutes()).padStart(2, '0')
+	return `${hours}:${minutes}`
+}
+
+function getRoundedCurrentTime() {
+	const now = new Date()
+	now.setSeconds(0, 0)
+	const remainder = now.getMinutes() % 15
+	if (remainder !== 0) {
+		now.setMinutes(now.getMinutes() + (15 - remainder))
+	}
+	return now
+}
+
+const minReservationDate = toIsoDateFromDate(new Date())
+
+const timeOptions = Array.from({ length: 96 }, (_, idx) => {
+	const hours = String(Math.floor(idx / 4)).padStart(2, '0')
+	const minutes = String((idx % 4) * 15).padStart(2, '0')
+	return `${hours}:${minutes}`
+})
+
+function splitDateTime(value) {
+	if (!value) return { date: '', time: '00:00' }
+	const [date, time] = value.split('T')
+	return { date: date || '', time: (time || '00:00').slice(0, 5) }
+}
+
+function combineDateTime(date, time) {
+	if (!date) return ''
+	return `${date}T${(time || '00:00').slice(0, 5)}`
+}
+
+function normalizePickedDate(value) {
+	const raw = Array.isArray(value) ? value[0] : value
+	if (!raw) return ''
+	if (raw instanceof Date) {
+		const year = raw.getFullYear()
+		const month = String(raw.getMonth() + 1).padStart(2, '0')
+		const day = String(raw.getDate()).padStart(2, '0')
+		return `${year}-${month}-${day}`
+	}
+	return String(raw).slice(0, 10)
+}
+
+function onStartDatePicked(value) {
+	const isoDate = normalizePickedDate(value)
+	if (!isoDate) return
+	reservationStartDate.value = isoDate
+	startDatePickerMenu.value = false
+}
+
+function onEndDatePicked(value) {
+	const isoDate = normalizePickedDate(value)
+	if (!isoDate) return
+	reservationEndDate.value = isoDate
+	endDatePickerMenu.value = false
+}
+
+function toDisplayDate(isoDate) {
+	if (!isoDate) return ''
+	const [year, month, day] = isoDate.split('-')
+	if (!year || !month || !day) return ''
+	return `${day}/${month}/${year}`
+}
+
+function toIsoDate(displayDate) {
+	if (!displayDate) return ''
+	const value = displayDate.trim().replace(/\./g, '/')
+	const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+	if (!match) return null
+
+	const day = String(Number(match[1])).padStart(2, '0')
+	const month = String(Number(match[2])).padStart(2, '0')
+	const year = match[3]
+	const candidate = `${year}-${month}-${day}`
+	const date = new Date(`${candidate}T00:00:00`)
+
+	if (Number.isNaN(date.getTime())) return null
+	if (date.getFullYear() !== Number(year) || date.getMonth() + 1 !== Number(month) || date.getDate() !== Number(day)) {
+		return null
+	}
+	if (candidate < minReservationDate) return null
+
+	return candidate
+}
+
+const reservationStartDate = computed({
+	get: () => splitDateTime(reservation.value.startAt).date,
+	set: value => {
+		const { time } = splitDateTime(reservation.value.startAt)
+		reservation.value.startAt = combineDateTime(value, time)
+	},
+})
+
+const reservationStartDateDisplay = computed({
+	get: () => toDisplayDate(reservationStartDate.value),
+	set: value => {
+		if (!value) {
+			reservationStartDate.value = ''
+			return
+		}
+		const isoDate = toIsoDate(value)
+		if (isoDate) {
+			reservationStartDate.value = isoDate
+		}
+	},
+})
+
+const reservationStartTime = computed({
+	get: () => splitDateTime(reservation.value.startAt).time,
+	set: value => {
+		const { date } = splitDateTime(reservation.value.startAt)
+		reservation.value.startAt = combineDateTime(date, value)
+	},
+})
+
+const reservationEndDate = computed({
+	get: () => splitDateTime(reservation.value.endAt).date,
+	set: value => {
+		const { time } = splitDateTime(reservation.value.endAt)
+		reservation.value.endAt = combineDateTime(value, time)
+	},
+})
+
+const reservationEndDateDisplay = computed({
+	get: () => toDisplayDate(reservationEndDate.value),
+	set: value => {
+		if (!value) {
+			reservationEndDate.value = ''
+			return
+		}
+		const isoDate = toIsoDate(value)
+		if (isoDate) {
+			reservationEndDate.value = isoDate
+		}
+	},
+})
+
+const reservationEndTime = computed({
+	get: () => splitDateTime(reservation.value.endAt).time,
+	set: value => {
+		const { date } = splitDateTime(reservation.value.endAt)
+		reservation.value.endAt = combineDateTime(date, value)
+	},
+})
+
+const minStartTimeToday = computed(() => toTimeFromDate(getRoundedCurrentTime()))
+
+const availableStartTimeOptions = computed(() => {
+	if (reservationStartDate.value !== minReservationDate) return timeOptions
+	return timeOptions.filter(time => time >= minStartTimeToday.value)
+})
+
+const availableEndTimeOptions = computed(() => {
+	let options = timeOptions
+
+	if (reservationEndDate.value === minReservationDate) {
+		options = options.filter(time => time >= minStartTimeToday.value)
+	}
+
+	if (reservationEndDate.value === reservationStartDate.value && reservationStartTime.value) {
+		options = options.filter(time => time > reservationStartTime.value)
+	}
+
+	return options
 })
 
 const reservationDialog = ref(false)
@@ -515,6 +778,9 @@ const paymentDialog = ref(false)
 const paymentLoading = ref(false)
 const paymentError = ref('')
 const paymentSuccess = ref('')
+const cancelDialog = ref(false)
+const startDatePickerMenu = ref(false)
+const endDatePickerMenu = ref(false)
 
 const providerLoading = ref(false)
 const providerError = ref('')
@@ -546,6 +812,8 @@ const roleLabel = computed(() => {
 	if (!user.value) return 'Viesis'
 	return user.value.loma === 'pakalpojumu_sniedzejs' ? 'Pakalpojumu sniedzējs' : 'Klients'
 })
+
+const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 
 const isClient = computed(() => user.value?.loma === 'klients')
 const isProvider = computed(() => user.value?.loma === 'pakalpojumu_sniedzejs')
@@ -658,8 +926,7 @@ const reservationTotal = computed(() => {
 const reservationBillableDays = computed(() => getBillableDays())
 
 const isReservationFormValid = computed(() => {
-	if (!reservation.value.startDate || !reservation.value.startTime) return false
-	if (!reservation.value.endDate || !reservation.value.endTime) return false
+	if (!reservation.value.startAt || !reservation.value.endAt) return false
 
 	const { start, end } = getReservationRange()
 	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
@@ -669,7 +936,7 @@ const isReservationFormValid = computed(() => {
 })
 
 const reservationPeriodText = computed(() => {
-	if (!reservation.value.startDate || !reservation.value.startTime || !reservation.value.endDate || !reservation.value.endTime) {
+	if (!reservation.value.startAt || !reservation.value.endAt) {
 		return 'Norādiet periodu no/līdz.'
 	}
 	const { start, end } = getReservationRange()
@@ -704,30 +971,20 @@ function formatDateTime(value) {
 		hour: '2-digit',
 		minute: '2-digit',
 		hour12: false,
+		hourCycle: 'h23',
+		timeZone: userTimezone,
 	}).format(date)
 }
 
 function formatApiDateTime(value) {
 	const date = value instanceof Date ? value : new Date(value)
 	if (Number.isNaN(date.getTime())) return null
-
-	const year = date.getFullYear()
-	const month = String(date.getMonth() + 1).padStart(2, '0')
-	const day = String(date.getDate()).padStart(2, '0')
-	const hours = String(date.getHours()).padStart(2, '0')
-	const minutes = String(date.getMinutes()).padStart(2, '0')
-	const seconds = String(date.getSeconds()).padStart(2, '0')
-
-	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+	return date.toISOString()
 }
 
 function getReservationRange() {
-	const startDate = reservation.value.startDate || new Date().toISOString().slice(0, 10)
-	const startTime = reservation.value.startTime || '10:00'
-	const endDate = reservation.value.endDate || startDate
-	const endTime = reservation.value.endTime || startTime
-	const start = new Date(`${startDate}T${startTime}:00`)
-	const end = new Date(`${endDate}T${endTime}:00`)
+	const start = new Date(reservation.value.startAt)
+	const end = new Date(reservation.value.endAt)
 	return { start, end }
 }
 
@@ -751,6 +1008,32 @@ function isVehicleAvailable(vehicle) {
 	})
 }
 
+function upsertReservationInTransportState(reservationItem) {
+	if (!reservationItem?.transportlidzeklis_id || !reservationItem?.rezervacija_id) return
+
+	transportItems.value = transportItems.value.map(vehicle => {
+		if (vehicle.transportlidzeklis_id !== reservationItem.transportlidzeklis_id) {
+			return vehicle
+		}
+
+		const currentReservations = Array.isArray(vehicle.rezervacijas) ? vehicle.rezervacijas : []
+		const existingIndex = currentReservations.findIndex(
+			item => item.rezervacija_id === reservationItem.rezervacija_id
+		)
+
+		if (existingIndex >= 0) {
+			const updatedReservations = [...currentReservations]
+			updatedReservations[existingIndex] = {
+				...updatedReservations[existingIndex],
+				...reservationItem,
+			}
+			return { ...vehicle, rezervacijas: updatedReservations }
+		}
+
+		return { ...vehicle, rezervacijas: [...currentReservations, reservationItem] }
+	})
+}
+
 function passesVehicleFilters(vehicle) {
 	if (filters.value.typeId && vehicle.veids_id !== filters.value.typeId) return false
 	if (filters.value.minPrice !== null && Number(vehicle.dienas_nomas_cena) < Number(filters.value.minPrice)) return false
@@ -761,6 +1044,10 @@ function passesVehicleFilters(vehicle) {
 
 function selectPoint(id) {
 	selectedPointId.value = id
+}
+
+function openCompany(companyId) {
+	router.push(`/company/${companyId}`)
 }
 
 function isOwnVehicle(vehicle) {
@@ -810,7 +1097,7 @@ async function createReservation() {
 
 		const response = await fetch(`${API_BASE}/api/rezervacijas`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
 			body: JSON.stringify({
 				klients_id: user.value.klients.klients_id,
 				transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
@@ -857,6 +1144,7 @@ async function confirmPayment() {
 
 		paymentSuccess.value = 'Apmaksāts veiksmīgi!'
 		pendingReservation.value = result.rezervacija
+		upsertReservationInTransportState(result.rezervacija)
 		await loadTransport()
 
 		if (paymentSuccessTimer) {
@@ -887,6 +1175,39 @@ function closePaymentDialog() {
 
 function payLater() {
 	closePaymentDialog()
+}
+
+async function cancelPendingReservation() {
+	if (!pendingReservation.value?.rezervacija_id || !user.value?.klients?.klients_id) {
+		paymentDialog.value = false
+		return
+	}
+
+	paymentLoading.value = true
+	paymentError.value = ''
+
+	try {
+		const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+		})
+		const data = await response.json()
+		if (!response.ok) {
+			paymentError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
+			return
+		}
+
+		pendingReservation.value = null
+		paymentDialog.value = false
+		cancelDialog.value = false
+		snackbar.value = { show: true, text: 'Rezervācija atcelta. Transports atkal pieejams.', color: 'success' }
+		await loadTransport()
+	} catch {
+		paymentError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
+	} finally {
+		paymentLoading.value = false
+	}
 }
 
 function openEditVehicle(vehicle) {
@@ -1049,14 +1370,24 @@ function renderMarkers() {
 		}).addTo(mapInstance)
 
 		marker.bindPopup(`
-			<div>
+			<div class="map-popup-content">
 				<strong>${point.name}</strong><br/>
 				${point.address}, ${point.city}<br/>
-				Transporti: ${point.vehicles.length} (${point.availableCount} pieejami)
+				Transporti: ${point.vehicles.length} (${point.availableCount} pieejami)<br/>
+				<button type="button" class="popup-company-link" data-company-id="${point.id}">Skatīt kompāniju</button>
 			</div>
 		`)
 
 		marker.on('click', () => selectPoint(point.id))
+		marker.on('popupopen', event => {
+			const popupRoot = event.popup?.getElement()
+			const button = popupRoot?.querySelector('.popup-company-link')
+			if (!button) return
+			button.addEventListener('click', clickEvent => {
+				clickEvent.preventDefault()
+				openCompany(point.id)
+			})
+		})
 		markers.push(marker)
 	})
 }
@@ -1115,6 +1446,20 @@ onMounted(async () => {
 watch(points, async () => {
 	await resolveMissingPointCoords()
 	nextTick().then(renderMarkers)
+})
+
+watch(availableStartTimeOptions, options => {
+	if (!options.length) return
+	if (!options.includes(reservationStartTime.value)) {
+		reservationStartTime.value = options[0]
+	}
+})
+
+watch(availableEndTimeOptions, options => {
+	if (!options.length) return
+	if (!options.includes(reservationEndTime.value)) {
+		reservationEndTime.value = options[0]
+	}
 })
 
 watch(drawer, async () => {
@@ -1333,10 +1678,15 @@ watch(drawer, async () => {
 	border-radius: 10px;
 	border: 1px solid rgba(148, 163, 184, 0.28);
 	background: rgba(248, 250, 252, 0.95);
+	color: #0f172a;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 	font-size: 0.9rem;
+}
+
+.reservation-summary strong {
+	color: #020617;
 }
 
 .drawer-scroll :deep(.v-input),
@@ -1355,5 +1705,24 @@ watch(drawer, async () => {
 	background: linear-gradient(135deg, #2563eb, #1d4ed8);
 	border: 2px solid #0f172a;
 	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
+}
+
+:deep(.map-popup-content) {
+	line-height: 1.45;
+}
+
+:deep(.popup-company-link) {
+	margin-top: 8px;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 8px;
+	background: #2563eb;
+	color: #fff;
+	cursor: pointer;
+	font-weight: 600;
+}
+
+:deep(.popup-company-link:hover) {
+	background: #1d4ed8;
 }
 </style>

@@ -1,0 +1,821 @@
+<template>
+  <div class="company-page">
+    <v-container class="py-8">
+      <v-btn variant="text" class="mb-4" @click="router.push('/map')">
+        <v-icon start>mdi-arrow-left</v-icon>
+        Atpakaļ uz karti
+      </v-btn>
+
+      <v-card class="surface" elevation="10">
+        <v-card-text class="pa-6">
+          <div v-if="loading" class="text-body-1">Ielādē kompāniju...</div>
+          <v-alert v-else-if="errorText" type="error" variant="tonal">{{ errorText }}</v-alert>
+          <template v-else-if="company">
+            <div class="text-overline opacity-70">Kompānija</div>
+            <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
+            <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
+            <div class="text-body-2 opacity-80 mb-6">{{ company.city }}</div>
+
+            <div class="d-flex align-center justify-space-between mb-3">
+              <div class="text-h6 font-weight-bold">Transports</div>
+              <v-chip color="primary" variant="tonal">{{ vehicles.length }}</v-chip>
+            </div>
+
+            <v-alert v-if="!vehicles.length" type="info" variant="tonal">
+              Šai kompānijai pašlaik nav pieejama transporta.
+            </v-alert>
+
+            <div v-else class="vehicles-grid">
+              <v-card
+                v-for="vehicle in vehicles"
+                :key="vehicle.transportlidzeklis_id"
+                class="vehicle-card"
+                variant="outlined"
+              >
+                <v-card-text>
+                  <div class="text-subtitle-1 font-weight-bold">
+                    {{ vehicle.marka }} {{ vehicle.modelis }}
+                  </div>
+                  <div class="text-body-2 opacity-80 mb-1">
+                    {{ vehicle.veids?.nosaukums || 'Transporta veids nav norādīts' }}
+                  </div>
+                  <div class="text-body-2 mb-2">
+                    {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
+                  </div>
+                  <v-chip
+                    size="small"
+                    :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
+                    variant="tonal"
+                  >
+                    {{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Nav pieejams' }}
+                  </v-chip>
+                  <v-btn
+                    v-if="isClient"
+                    class="mt-3"
+                    size="small"
+                    color="primary"
+                    :disabled="!isVehicleAvailable(vehicle)"
+                    @click="openReservation(vehicle)"
+                  >
+                    Rezervēt
+                  </v-btn>
+                </v-card-text>
+              </v-card>
+            </div>
+          </template>
+        </v-card-text>
+      </v-card>
+
+      <v-dialog v-model="reservationDialog" max-width="520">
+        <v-card>
+          <v-card-title class="font-weight-bold">Rezervācija</v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            <div v-if="activeVehicle">
+              <div class="text-subtitle-2 font-weight-bold mb-2">
+                {{ activeVehicle.marka }} {{ activeVehicle.modelis }}
+              </div>
+              <div class="text-caption opacity-70 mb-3">
+                {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
+              </div>
+            </div>
+            <div class="text-body-2 mb-2">Izvēlieties nomas periodu.</div>
+            <v-row dense>
+              <v-col cols="6">
+                <v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      :model-value="reservationStartDateDisplay"
+                      label="No datums"
+                      variant="outlined"
+                      density="compact"
+                      placeholder="DD/MM/YYYY"
+                      prepend-inner-icon="mdi-calendar"
+                      readonly
+                    />
+                  </template>
+                  <v-date-picker
+                    :model-value="reservationStartDate"
+                    @update:model-value="onStartDatePicked"
+                    :min="minReservationDate"
+                    color="primary"
+                    locale="lv"
+                    hide-header
+                  />
+                </v-menu>
+              </v-col>
+              <v-col cols="6">
+                <v-select v-model="reservationStartTime" :items="availableStartTimeOptions" label="No laiks" variant="outlined" density="compact" />
+              </v-col>
+              <v-col cols="6">
+                <v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      :model-value="reservationEndDateDisplay"
+                      label="Līdz datumam"
+                      variant="outlined"
+                      density="compact"
+                      placeholder="DD/MM/YYYY"
+                      prepend-inner-icon="mdi-calendar"
+                      readonly
+                    />
+                  </template>
+                  <v-date-picker
+                    :model-value="reservationEndDate"
+                    @update:model-value="onEndDatePicked"
+                    :min="minReservationDate"
+                    color="primary"
+                    locale="lv"
+                    hide-header
+                  />
+                </v-menu>
+              </v-col>
+              <v-col cols="6">
+                <v-select v-model="reservationEndTime" :items="availableEndTimeOptions" label="Līdz laikam" variant="outlined" density="compact" />
+              </v-col>
+              <v-col cols="12">
+                <div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
+              </v-col>
+            </v-row>
+
+            <div class="reservation-summary mt-2">
+              <div><strong>Periods:</strong> {{ reservationPeriodText }}</div>
+              <div><strong>Apmaksas dienas:</strong> {{ reservationBillableDays }}</div>
+              <div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+              <div><strong>Kopā:</strong> {{ reservationTotal }}</div>
+            </div>
+            <v-alert v-if="reservationError" type="error" variant="tonal" class="mt-3" density="compact">
+              {{ reservationError }}
+            </v-alert>
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn variant="text" @click="reservationDialog = false">Atcelt</v-btn>
+            <v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">Rezervēt</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-dialog v-model="paymentDialog" max-width="480">
+        <v-card>
+          <v-card-title class="font-weight-bold">Apmaksa</v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            <div class="text-body-2">Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.</div>
+            <div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
+              Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
+            </div>
+            <v-alert v-if="paymentError" type="error" variant="tonal" class="mt-3" density="compact">
+              {{ paymentError }}
+            </v-alert>
+            <v-alert v-if="paymentSuccess" type="success" variant="tonal" class="mt-3" density="compact">
+              {{ paymentSuccess }}
+            </v-alert>
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn variant="text" color="error" :disabled="paymentLoading" @click="cancelDialog = true">Atcelt rezervāciju</v-btn>
+            <v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
+            <v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-dialog v-model="cancelDialog" max-width="420">
+        <v-card>
+          <v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn variant="text" :disabled="paymentLoading" @click="cancelDialog = false">Nē</v-btn>
+            <v-btn color="error" :loading="paymentLoading" @click="cancelPendingReservation">Jā, atcelt</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
+        {{ snackbar.text }}
+      </v-snackbar>
+    </v-container>
+  </div>
+</template>
+
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const route = useRoute()
+const router = useRouter()
+const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
+
+const user = ref(null)
+const loading = ref(false)
+const errorText = ref('')
+const transportItems = ref([])
+const reservationDialog = ref(false)
+const reservationLoading = ref(false)
+const reservationError = ref('')
+const activeVehicle = ref(null)
+const pendingReservation = ref(null)
+
+const paymentDialog = ref(false)
+const paymentLoading = ref(false)
+const paymentError = ref('')
+const paymentSuccess = ref('')
+const cancelDialog = ref(false)
+const startDatePickerMenu = ref(false)
+const endDatePickerMenu = ref(false)
+
+const snackbar = ref({ show: false, text: '', color: 'error' })
+
+function buildDefaultReservationWindow() {
+  const now = new Date()
+  now.setSeconds(0, 0)
+  now.setMinutes(now.getMinutes() + 30)
+
+  const end = new Date(now)
+  end.setDate(end.getDate() + 1)
+
+  const toDateTimeLocal = value => {
+    const year = value.getFullYear()
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    const hours = String(value.getHours()).padStart(2, '0')
+    const minutes = String(value.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
+  return {
+    startAt: toDateTimeLocal(now),
+    endAt: toDateTimeLocal(end),
+  }
+}
+
+const defaultReservationWindow = buildDefaultReservationWindow()
+
+const reservation = ref({
+  startAt: defaultReservationWindow.startAt,
+  endAt: defaultReservationWindow.endAt,
+})
+
+function toIsoDateFromDate(value) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function toTimeFromDate(value) {
+  const hours = String(value.getHours()).padStart(2, '0')
+  const minutes = String(value.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+function getRoundedCurrentTime() {
+  const now = new Date()
+  now.setSeconds(0, 0)
+  const remainder = now.getMinutes() % 15
+  if (remainder !== 0) {
+    now.setMinutes(now.getMinutes() + (15 - remainder))
+  }
+  return now
+}
+
+const minReservationDate = toIsoDateFromDate(new Date())
+
+const timeOptions = Array.from({ length: 96 }, (_, idx) => {
+  const hours = String(Math.floor(idx / 4)).padStart(2, '0')
+  const minutes = String((idx % 4) * 15).padStart(2, '0')
+  return `${hours}:${minutes}`
+})
+
+function splitDateTime(value) {
+  if (!value) return { date: '', time: '00:00' }
+  const [date, time] = value.split('T')
+  return { date: date || '', time: (time || '00:00').slice(0, 5) }
+}
+
+function combineDateTime(date, time) {
+  if (!date) return ''
+  return `${date}T${(time || '00:00').slice(0, 5)}`
+}
+
+function normalizePickedDate(value) {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (!raw) return ''
+  if (raw instanceof Date) {
+    const year = raw.getFullYear()
+    const month = String(raw.getMonth() + 1).padStart(2, '0')
+    const day = String(raw.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  return String(raw).slice(0, 10)
+}
+
+function onStartDatePicked(value) {
+  const isoDate = normalizePickedDate(value)
+  if (!isoDate) return
+  reservationStartDate.value = isoDate
+  startDatePickerMenu.value = false
+}
+
+function onEndDatePicked(value) {
+  const isoDate = normalizePickedDate(value)
+  if (!isoDate) return
+  reservationEndDate.value = isoDate
+  endDatePickerMenu.value = false
+}
+
+function toDisplayDate(isoDate) {
+  if (!isoDate) return ''
+  const [year, month, day] = isoDate.split('-')
+  if (!year || !month || !day) return ''
+  return `${day}/${month}/${year}`
+}
+
+function toIsoDate(displayDate) {
+  if (!displayDate) return ''
+  const value = displayDate.trim().replace(/\./g, '/')
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) return null
+
+  const day = String(Number(match[1])).padStart(2, '0')
+  const month = String(Number(match[2])).padStart(2, '0')
+  const year = match[3]
+  const candidate = `${year}-${month}-${day}`
+  const date = new Date(`${candidate}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) return null
+  if (date.getFullYear() !== Number(year) || date.getMonth() + 1 !== Number(month) || date.getDate() !== Number(day)) {
+    return null
+  }
+  if (candidate < minReservationDate) return null
+
+  return candidate
+}
+
+const reservationStartDate = computed({
+  get: () => splitDateTime(reservation.value.startAt).date,
+  set: value => {
+    const { time } = splitDateTime(reservation.value.startAt)
+    reservation.value.startAt = combineDateTime(value, time)
+  },
+})
+
+const reservationStartDateDisplay = computed({
+  get: () => toDisplayDate(reservationStartDate.value),
+  set: value => {
+    if (!value) {
+      reservationStartDate.value = ''
+      return
+    }
+    const isoDate = toIsoDate(value)
+    if (isoDate) {
+      reservationStartDate.value = isoDate
+    }
+  },
+})
+
+const reservationStartTime = computed({
+  get: () => splitDateTime(reservation.value.startAt).time,
+  set: value => {
+    const { date } = splitDateTime(reservation.value.startAt)
+    reservation.value.startAt = combineDateTime(date, value)
+  },
+})
+
+const reservationEndDate = computed({
+  get: () => splitDateTime(reservation.value.endAt).date,
+  set: value => {
+    const { time } = splitDateTime(reservation.value.endAt)
+    reservation.value.endAt = combineDateTime(value, time)
+  },
+})
+
+const reservationEndDateDisplay = computed({
+  get: () => toDisplayDate(reservationEndDate.value),
+  set: value => {
+    if (!value) {
+      reservationEndDate.value = ''
+      return
+    }
+    const isoDate = toIsoDate(value)
+    if (isoDate) {
+      reservationEndDate.value = isoDate
+    }
+  },
+})
+
+const reservationEndTime = computed({
+  get: () => splitDateTime(reservation.value.endAt).time,
+  set: value => {
+    const { date } = splitDateTime(reservation.value.endAt)
+    reservation.value.endAt = combineDateTime(date, value)
+  },
+})
+
+const minStartTimeToday = computed(() => toTimeFromDate(getRoundedCurrentTime()))
+
+const availableStartTimeOptions = computed(() => {
+  if (reservationStartDate.value !== minReservationDate) return timeOptions
+  return timeOptions.filter(time => time >= minStartTimeToday.value)
+})
+
+const availableEndTimeOptions = computed(() => {
+  let options = timeOptions
+
+  if (reservationEndDate.value === minReservationDate) {
+    options = options.filter(time => time >= minStartTimeToday.value)
+  }
+
+  if (reservationEndDate.value === reservationStartDate.value && reservationStartTime.value) {
+    options = options.filter(time => time > reservationStartTime.value)
+  }
+
+  return options
+})
+
+const companyId = computed(() => Number(route.params.id))
+const isClient = computed(() => user.value?.loma === 'klients')
+
+const vehicles = computed(() =>
+  transportItems.value.filter(item => Number(item.sniedzejs_id) === companyId.value)
+)
+
+const reservationTotal = computed(() => {
+  if (!activeVehicle.value) return '0 €'
+  const days = getBillableDays()
+  const sum = days * Number(activeVehicle.value.dienas_nomas_cena || 0)
+  return formatPrice(sum)
+})
+
+const reservationBillableDays = computed(() => getBillableDays())
+
+const isReservationFormValid = computed(() => {
+  if (!reservation.value.startAt || !reservation.value.endAt) return false
+
+  const { start, end } = getReservationRange()
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+  if (end <= start) return false
+  if (start <= new Date()) return false
+  return true
+})
+
+const reservationPeriodText = computed(() => {
+  if (!reservation.value.startAt || !reservation.value.endAt) {
+    return 'Norādiet periodu no/līdz.'
+  }
+
+  const { start, end } = getReservationRange()
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 'Norādiet derīgu periodu no/līdz.'
+  }
+
+  if (start <= new Date()) {
+    return 'Sākuma laikam jābūt nākotnē.'
+  }
+
+  if (end <= start) {
+    return 'Beigu laikam jābūt pēc sākuma laika.'
+  }
+
+  return `${formatDateTime(start)} → ${formatDateTime(end)}`
+})
+
+const company = computed(() => {
+  const firstVehicle = vehicles.value[0]
+  if (!firstVehicle?.sniedzejs) return null
+
+  const sniedzejs = firstVehicle.sniedzejs
+  const persona = sniedzejs.persona
+  const name = persona
+    ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
+    : `Pakalpojumu sniedzējs #${sniedzejs.sniedzejs_id}`
+  const address = [sniedzejs.iela, sniedzejs.majas_numurs, sniedzejs.dzivokla_numurs]
+    .filter(Boolean)
+    .join(' ')
+
+  return {
+    name,
+    address: address || 'Nav norādīta adrese',
+    city: sniedzejs.pilseta || 'Nav norādīta pilsēta',
+  }
+})
+
+function formatPrice(value) {
+  const num = Number(value || 0)
+  return `${num.toFixed(2)} €`
+}
+
+function formatDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('lv-LV', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+    timeZone: userTimezone,
+  }).format(date)
+}
+
+function formatApiDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+function getReservationRange() {
+  const start = new Date(reservation.value.startAt)
+  const end = new Date(reservation.value.endAt)
+  return { start, end }
+}
+
+function getBillableDays() {
+  if (!isReservationFormValid.value) return 1
+  const { start, end } = getReservationRange()
+  const diffMs = end.getTime() - start.getTime()
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return 1
+  return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)))
+}
+
+function isVehicleAvailable(vehicle) {
+  if (!vehicle) return false
+  if (vehicle.statuss !== 'pieejams') return false
+  const { start, end } = getReservationRange()
+  if (!vehicle.rezervacijas || !vehicle.rezervacijas.length) return true
+  return !vehicle.rezervacijas.some(res => {
+    const rStart = new Date(res.sakuma_laiks)
+    const rEnd = new Date(res.beigu_laiks)
+    return rStart < end && rEnd > start
+  })
+}
+
+function upsertReservationInTransportState(reservationItem) {
+  if (!reservationItem?.transportlidzeklis_id || !reservationItem?.rezervacija_id) return
+
+  transportItems.value = transportItems.value.map(vehicle => {
+    if (vehicle.transportlidzeklis_id !== reservationItem.transportlidzeklis_id) {
+      return vehicle
+    }
+
+    const currentReservations = Array.isArray(vehicle.rezervacijas) ? vehicle.rezervacijas : []
+    const existingIndex = currentReservations.findIndex(
+      item => item.rezervacija_id === reservationItem.rezervacija_id
+    )
+
+    if (existingIndex >= 0) {
+      const updatedReservations = [...currentReservations]
+      updatedReservations[existingIndex] = {
+        ...updatedReservations[existingIndex],
+        ...reservationItem,
+      }
+      return { ...vehicle, rezervacijas: updatedReservations }
+    }
+
+    return { ...vehicle, rezervacijas: [...currentReservations, reservationItem] }
+  })
+}
+
+function openReservation(vehicle) {
+  if (!user.value) {
+    snackbar.value = { show: true, text: 'Lūdzu, pieslēdzieties, lai rezervētu.', color: 'error' }
+    router.push('/auth')
+    return
+  }
+
+  if (!isClient.value) {
+    snackbar.value = { show: true, text: 'Rezervācijas pieejamas tikai klientiem.', color: 'error' }
+    return
+  }
+
+  activeVehicle.value = vehicle
+  reservationError.value = ''
+  reservationDialog.value = true
+}
+
+async function createReservation() {
+  if (!activeVehicle.value || !user.value?.klients?.klients_id) {
+    reservationError.value = 'Nav klienta datu.'
+    return
+  }
+
+  if (!isReservationFormValid.value) {
+    reservationError.value = 'Lūdzu, izvēlieties periodu nākotnē (beigu laiks pēc sākuma laika).'
+    return
+  }
+
+  reservationLoading.value = true
+  reservationError.value = ''
+  paymentError.value = ''
+  paymentSuccess.value = ''
+
+  try {
+    const { start, end } = getReservationRange()
+    const startApi = formatApiDateTime(start)
+    const endApi = formatApiDateTime(end)
+
+    if (!startApi || !endApi) {
+      reservationError.value = 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.'
+      return
+    }
+
+    const response = await fetch(`${API_BASE}/api/rezervacijas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
+      body: JSON.stringify({
+        klients_id: user.value.klients.klients_id,
+        transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
+        sakuma_laiks: startApi,
+        beigu_laiks: endApi,
+      }),
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      reservationError.value = result?.message || 'Neizdevās izveidot rezervāciju.'
+      return
+    }
+
+    pendingReservation.value = result
+    reservationDialog.value = false
+    paymentDialog.value = true
+  } catch {
+    reservationError.value = 'Kļūda: Neizdevās izveidot rezervāciju.'
+  } finally {
+    reservationLoading.value = false
+  }
+}
+
+async function confirmPayment() {
+  if (!pendingReservation.value || !user.value?.klients?.klients_id) return
+
+  paymentLoading.value = true
+  paymentError.value = ''
+  paymentSuccess.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      paymentError.value = result?.message || 'Maksājums neizdevās.'
+      return
+    }
+
+    paymentSuccess.value = 'Apmaksāts veiksmīgi!'
+    pendingReservation.value = result.rezervacija
+    upsertReservationInTransportState(result.rezervacija)
+    await loadTransport()
+  } catch {
+    paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
+  } finally {
+    paymentLoading.value = false
+  }
+}
+
+function payLater() {
+  paymentDialog.value = false
+}
+
+async function cancelPendingReservation() {
+  if (!pendingReservation.value?.rezervacija_id || !user.value?.klients?.klients_id) {
+    paymentDialog.value = false
+    return
+  }
+
+  paymentLoading.value = true
+  paymentError.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      paymentError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
+      return
+    }
+
+    pendingReservation.value = null
+    paymentDialog.value = false
+    cancelDialog.value = false
+    snackbar.value = { show: true, text: 'Rezervācija atcelta. Transports atkal pieejams.', color: 'success' }
+    await loadTransport()
+  } catch {
+    paymentError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
+  } finally {
+    paymentLoading.value = false
+  }
+}
+
+async function loadTransport() {
+  if (!Number.isFinite(companyId.value) || companyId.value <= 0) {
+    errorText.value = 'Nederīgs kompānijas ID.'
+    return
+  }
+
+  loading.value = true
+  errorText.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/transport`)
+    const data = await response.json()
+
+    if (!response.ok) {
+      errorText.value = data?.message || 'Neizdevās ielādēt kompānijas transportu.'
+      return
+    }
+
+    transportItems.value = data
+
+    if (!vehicles.value.length) {
+      errorText.value = 'Kompānija nav atrasta vai tai nav transporta.'
+    }
+  } catch {
+    errorText.value = 'Kļūda: Neizdevās ielādēt kompānijas transportu.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadTransport)
+
+onMounted(() => {
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    user.value = JSON.parse(userStr)
+  }
+})
+
+watch(availableStartTimeOptions, options => {
+  if (!options.length) return
+  if (!options.includes(reservationStartTime.value)) {
+    reservationStartTime.value = options[0]
+  }
+})
+
+watch(availableEndTimeOptions, options => {
+  if (!options.length) return
+  if (!options.includes(reservationEndTime.value)) {
+    reservationEndTime.value = options[0]
+  }
+})
+</script>
+
+<style scoped>
+.company-page {
+  min-height: calc(100vh - 72px);
+  background: radial-gradient(900px circle at 8% 12%, rgba(255, 255, 255, 0.09), transparent 50%),
+    linear-gradient(135deg, #0f172a, #111827, #0b1020);
+}
+
+.surface {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  color: #0f172a;
+}
+
+.vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.vehicle-card {
+  border-radius: 12px;
+  color: #0f172a;
+}
+
+.reservation-summary {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.95);
+  color: #0f172a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.reservation-summary strong {
+  color: #020617;
+}
+</style>

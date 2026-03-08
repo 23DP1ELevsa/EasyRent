@@ -11,11 +11,45 @@ use Illuminate\Validation\ValidationException;
 
 class TransportController extends Controller
 {
+    private function syncTransportStatusById(int $transportId): void
+    {
+        $transport = Transportlidzeklis::find($transportId);
+
+        if (!$transport || $transport->statuss === 'neaktivs') {
+            return;
+        }
+
+        $hasActivePaidReservation = Rezervacija::where('transportlidzeklis_id', $transportId)
+            ->where('apmaksas_statuss', 'apmaksata')
+            ->where('beigu_laiks', '>', Carbon::now())
+            ->exists();
+
+        $targetStatus = $hasActivePaidReservation ? 'aiznemts' : 'pieejams';
+
+        if ($transport->statuss !== $targetStatus) {
+            $transport->update(['statuss' => $targetStatus]);
+        }
+    }
+
+    private function syncVehicleStatuses(): void
+    {
+        $vehicleIds = Rezervacija::query()
+            ->select('transportlidzeklis_id')
+            ->distinct()
+            ->pluck('transportlidzeklis_id');
+
+        foreach ($vehicleIds as $vehicleId) {
+            $this->syncTransportStatusById((int) $vehicleId);
+        }
+    }
+
     private function cleanupExpiredUnpaidReservations(): void
     {
         Rezervacija::where('apmaksas_statuss', 'neapmaksata')
             ->where('sakuma_laiks', '<=', Carbon::now())
             ->delete();
+
+        $this->syncVehicleStatuses();
     }
 
     public function index(Request $request)

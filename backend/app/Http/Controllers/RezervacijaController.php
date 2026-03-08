@@ -11,11 +11,64 @@ use Illuminate\Support\Str;
 
 class RezervacijaController extends Controller
 {
+    private function syncTransportStatusById(int $transportId): void
+    {
+        $transport = Transportlidzeklis::find($transportId);
+
+        if (!$transport || $transport->statuss === 'neaktivs') {
+            return;
+        }
+
+        $hasActivePaidReservation = Rezervacija::where('transportlidzeklis_id', $transportId)
+            ->where('apmaksas_statuss', 'apmaksata')
+            ->where('beigu_laiks', '>', Carbon::now())
+            ->exists();
+
+        $targetStatus = $hasActivePaidReservation ? 'aiznemts' : 'pieejams';
+
+        if ($transport->statuss !== $targetStatus) {
+            $transport->update(['statuss' => $targetStatus]);
+        }
+    }
+
+    private function syncVehicleStatuses(): void
+    {
+        $vehicleIds = Rezervacija::query()
+            ->select('transportlidzeklis_id')
+            ->distinct()
+            ->pluck('transportlidzeklis_id');
+
+        foreach ($vehicleIds as $vehicleId) {
+            $this->syncTransportStatusById((int) $vehicleId);
+        }
+    }
+
+    private function resolveClientTimezone(Request $request): \DateTimeZone
+    {
+        $timezone = trim((string) $request->header('X-Timezone', ''));
+
+        if ($timezone !== '') {
+            try {
+                return new \DateTimeZone($timezone);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return new \DateTimeZone((string) config('app.timezone', 'UTC'));
+    }
+
+    private function parseClientDateTime(string $value, Request $request): Carbon
+    {
+        return Carbon::parse($value, $this->resolveClientTimezone($request))->utc();
+    }
+
     private function cleanupExpiredUnpaidReservations(): void
     {
         Rezervacija::where('apmaksas_statuss', 'neapmaksata')
             ->where('sakuma_laiks', '<=', Carbon::now())
             ->delete();
+
+        $this->syncVehicleStatuses();
     }
 
     public function index(Request $request)
@@ -47,12 +100,12 @@ class RezervacijaController extends Controller
 
         $transport = Transportlidzeklis::findOrFail($data['transportlidzeklis_id']);
 
-        if ($transport->statuss === 'neaktivs') {
+        if ($transport->statuss !== 'pieejams') {
             return response()->json(['message' => 'Transportlīdzeklis nav pieejams.'], 409);
         }
 
-        $start = Carbon::parse($data['sakuma_laiks']);
-        $end = Carbon::parse($data['beigu_laiks']);
+        $start = $this->parseClientDateTime($data['sakuma_laiks'], $request);
+        $end = $this->parseClientDateTime($data['beigu_laiks'], $request);
 
         if ($start->lessThanOrEqualTo(Carbon::now())) {
             return response()->json(['message' => 'Sākuma laikam jābūt nākotnē.'], 422);
@@ -126,9 +179,34 @@ class RezervacijaController extends Controller
             'maksajuma_datums' => Carbon::today(),
         ]);
 
+        $this->syncTransportStatusById((int) $rezervacija->transportlidzeklis_id);
+
         return response()->json([
             'rezervacija' => $rezervacija->refresh(),
             'maksajums' => $maksajums,
         ]);
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $this->cleanupExpiredUnpaidReservations();
+
+        $data = $request->validate([
+            'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
+        ]);
+
+        $rezervacija = Rezervacija::findOrFail($id);
+
+        if ($rezervacija->klients_id !== $data['klients_id']) {
+            return response()->json(['message' => 'Nav atļauts atcelt šo rezervāciju.'], 403);
+        }
+
+        if ($rezervacija->apmaksas_statuss === 'apmaksata') {
+            return response()->json(['message' => 'Apmaksātu rezervāciju atcelt nevar.'], 409);
+        }
+
+        $rezervacija->delete();
+
+        return response()->json(['message' => 'Rezervācija atcelta.']);
     }
 }

@@ -39,4 +39,5 @@ Route::prefix('rezervacijas')->group(function () {
     Route::get('/', [RezervacijaController::class, 'index']);
     Route::post('/', [RezervacijaController::class, 'store']);
     Route::post('/{id}/pay', [RezervacijaController::class, 'pay']);
+    Route::delete('/{id}', [RezervacijaController::class, 'destroy']);
 });

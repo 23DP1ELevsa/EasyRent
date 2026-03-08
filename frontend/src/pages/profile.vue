@@ -416,10 +416,35 @@
                       >
                         Apmaksāt tagad
                       </v-btn>
+                      <v-btn
+                        color="error"
+                        variant="text"
+                        size="small"
+                        class="ms-2"
+                        :loading="cancellingReservationId === item.rezervacija_id"
+                        @click="openCancelDialog(item.rezervacija_id)"
+                      >
+                        Atcelt rezervāciju
+                      </v-btn>
                     </v-card-text>
                   </v-card>
                 </div>
               </template>
+
+              <v-dialog v-model="cancelDialog" max-width="420">
+                <v-card>
+                  <v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
+                  <v-divider />
+                  <v-card-text class="pa-4">
+                    Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
+                  </v-card-text>
+                  <v-card-actions class="px-4 pb-4">
+                    <v-spacer />
+                    <v-btn variant="text" :disabled="cancellingReservationId !== null" @click="cancelDialog = false">Nē</v-btn>
+                    <v-btn color="error" :loading="cancellingReservationId !== null" @click="cancelReservation">Jā, atcelt</v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
 
             </v-card-text>
           </v-card>
@@ -444,6 +469,9 @@ const reservationsLoading = ref(false)
 const reservationsError = ref('')
 const reservationsSuccess = ref('')
 const payingReservationId = ref(null)
+const cancellingReservationId = ref(null)
+const cancelDialog = ref(false)
+const pendingCancelReservationId = ref(null)
 const currentClientId = ref(null)
 const geocodeLoading = ref(false)
 const geocodeError = ref('')
@@ -651,6 +679,41 @@ async function payReservation(rezervacijaId) {
     reservationsError.value = 'Kļūda: Neizdevās apmaksāt rezervāciju.'
   } finally {
     payingReservationId.value = null
+  }
+}
+
+function openCancelDialog(rezervacijaId) {
+  pendingCancelReservationId.value = rezervacijaId
+  cancelDialog.value = true
+}
+
+async function cancelReservation() {
+  const rezervacijaId = pendingCancelReservationId.value
+  if (!currentClientId.value || !rezervacijaId) return
+  cancellingReservationId.value = rezervacijaId
+  reservationsError.value = ''
+  reservationsSuccess.value = ''
+  try {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const response = await fetch(`${API_BASE}/api/rezervacijas/${rezervacijaId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ klients_id: currentClientId.value }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      reservationsError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
+      return
+    }
+
+    reservations.value = reservations.value.filter(item => item.rezervacija_id !== rezervacijaId)
+    reservationsSuccess.value = 'Rezervācija atcelta. Transports atkal ir pieejams.'
+  } catch {
+    reservationsError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
+  } finally {
+    cancellingReservationId.value = null
+    pendingCancelReservationId.value = null
+    cancelDialog.value = false
   }
 }
 function formatDateTime(value) {
