@@ -1,151 +1,140 @@
 # EasyRent
 
-Mūsdienīga tīmekļa platforma īpašumu iznomāšanai un pārvaldei. EasyRent sniedz vienkāršu un intuitīvu risinājumu īpašumu īrnieki un iznomātājiem.
+EasyRent ir pilna steka tīmekļa projekts ar:
+- `backend/` — Laravel 12 API (PHP)
+- `frontend/` — Vue 3 + Vuetify lietotāja saskarni
 
-## 📋 Projekta Apraksts
+Šis README apraksta, kā no nulles palaist projektu lokāli.
 
-EasyRent ir pilnfunkcionāla Saas platforma, kas paredzēta rezidenciālo un komerciālo īpašumu īrniecībai. Platforma ļauj īpašniekiem:
+## Prasības
 
-- 🏠 Pārvaldīt savu īpašumā portfeli
-- 💰 Izsekot maksājumus un īres naudas plūsmas
-- 📞 Sazināties ar īrniekiem
-- 📋 Pārvaldīt līgumus un dokumentus
-- 📊 Analizēt īpašuma sniegumu
+- PHP `8.2+`
+- Composer `2+`
+- Node.js `18+` (ieteicams `20+`) un `npm`
+- Git
 
-Īrniekiem platforma nodrošina:
+> Piezīme: pēc noklusējuma backend ir konfigurēts uz `sqlite` (`backend/.env.example`).
 
-- 🔍 Viegli meklēt un filtrēt īpašumus
-- 📱 Apskatīt detalizētu informāciju par īpašumiem
-- 💬 Tiešā saziņa ar īpašniekiem
-- 📄 Digitāls līgums un dokumentu pārvaldība
+## Projekta struktūra
 
-## 🏗️ Projektā Struktūra
-
-```
+```text
 EasyRent/
-├── backend/          # Laravel PHP API
-├── frontend/         # Vue.js lietotāja saskarne
-└── README.md         # Šis fails
+├─ backend/    Laravel API
+├─ frontend/   Vue SPA
+└─ README.md
 ```
 
-### Backend
+## Ātrais starts
 
-- **Framework:** Laravel 11
-- **Valoda:** PHP 8.2+
-- **Datubāze:** Konfigurējama (MySQL/PostgreSQL)
-- **Autentifikācija:** Laravel Sanctum
+### 1) Backend uzstādīšana
 
-**Galvenās mapes:**
-- `app/Http/Controllers/` - API kontrolieri
-- `app/Models/` - Datu modeļi
-- `database/migrations/` - Datubāzes migrācijas
-- `routes/` - Maršrutēšana
-- `config/` - Konfigurācijas faili
-
-### Frontend
-
-- **Framework:** Vue 3
-- **Build rīks:** Vite
-- **Stili:** CSS
-- **Linter:** ESLint
-
-**Galvenās mapes:**
-- `src/components/` - Vue komponentes
-- `src/pages/` - Lapas/skaņi
-- `src/router/` - Маршутизаторы
-- `src/assets/` - Statiskās iespējas
-
-## 🚀 Sākšana
-
-### Priekšnoteikumi
-
-- PHP 8.2 vai jaunāks
-- Node.js 18+ ar npm
-- Composer
-- SQL datubāze (MySQL/PostgreSQL)
-
-### Instalācija
-
-#### 1. Klonēt repozitoriju
+Atver termināli mapē `backend` un izpildi:
 
 ```bash
-git clone <repository-url>
-cd EasyRent
-```
-
-#### 2. Backend Iestatīšana
-
-```bash
-cd backend
-
-# Instalēt PHP atkarības
 composer install
+```
 
-# Kopēt .env failu
-cp .env.example .env
+Izveido `.env` failu (PowerShell):
 
-# Ģenerēt aplikācijas atslēgu
+```powershell
+Copy-Item .env.example .env
+```
+
+Ja izmanto `sqlite`, izveido failu `backend/database/database.sqlite` (ja vēl nav):
+
+```powershell
+New-Item -ItemType File -Path database/database.sqlite -Force
+```
+
+Tad izpildi:
+
+```bash
 php artisan key:generate
-
-# Izpildīt datubāzes migrācijas
 php artisan migrate
+```
 
-# (Iespējams) Seed datubāzi ar testa datiem
-php artisan db:seed
+Palaid API serveri:
 
-# Sākt attīstības serveri
+```bash
 php artisan serve
 ```
 
-Backend būs pieejams: `http://localhost:8000`
+Backend būs pieejams: `http://127.0.0.1:8000`
 
-#### 3. Frontend Iestatīšana
+---
+
+### 2) Frontend uzstādīšana
+
+Atver otru termināli mapē `frontend` un izpildi:
 
 ```bash
-cd ../frontend
-
-# Instalēt JavaScript atkarības
 npm install
-
-# Sākt attīstības serveri
 npm run dev
 ```
 
-Frontend būs pieejams: `http://localhost:5173` (vai cits ports, ko norāda Vite)
+Frontend būs pieejams: `http://localhost:3000`
 
-## 📝 Konfigurācija
+## Frontend API konfigurācija
 
-### Backend (.env)
+Failā `frontend/.env` jābūt:
 
-Svarīgie mainīgie:
-- `APP_URL` - Aplikācijas URL
-- `DB_CONNECTION` - Datubāzes tips
-- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` - Datubāzes savienojuma dati
-- `SANCTUM_STATEFUL_DOMAINS` - Domēni, kuriem atļauts stateful pieprasījumi
-
-### Frontend (.env)
-
-- `VITE_API_URL` - Backend API URL
-
-## 🧪 Testēšana
-
-### Backend testi
-
-```bash
-cd backend
-
-# Izpildīt vienības testus
-php artisan test
-
-# Ar detalizētu izeju
-php artisan test --verbose
+```dotenv
+VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-### Frontend testi
+Ja backend darbojas uz cita hosta/porta, atjauno šo vērtību un pārstartē `npm run dev`.
 
-```bash
-cd frontend
+## Noderīgas komandas
 
-# Atkarībā no konfigurācijas
-npm run test
+### Backend (`backend/`)
+
+- `php artisan serve` — startē API serveri
+- `php artisan migrate` — palaiž migrācijas
+- `php artisan migrate:fresh --seed` — pārbūvē DB un aizpilda datus (ja ir seederi)
+- `php artisan test` — palaiž testus
+- `composer run dev` — vienā komandā palaiž Laravel serveri, queue listeneri, logus un Vite (backend pusei)
+
+### Frontend (`frontend/`)
+
+- `npm run dev` — attīstības serveris
+- `npm run build` — produkcijas būvējums
+- `npm run preview` — lokāls produkcijas preview
+- `npm run lint` — ESLint ar automātisku labošanu
+
+## Biežākās problēmas
+
+### `php artisan serve` nepalaižas
+
+Pārbaudi:
+- vai esi mapē `backend/`
+- vai `.env` eksistē
+- vai veikts `php artisan key:generate`
+- vai DB ir pieejama un `php artisan migrate` izpildās bez kļūdām
+
+### `npm run dev` nepalaižas frontendā
+
+Pārbaudi:
+- vai esi mapē `frontend/`
+- vai palaists `npm install`
+- vai Node.js versija ir `18+`
+
+### Frontend nevar sasniegt API
+
+Pārbaudi:
+- `frontend/.env` vērtību `VITE_API_BASE_URL`
+- vai backend tiešām darbojas uz `http://127.0.0.1:8000`
+- vai nav CORS vai porta konflikta problēmas
+
+## API health pārbaude
+
+Pēc backend palaišanas vari pārbaudīt:
+
+```text
+GET http://127.0.0.1:8000/api/health
+```
+
+Sagaidāmā atbilde:
+
+```json
+{"status":"ok"}
 ```
