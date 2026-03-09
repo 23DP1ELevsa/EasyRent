@@ -278,24 +278,8 @@
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
-            <v-btn variant="text" color="error" :disabled="paymentLoading" @click="cancelDialog = true">Atcelt rezervāciju</v-btn>
             <v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
             <v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
-
-      <v-dialog v-model="cancelDialog" max-width="420">
-        <v-card>
-          <v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
-          <v-divider />
-          <v-card-text class="pa-4">
-            Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
-          </v-card-text>
-          <v-card-actions class="px-4 pb-4">
-            <v-spacer />
-            <v-btn variant="text" :disabled="paymentLoading" @click="cancelDialog = false">Nē</v-btn>
-            <v-btn color="error" :loading="paymentLoading" @click="cancelPendingReservation">Jā, atcelt</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -331,7 +315,6 @@ const paymentDialog = ref(false)
 const paymentLoading = ref(false)
 const paymentError = ref('')
 const paymentSuccess = ref('')
-const cancelDialog = ref(false)
 const startDatePickerMenu = ref(false)
 const endDatePickerMenu = ref(false)
 
@@ -895,6 +878,9 @@ async function confirmPayment() {
     pendingReservation.value = result.rezervacija
     upsertReservationInTransportState(result.rezervacija)
     await loadTransport()
+
+    paymentDialog.value = false
+    snackbar.value = { show: true, text: 'Apmaksāts veiksmīgi!', color: 'success' }
   } catch {
     paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
   } finally {
@@ -903,41 +889,9 @@ async function confirmPayment() {
 }
 
 function payLater() {
-  paymentDialog.value = false
-}
-
-// Atceļ tikko izveidotu, vēl neapmaksātu rezervāciju.
-async function cancelPendingReservation() {
-  if (!pendingReservation.value?.rezervacija_id || !user.value?.klients?.klients_id) {
-    paymentDialog.value = false
-    return
-  }
-
-  paymentLoading.value = true
   paymentError.value = ''
-
-  try {
-    const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      paymentError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
-      return
-    }
-
-    pendingReservation.value = null
-    paymentDialog.value = false
-    cancelDialog.value = false
-    snackbar.value = { show: true, text: 'Rezervācija atcelta. Transports atkal pieejams.', color: 'success' }
-    await loadTransport()
-  } catch {
-    paymentError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
-  } finally {
-    paymentLoading.value = false
-  }
+  paymentSuccess.value = ''
+  paymentDialog.value = false
 }
 
 async function loadTransport() {
