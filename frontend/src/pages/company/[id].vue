@@ -18,16 +18,118 @@
 
             <div class="d-flex align-center justify-space-between mb-3">
               <div class="text-h6 font-weight-bold">Transports</div>
-              <v-chip color="primary" variant="tonal">{{ vehicles.length }}</v-chip>
+              <v-chip color="primary" variant="tonal">{{ filteredSortedVehicles.length }}/{{ vehicles.length }}</v-chip>
             </div>
 
             <v-alert v-if="!vehicles.length" type="info" variant="tonal">
               Šai kompānijai pašlaik nav pieejama transporta.
             </v-alert>
 
-            <div v-else class="vehicles-grid">
+            <template v-else>
+              <div class="d-flex justify-end flex-wrap ga-2 mb-3">
+                <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
+                  <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
+                  {{ showFilters ? 'Aizvērt filtrus' : 'Filtri' }}
+                </v-btn>
+                <v-btn color="primary" variant="tonal" @click="showSorting = !showSorting">
+                  <v-icon start>{{ showSorting ? 'mdi-sort-variant-remove' : 'mdi-sort-variant' }}</v-icon>
+                  {{ showSorting ? 'Aizvērt kārtošanu' : 'Kārtot' }}
+                </v-btn>
+              </div>
+
+              <v-expand-transition>
+                <v-card v-if="showFilters" class="mb-4" variant="outlined">
+                  <v-card-text class="pb-2">
+                    <v-row dense>
+                      <v-col cols="12" md="6">
+                        <v-text-field
+                          v-model="vehicleFilters.q"
+                          label="Meklēt pēc markas vai modeļa"
+                          variant="outlined"
+                          density="compact"
+                          clearable
+                        />
+                      </v-col>
+                      <v-col cols="12" sm="6" md="3">
+                        <v-select
+                          v-model="vehicleFilters.typeId"
+                          :items="vehicleTypeOptions"
+                          item-title="title"
+                          item-value="value"
+                          label="Transporta veids"
+                          variant="outlined"
+                          density="compact"
+                          clearable
+                        />
+                      </v-col>
+                      <v-col cols="6" md="3">
+                        <v-text-field
+                          v-model.number="vehicleFilters.minPrice"
+                          label="Cena no (€)"
+                          variant="outlined"
+                          density="compact"
+                          type="number"
+                          min="0"
+                        />
+                      </v-col>
+                      <v-col cols="6" md="3">
+                        <v-text-field
+                          v-model.number="vehicleFilters.maxPrice"
+                          label="Cena līdz (€)"
+                          variant="outlined"
+                          density="compact"
+                          type="number"
+                          min="0"
+                        />
+                      </v-col>
+                      <v-col cols="12" md="4" class="d-flex align-center">
+                        <v-switch
+                          v-model="vehicleFilters.onlyAvailable"
+                          label="Tikai pieejamie"
+                          inset
+                          density="compact"
+                          hide-details
+                        />
+                      </v-col>
+                      <v-col cols="12" md="2" class="d-flex align-center justify-end">
+                        <v-btn variant="text" size="small" @click="resetVehicleFilters">Notīrīt</v-btn>
+                      </v-col>
+                    </v-row>
+                  </v-card-text>
+                </v-card>
+              </v-expand-transition>
+
+              <v-expand-transition>
+                <v-card v-if="showSorting" class="mb-4" variant="outlined">
+                  <v-card-text class="pb-2">
+                    <v-row dense>
+                      <v-col cols="12" md="6">
+                        <v-select
+                          v-model="vehicleSorting.sortBy"
+                          :items="sortOptions"
+                          item-title="title"
+                          item-value="value"
+                          label="Kārtot pēc"
+                          variant="outlined"
+                          density="compact"
+                        />
+                      </v-col>
+                      <v-col cols="12" md="6" class="d-flex align-center justify-end">
+                        <v-btn variant="text" size="small" @click="resetVehicleSorting">Atiestatīt kārtošanu</v-btn>
+                      </v-col>
+                    </v-row>
+                  </v-card-text>
+                </v-card>
+              </v-expand-transition>
+
+              <v-alert v-if="!filteredSortedVehicles.length" type="info" variant="tonal" class="mb-2">
+                Pēc izvēlētajiem filtriem transports netika atrasts.
+              </v-alert>
+            </template>
+
+            <div v-if="filteredSortedVehicles.length" class="vehicles-grid">
               <v-card
-                v-for="vehicle in vehicles"
+                v-for="vehicle in filteredSortedVehicles"
                 :key="vehicle.transportlidzeklis_id"
                 class="vehicle-card"
                 variant="outlined"
@@ -214,6 +316,7 @@ const route = useRoute()
 const router = useRouter()
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 
+// Lapas pamatstāvoklis: kompānija, transports un rezervācijas dialogi.
 const user = ref(null)
 const loading = ref(false)
 const errorText = ref('')
@@ -234,6 +337,7 @@ const endDatePickerMenu = ref(false)
 
 const snackbar = ref({ show: false, text: '', color: 'error' })
 
+// Izveido sākotnējo rezervācijas periodu (no tagad+30min līdz nākamajai dienai).
 function buildDefaultReservationWindow() {
   const now = new Date()
   now.setSeconds(0, 0)
@@ -295,6 +399,7 @@ const timeOptions = Array.from({ length: 96 }, (_, idx) => {
   return `${hours}:${minutes}`
 })
 
+// Palīgfunkcijas datuma/laika pārveidei starp UI un API formātu.
 function splitDateTime(value) {
   if (!value) return { date: '', time: '00:00' }
   const [date, time] = value.split('T')
@@ -443,10 +548,102 @@ const availableEndTimeOptions = computed(() => {
 
 const companyId = computed(() => Number(route.params.id))
 const isClient = computed(() => user.value?.loma === 'klients')
+const showFilters = ref(false)
+const showSorting = ref(false)
 
+const vehicleFilters = ref({
+  q: '',
+  typeId: null,
+  minPrice: null,
+  maxPrice: null,
+  onlyAvailable: false,
+})
+
+const vehicleSorting = ref({
+  sortBy: 'availability_desc',
+})
+
+const sortOptions = [
+  { title: 'Pieejamie vispirms', value: 'availability_desc' },
+  { title: 'Cena: no lētākā', value: 'price_asc' },
+  { title: 'Cena: no dārgākā', value: 'price_desc' },
+  { title: 'Marka A-Z', value: 'brand_asc' },
+  { title: 'Marka Z-A', value: 'brand_desc' },
+]
+
+// Kompānijas transporta saraksts ar filtru un kārtošanas loģiku.
 const vehicles = computed(() =>
   transportItems.value.filter(item => Number(item.sniedzejs_id) === companyId.value)
 )
+
+const vehicleTypeOptions = computed(() => {
+  const map = new Map()
+  vehicles.value.forEach(vehicle => {
+    const typeId = vehicle.veids_id
+    if (!typeId || map.has(typeId)) return
+    map.set(typeId, {
+      title: vehicle.veids?.nosaukums || `Veids #${typeId}`,
+      value: typeId,
+    })
+  })
+  return Array.from(map.values())
+})
+
+const filteredSortedVehicles = computed(() => {
+  const q = vehicleFilters.value.q.trim().toLowerCase()
+
+  const filtered = vehicles.value.filter(vehicle => {
+    if (q) {
+      const haystack = `${vehicle.marka || ''} ${vehicle.modelis || ''}`.toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+
+    if (vehicleFilters.value.typeId && vehicle.veids_id !== vehicleFilters.value.typeId) {
+      return false
+    }
+
+    const price = Number(vehicle.dienas_nomas_cena || 0)
+    if (vehicleFilters.value.minPrice !== null && price < Number(vehicleFilters.value.minPrice)) {
+      return false
+    }
+    if (vehicleFilters.value.maxPrice !== null && price > Number(vehicleFilters.value.maxPrice)) {
+      return false
+    }
+
+    if (vehicleFilters.value.onlyAvailable && !isVehicleAvailable(vehicle)) {
+      return false
+    }
+
+    return true
+  })
+
+  const sorted = [...filtered]
+  const sortBy = vehicleSorting.value.sortBy
+
+  sorted.sort((a, b) => {
+    if (sortBy === 'price_asc') {
+      return Number(a.dienas_nomas_cena || 0) - Number(b.dienas_nomas_cena || 0)
+    }
+
+    if (sortBy === 'price_desc') {
+      return Number(b.dienas_nomas_cena || 0) - Number(a.dienas_nomas_cena || 0)
+    }
+
+    if (sortBy === 'brand_asc') {
+      return `${a.marka || ''} ${a.modelis || ''}`.localeCompare(`${b.marka || ''} ${b.modelis || ''}`, 'lv')
+    }
+
+    if (sortBy === 'brand_desc') {
+      return `${b.marka || ''} ${b.modelis || ''}`.localeCompare(`${a.marka || ''} ${a.modelis || ''}`, 'lv')
+    }
+
+    const availableDiff = Number(isVehicleAvailable(b)) - Number(isVehicleAvailable(a))
+    if (availableDiff !== 0) return availableDiff
+    return Number(a.dienas_nomas_cena || 0) - Number(b.dienas_nomas_cena || 0)
+  })
+
+  return sorted
+})
 
 const reservationTotal = computed(() => {
   if (!activeVehicle.value) return '0 €'
@@ -603,6 +800,23 @@ function openReservation(vehicle) {
   reservationDialog.value = true
 }
 
+function resetVehicleFilters() {
+  vehicleFilters.value = {
+    q: '',
+    typeId: null,
+    minPrice: null,
+    maxPrice: null,
+    onlyAvailable: false,
+  }
+}
+
+function resetVehicleSorting() {
+  vehicleSorting.value = {
+    sortBy: 'availability_desc',
+  }
+}
+
+// Izveido rezervāciju un atver apmaksas izvēli.
 async function createReservation() {
   if (!activeVehicle.value || !user.value?.klients?.klients_id) {
     reservationError.value = 'Nav klienta datu.'
@@ -663,6 +877,7 @@ async function confirmPayment() {
   paymentError.value = ''
   paymentSuccess.value = ''
 
+  // Apstrādā rezervācijas apmaksu un sinhronizē lokālos datus.
   try {
     const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
       method: 'POST',
@@ -691,6 +906,7 @@ function payLater() {
   paymentDialog.value = false
 }
 
+// Atceļ tikko izveidotu, vēl neapmaksātu rezervāciju.
 async function cancelPendingReservation() {
   if (!pendingReservation.value?.rezervacija_id || !user.value?.klients?.klients_id) {
     paymentDialog.value = false
@@ -733,6 +949,7 @@ async function loadTransport() {
   loading.value = true
   errorText.value = ''
 
+  // Ielādē izvēlētās kompānijas transportu.
   try {
     const response = await fetch(`${API_BASE}/api/transport`)
     const data = await response.json()
@@ -755,6 +972,7 @@ async function loadTransport() {
 }
 
 onMounted(loadTransport)
+// Sākotnējā ielāde un lietotāja sesijas nolasīšana.
 
 onMounted(() => {
   const userStr = localStorage.getItem('user')

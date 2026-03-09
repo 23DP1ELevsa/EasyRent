@@ -544,6 +544,7 @@ import 'leaflet/dist/leaflet.css'
 const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
+// Lapas pamatstāvoklis: lietotājs, dati, ielāde un panelis.
 const user = ref(null)
 const transportItems = ref([])
 const transportTypes = ref([])
@@ -561,6 +562,7 @@ const filters = ref({
 	onlyAvailable: false,
 })
 
+// Izveido sākotnējo rezervācijas periodu (no tagad+30min līdz nākamajai dienai).
 function buildDefaultReservationWindow() {
 	const now = new Date()
 	now.setSeconds(0, 0)
@@ -622,6 +624,7 @@ const timeOptions = Array.from({ length: 96 }, (_, idx) => {
 	return `${hours}:${minutes}`
 })
 
+// Palīgfunkcijas datuma/laika vērtību sadalīšanai un apvienošanai.
 function splitDateTime(value) {
 	if (!value) return { date: '', time: '00:00' }
 	const [date, time] = value.split('T')
@@ -687,6 +690,7 @@ function toIsoDate(displayDate) {
 	return candidate
 }
 
+// Computed lauki sinhronizē rezervācijas no/līdz datumu un laiku ar UI.
 const reservationStartDate = computed({
 	get: () => splitDateTime(reservation.value.startAt).date,
 	set: value => {
@@ -747,6 +751,7 @@ const reservationEndTime = computed({
 	},
 })
 
+// Pieejamie laiki tiek ierobežoti pēc šodienas laika un izvēlētā perioda.
 const minStartTimeToday = computed(() => toTimeFromDate(getRoundedCurrentTime()))
 
 const availableStartTimeOptions = computed(() => {
@@ -844,6 +849,7 @@ function getPointFallbackCoords(pointId) {
 	}
 }
 
+// Pārvērš API transporta sarakstu kompāniju punktos kartei/sarakstam.
 const points = computed(() => {
 	const map = new Map()
 	transportItems.value.forEach(item => {
@@ -899,8 +905,9 @@ const selectedPointId = ref(null)
 const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
 const pointCoordsOverride = ref({})
 
+// Punktiem bez koordinātēm izmanto geokodētas vai sintētiskas rezerves koordinātas.
 const mappablePoints = computed(() => {
-	return points.value.map(point => {
+	return filteredPoints.value.map(point => {
 		const fallback = pointCoordsOverride.value[point.id]
 		const synthetic = getPointFallbackCoords(point.id)
 		const lat = point.hasCoords ? point.lat : fallback?.lat ?? synthetic.lat
@@ -1034,6 +1041,7 @@ function upsertReservationInTransportState(reservationItem) {
 	})
 }
 
+// Vienota transporta filtrēšanas loģika sarakstam un kartes punktiem.
 function passesVehicleFilters(vehicle) {
 	if (filters.value.typeId && vehicle.veids_id !== filters.value.typeId) return false
 	if (filters.value.minPrice !== null && Number(vehicle.dienas_nomas_cena) < Number(filters.value.minPrice)) return false
@@ -1069,6 +1077,7 @@ function openReservation(vehicle) {
 	reservationDialog.value = true
 }
 
+// Izveido rezervāciju un pēc tam atver apmaksas izvēli.
 async function createReservation() {
 	if (!activeVehicle.value || !user.value?.klients?.klients_id) {
 		reservationError.value = 'Nav klienta datu.'
@@ -1122,6 +1131,7 @@ async function createReservation() {
 	}
 }
 
+// Apmaksas darbības atjauno rezervācijas statusu lokālajā stāvoklī.
 async function confirmPayment() {
 	if (!pendingReservation.value || !user.value?.klients?.klients_id) return
 
@@ -1314,6 +1324,7 @@ async function submitVehicle() {
 	}
 }
 
+// Datu ielāde no API.
 async function loadTransport() {
 	loading.value = true
 	errorText.value = ''
@@ -1354,6 +1365,7 @@ function initMap() {
 	}).addTo(mapInstance)
 }
 
+// Pārzīmē marķierus pēc aktīvajiem filtriem un punktiem.
 function renderMarkers() {
 	if (!mapInstance) return
 	markers.forEach(marker => mapInstance.removeLayer(marker))
@@ -1392,6 +1404,7 @@ function renderMarkers() {
 	})
 }
 
+// Mēģina atrast koordinātas punktiem, kuriem tās nav saglabātas.
 async function resolveMissingPointCoords() {
 	const toResolve = points.value.filter(point => !point.hasCoords && !pointCoordsOverride.value[point.id])
 
@@ -1432,6 +1445,7 @@ function resetMap() {
 	mapInstance.setView([56.8796, 24.6032], 7)
 }
 
+// Sākotnējā lapas ielāde un kartes inicializācija.
 onMounted(async () => {
 	const userStr = localStorage.getItem('user')
 	if (userStr) user.value = JSON.parse(userStr)
@@ -1443,8 +1457,13 @@ onMounted(async () => {
 	renderMarkers()
 })
 
+// Watchers uztur karti sinhroni ar datiem, filtriem un UI izmaiņām.
 watch(points, async () => {
 	await resolveMissingPointCoords()
+	nextTick().then(renderMarkers)
+})
+
+watch(filteredPoints, () => {
 	nextTick().then(renderMarkers)
 })
 

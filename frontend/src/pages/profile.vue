@@ -459,6 +459,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+// Profila lapas pamatstāvoklis un UI darbību statusi.
 const formRef = ref(null)
 const loading = ref(false)
 const errorText = ref('')
@@ -506,7 +507,7 @@ const form = ref({
   password: '',
 })
 
-// IBAN Validator
+// IBAN validācija bankas konta laukam.
 function ibanIsValid(iban) {
   if (!iban) return true // Optional
   const value = iban.replace(/\s+/g, '').toUpperCase()
@@ -525,7 +526,7 @@ function ibanIsValid(iban) {
   return remainder === '1'
 }
 
-// Validation Rules
+// Formas validācijas noteikumi pa laukiem.
 const nameRules = [
   v => !!v || 'Vārds ir obligāts',
   v => (v && v.trim().length >= 2) || 'Vārdam jābūt vismaz 2 simbolu garam'
@@ -585,7 +586,7 @@ const activeReservations = computed(() => {
   })
 })
 
-// Load user data
+// Ielādē lietotāja datus no localStorage un aizpilda formu.
 onMounted(() => {
   const userStr = localStorage.getItem('user')
   const token = localStorage.getItem('token')
@@ -635,6 +636,7 @@ onMounted(() => {
   }
 })
 
+// Ielādē klienta rezervācijas no API.
 async function loadReservations(klientsId) {
   if (!klientsId) return
   reservationsLoading.value = true
@@ -656,6 +658,7 @@ async function loadReservations(klientsId) {
 }
 
 
+// Veic neapmaksātas rezervācijas apmaksu.
 async function payReservation(rezervacijaId) {
   if (!currentClientId.value || !rezervacijaId) return
   payingReservationId.value = rezervacijaId
@@ -687,6 +690,7 @@ function openCancelDialog(rezervacijaId) {
   cancelDialog.value = true
 }
 
+// Atceļ izvēlēto rezervāciju un atjauno sarakstu.
 async function cancelReservation() {
   const rezervacijaId = pendingCancelReservationId.value
   if (!currentClientId.value || !rezervacijaId) return
@@ -780,7 +784,7 @@ async function geocodeCoordinates(address) {
   }
 }
 
-// Update Profile
+// Nosūta profila izmaiņas serverim un atjauno lokālo lietotāju.
 async function updateProfile() {
   errorText.value = ''
   successText.value = ''
@@ -922,7 +926,7 @@ async function updateProfile() {
   }
 }
 
-// Logout
+// Notīra sesiju un pārvirza uz sākumlapu.
 function logout() {
   localStorage.removeItem('user')
   localStorage.removeItem('token')
