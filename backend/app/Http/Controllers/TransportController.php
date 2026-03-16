@@ -56,7 +56,9 @@ class TransportController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $query = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas']);
+        $query = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas'])
+            ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
+            ->withCount('atsauksmes as atsauksmju_skaits');
         
         // Filtri
         if ($request->has('veids_id')) {
@@ -82,7 +84,15 @@ class TransportController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $transport = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas', 'atsauksmes'])->find($id);
+        $transport = Transportlidzeklis::with([
+            'sniedzejs.persona',
+            'veids',
+            'rezervacijas',
+            'atsauksmes.klients.persona',
+        ])
+            ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
+            ->withCount('atsauksmes as atsauksmju_skaits')
+            ->find($id);
         
         if (!$transport) {
             return response()->json(['error' => 'Nav atrasts'], 404);

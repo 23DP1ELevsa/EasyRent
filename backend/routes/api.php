@@ -6,6 +6,7 @@ use App\Http\Controllers\TransportVeidsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RezervacijaController;
+use App\Http\Controllers\AtsauksmeController;
 
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
@@ -40,4 +41,11 @@ Route::prefix('rezervacijas')->group(function () {
     Route::post('/', [RezervacijaController::class, 'store']);
     Route::post('/{id}/pay', [RezervacijaController::class, 'pay']);
     Route::delete('/{id}', [RezervacijaController::class, 'destroy']);
+});
+
+// Atsauksmes
+Route::prefix('atsauksmes')->group(function () {
+    Route::get('/', [AtsauksmeController::class, 'index']);
+    Route::post('/', [AtsauksmeController::class, 'store']);
+    Route::put('/{id}', [AtsauksmeController::class, 'update']);
 });

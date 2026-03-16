@@ -1,4 +1,4 @@
-# EasyRent
+﻿# EasyRent
 
 EasyRent ir pilna steka tīmekļa projekts ar:
 - `backend/` — Laravel 12 API (PHP)

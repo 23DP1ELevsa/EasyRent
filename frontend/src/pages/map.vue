@@ -172,7 +172,17 @@
 						<v-expansion-panel-title>
 							<div class="d-flex align-center justify-space-between w-100 pr-2">
 								<div class="text-subtitle-1 font-weight-bold">Īres punkti</div>
-								<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
+								<div class="d-flex align-center ga-2">
+									<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
+									<v-chip
+										size="small"
+										color="amber"
+										variant="tonal"
+										v-if="overallReviewCount > 0"
+									>
+										★ {{ overallReviewAverage.toFixed(1) }} ({{ overallReviewCount }})
+									</v-chip>
+								</div>
 							</div>
 						</v-expansion-panel-title>
 						<v-expansion-panel-text>
@@ -236,6 +246,21 @@
 												<div class="text-caption opacity-70">
 													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
 												</div>
+												<div class="vehicle-rating mt-1">
+													<v-rating
+														:model-value="Number(vehicle.videjais_vertejums || 0)"
+														length="5"
+														readonly
+														half-increments
+														size="small"
+														active-color="amber"
+														empty-icon="mdi-star-outline"
+														full-icon="mdi-star"
+													/>
+													<span class="text-caption opacity-80">
+														{{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
+													</span>
+												</div>
 											</div>
 											<div class="vehicle-actions d-flex align-center ga-2">
 												<v-chip
@@ -246,6 +271,13 @@
 												>
 													{{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Aizņemts' }}
 												</v-chip>
+												<v-btn
+													size="small"
+													variant="tonal"
+													@click="openReviews(vehicle)"
+												>
+													Atsauksmes
+												</v-btn>
 												<v-btn
 													v-if="isClient"
 													size="small"
@@ -529,6 +561,99 @@
 			</v-card>
 		</v-dialog>
 
+		<v-dialog v-model="reviewDialog" max-width="760">
+			<v-card>
+				<v-card-title class="font-weight-bold d-flex align-center justify-space-between">
+					<div>
+						<div>Atsauksmes</div>
+						<div v-if="reviewVehicle" class="text-caption opacity-70">
+							{{ reviewVehicle.marka }} {{ reviewVehicle.modelis }}
+						</div>
+					</div>
+					<v-chip size="small" color="amber" variant="tonal" v-if="reviewStats.count > 0">
+						★ {{ reviewStats.average.toFixed(1) }} ({{ reviewStats.count }})
+					</v-chip>
+				</v-card-title>
+				<v-divider />
+				<v-card-text class="pa-4">
+					<v-alert v-if="!user" type="info" variant="tonal" density="compact" class="mb-3">
+						Atsauksmes var pievienot tikai autorizēti klienti.
+					</v-alert>
+					<v-alert v-else-if="!isClient" type="warning" variant="tonal" density="compact" class="mb-3">
+						Pakalpojumu sniedzējs atsauksmes pievienot nevar.
+					</v-alert>
+
+					<v-card v-if="canReview" class="mb-4" variant="outlined">
+						<v-card-text class="pa-4 d-flex flex-column ga-3">
+							<div class="text-subtitle-2 font-weight-bold">
+								{{ ownReview ? 'Rediģēt savu atsauksmi' : 'Pievienot atsauksmi' }}
+							</div>
+							<v-rating
+								v-model="reviewForm.vertejums"
+								length="5"
+								:half-increments="false"
+								active-color="amber"
+								empty-icon="mdi-star-outline"
+								full-icon="mdi-star"
+							/>
+							<v-textarea
+								v-model="reviewForm.komentars"
+								label="Komentārs"
+								rows="3"
+								auto-grow
+								counter="2000"
+								variant="outlined"
+								density="compact"
+							/>
+							<v-alert v-if="reviewError" type="error" variant="tonal" density="compact">
+								{{ reviewError }}
+							</v-alert>
+							<v-alert v-if="reviewSuccess" type="success" variant="tonal" density="compact">
+								{{ reviewSuccess }}
+							</v-alert>
+							<div class="d-flex justify-end">
+								<v-btn color="primary" :loading="reviewSaving" @click="submitReview">
+									{{ ownReview ? 'Saglabāt izmaiņas' : 'Pievienot atsauksmi' }}
+								</v-btn>
+							</div>
+						</v-card-text>
+					</v-card>
+
+					<div class="text-subtitle-2 font-weight-bold mb-2">Visas atsauksmes</div>
+					<div v-if="reviewLoading" class="text-body-2">Ielādē atsauksmes...</div>
+					<div v-else-if="!vehicleReviews.length" class="text-body-2 opacity-70">Šim transportlīdzeklim vēl nav atsauksmju.</div>
+					<div v-else class="d-flex flex-column ga-3">
+						<v-card v-for="review in vehicleReviews" :key="review.atsauksme_id" variant="outlined">
+							<v-card-text class="pa-3">
+								<div class="d-flex align-center justify-space-between ga-3">
+									<div class="text-subtitle-2 font-weight-bold">{{ reviewerName(review) }}</div>
+									<div class="text-caption opacity-70">{{ formatReviewDate(review.datums || review.updated_at) }}</div>
+								</div>
+								<div class="d-flex align-center ga-2 mt-1">
+									<v-rating
+										:model-value="Number(review.vertejums || 0)"
+										length="5"
+										readonly
+										size="small"
+										active-color="amber"
+										empty-icon="mdi-star-outline"
+										full-icon="mdi-star"
+									/>
+									<span class="text-caption">{{ review.vertejums }}/5</span>
+								</div>
+								<div class="mt-2 text-body-2">{{ review.komentars || 'Komentārs nav pievienots.' }}</div>
+							</v-card-text>
+						</v-card>
+					</div>
+				</v-card-text>
+				<v-card-actions class="px-4 pb-4">
+					<v-spacer />
+					<v-btn variant="text" v-if="!user" @click="router.push('/auth')">Pieslēgties</v-btn>
+					<v-btn color="primary" variant="text" @click="reviewDialog = false">Aizvērt</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
 		<v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
 			{{ snackbar.text }}
 		</v-snackbar>
@@ -796,6 +921,18 @@ const editLoading = ref(false)
 const editError = ref('')
 const editVehicle = ref({})
 
+const reviewDialog = ref(false)
+const reviewLoading = ref(false)
+const reviewSaving = ref(false)
+const reviewError = ref('')
+const reviewSuccess = ref('')
+const reviewVehicle = ref(null)
+const vehicleReviews = ref([])
+const reviewForm = ref({
+	vertejums: 0,
+	komentars: '',
+})
+
 const snackbar = ref({ show: false, text: '', color: 'error' })
 
 const newVehicle = ref({
@@ -822,6 +959,7 @@ const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe
 
 const isClient = computed(() => user.value?.loma === 'klients')
 const isProvider = computed(() => user.value?.loma === 'pakalpojumu_sniedzejs')
+const clientId = computed(() => user.value?.klients?.klients_id || null)
 
 const providerId = computed(() =>
 	user.value?.pakalpojumuSniedzejs?.sniedzejs_id || user.value?.pakalpojumu_sniedzejs?.sniedzejs_id || null
@@ -959,6 +1097,41 @@ const reservationPeriodText = computed(() => {
 	return `${formatDateTime(start)} → ${formatDateTime(end)}`
 })
 
+const overallReviewCount = computed(() => {
+	return transportItems.value.reduce((total, vehicle) => total + Number(vehicle.atsauksmju_skaits || 0), 0)
+})
+
+const overallReviewAverage = computed(() => {
+	const weightedTotal = transportItems.value.reduce((total, vehicle) => {
+		const count = Number(vehicle.atsauksmju_skaits || 0)
+		const avg = Number(vehicle.videjais_vertejums || 0)
+		return total + (avg * count)
+	}, 0)
+
+	if (!overallReviewCount.value) return 0
+	return weightedTotal / overallReviewCount.value
+})
+
+const ownReview = computed(() => {
+	if (!clientId.value) return null
+	return vehicleReviews.value.find(review => Number(review.klients_id) === Number(clientId.value)) || null
+})
+
+const canReview = computed(() => Boolean(user.value?.persona_id && isClient.value))
+
+const reviewStats = computed(() => {
+	const count = vehicleReviews.value.length
+	if (!count) {
+		return { count: 0, average: 0 }
+	}
+
+	const sum = vehicleReviews.value.reduce((total, review) => total + Number(review.vertejums || 0), 0)
+	return {
+		count,
+		average: sum / count,
+	}
+})
+
 let mapInstance = null
 let markers = []
 let paymentSuccessTimer = null
@@ -1060,6 +1233,127 @@ function openCompany(companyId) {
 
 function isOwnVehicle(vehicle) {
 	return providerId.value && vehicle.sniedzejs_id === providerId.value
+}
+
+function reviewerName(review) {
+	const persona = review?.klients?.persona
+	if (!persona) return 'Klients'
+	const fullName = `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
+	return fullName || 'Klients'
+}
+
+function formatReviewDate(value) {
+	if (!value) return '—'
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime())) return '—'
+	return new Intl.DateTimeFormat('lv-LV', {
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+	}).format(date)
+}
+
+function resetReviewForm() {
+	if (ownReview.value) {
+		reviewForm.value = {
+			vertejums: Number(ownReview.value.vertejums || 0),
+			komentars: ownReview.value.komentars || '',
+		}
+		return
+	}
+
+	reviewForm.value = {
+		vertejums: 0,
+		komentars: '',
+	}
+}
+
+async function loadVehicleReviews(transportlidzeklisId) {
+	reviewLoading.value = true
+	reviewError.value = ''
+
+	try {
+		const response = await fetch(`${API_BASE}/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
+		const result = await response.json()
+
+		if (!response.ok) {
+			reviewError.value = result?.message || 'Neizdevās ielādēt atsauksmes.'
+			vehicleReviews.value = []
+			return
+		}
+
+		vehicleReviews.value = Array.isArray(result?.atsauksmes) ? result.atsauksmes : []
+		resetReviewForm()
+	} catch (error) {
+		reviewError.value = 'Kļūda: Neizdevās ielādēt atsauksmes.'
+		vehicleReviews.value = []
+	} finally {
+		reviewLoading.value = false
+	}
+}
+
+async function openReviews(vehicle) {
+	reviewVehicle.value = vehicle
+	reviewSuccess.value = ''
+	reviewError.value = ''
+	reviewDialog.value = true
+	await loadVehicleReviews(vehicle.transportlidzeklis_id)
+}
+
+async function submitReview() {
+	if (!reviewVehicle.value) return
+
+	if (!canReview.value) {
+		reviewError.value = 'Atsauksmi drīkst pievienot tikai autorizēts klients.'
+		return
+	}
+
+	if (!Number.isInteger(Number(reviewForm.value.vertejums)) || Number(reviewForm.value.vertejums) < 1 || Number(reviewForm.value.vertejums) > 5) {
+		reviewError.value = 'Lūdzu, izvēlieties vērtējumu no 1 līdz 5 zvaigznēm.'
+		return
+	}
+
+	reviewSaving.value = true
+	reviewError.value = ''
+	reviewSuccess.value = ''
+
+	try {
+		const payload = {
+			persona_id: user.value.persona_id,
+			vertejums: Number(reviewForm.value.vertejums),
+			komentars: (reviewForm.value.komentars || '').trim() || null,
+		}
+
+		let url = `${API_BASE}/api/atsauksmes`
+		let method = 'POST'
+
+		if (ownReview.value?.atsauksme_id) {
+			url = `${API_BASE}/api/atsauksmes/${ownReview.value.atsauksme_id}`
+			method = 'PUT'
+		} else {
+			payload.transportlidzeklis_id = reviewVehicle.value.transportlidzeklis_id
+		}
+
+		const response = await fetch(url, {
+			method,
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		})
+
+		const result = await response.json()
+		if (!response.ok) {
+			reviewError.value = result?.message || 'Neizdevās saglabāt atsauksmi.'
+			return
+		}
+
+		reviewSuccess.value = result?.message || 'Atsauksme saglabāta.'
+		await loadVehicleReviews(reviewVehicle.value.transportlidzeklis_id)
+		await loadTransport()
+	} catch (error) {
+		reviewError.value = 'Kļūda: Neizdevās saglabāt atsauksmi.'
+	} finally {
+		reviewSaving.value = false
+	}
 }
 
 function openReservation(vehicle) {
@@ -1679,6 +1973,14 @@ watch(drawer, async () => {
 .vehicle-actions {
 	width: 100%;
 	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.vehicle-rating {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
 	flex-wrap: wrap;
 }
 
