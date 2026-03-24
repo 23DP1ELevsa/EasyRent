@@ -8,7 +8,7 @@
             <v-card-text class="pa-8">
               <div class="d-flex align-center justify-space-between flex-wrap ga-4">
                 <div>
-                  <div class="text-overline opacity-70 mb-1">Profils</div>
+                  <div class="soft-eyebrow mb-4">Lietotāja profils</div>
                   <div class="text-h4 font-weight-bold mb-2">{{ form.vards }} {{ form.uzvards }}</div>
                   <div class="text-body-2 opacity-80 d-flex align-center ga-2 flex-wrap">
                     <span v-if="loma === 'klients'" class="badge-info">🔹 Klients</span>
@@ -19,6 +19,21 @@
                 <v-avatar size="80" variant="tonal" class="avatar-icon">
                   <v-icon size="48">{{ loma === 'klients' ? 'mdi-account' : 'mdi-briefcase' }}</v-icon>
                 </v-avatar>
+              </div>
+
+              <div class="profile-stat-grid mt-6">
+                <div class="metric-pill">
+                  <strong>{{ loma === 'klients' ? activeReservations.length : 'Aktīvs' }}</strong>
+                  <span>{{ loma === 'klients' ? 'Apmaksātās aktīvās rezervācijas' : 'Konta statuss' }}</span>
+                </div>
+                <div class="metric-pill">
+                  <strong>{{ loma === 'klients' ? unpaidReservations.length : (form.pilseta || 'Nav') }}</strong>
+                  <span>{{ loma === 'klients' ? 'Neapmaksātās rezervācijas' : 'Pilsēta' }}</span>
+                </div>
+                <div class="metric-pill">
+                  <strong>{{ form.kontakttalrunis || '—' }}</strong>
+                  <span>Primārais kontakts</span>
+                </div>
               </div>
             </v-card-text>
           </v-card>
@@ -942,54 +957,61 @@ function logout() {
 <style scoped>
 .profile-bg {
   min-height: calc(100vh - 72px - 64px);
-  background: radial-gradient(1200px circle at 10% 10%, rgba(255,255,255,0.12), transparent 45%),
-              radial-gradient(900px circle at 90% 20%, rgba(255,255,255,0.10), transparent 40%),
-              linear-gradient(135deg, #0f172a, #111827, #0b1020);
+  background: var(--er-page-bg);
 }
 
 .surface {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 22px;
-  color: #0f172a;
-  backdrop-filter: blur(10px);
+  background: var(--er-surface);
+  border: 1px solid var(--er-stroke);
+  border-radius: 28px;
+  color: var(--er-text);
+  backdrop-filter: blur(14px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--er-shadow-md);
 }
 
 .surface:hover {
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 24px 54px rgba(25, 41, 55, 0.12);
 }
 
 .profile-header {
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.99), rgba(241, 245, 249, 0.92));
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  background:
+    radial-gradient(circle at top right, rgba(201, 107, 59, 0.12), transparent 28%),
+    linear-gradient(140deg, color-mix(in srgb, var(--er-panel-strong) 94%, transparent), color-mix(in srgb, var(--er-surface) 96%, transparent));
+  border: 1px solid var(--er-stroke);
 }
 
 .avatar-icon {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(99, 102, 241, 0.1));
-  border: 1px solid rgba(59, 130, 246, 0.26);
+	background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(201, 107, 59, 0.12));
+	border: 1px solid rgba(21, 48, 71, 0.12);
+}
+
+.profile-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .section-title {
   font-weight: 700;
   font-size: 0.82rem;
   letter-spacing: 0.5px;
-  color: rgba(15, 23, 42, 0.72);
+  color: color-mix(in srgb, var(--er-text) 72%, transparent);
   text-transform: uppercase;
   opacity: 0.95;
-  padding-left: 10px;
-  border-left: 3px solid rgba(37, 99, 235, 0.7);
+  padding-left: 12px;
+  border-left: 3px solid rgba(15, 118, 110, 0.72);
 }
 
 .reservation-card {
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--er-stroke);
+  border-radius: 20px;
+  background: var(--er-card-soft);
 }
 
 .reservation-card-unpaid {
   border-color: rgba(245, 158, 11, 0.45);
-  background: linear-gradient(135deg, rgba(255, 251, 235, 0.95), rgba(255, 247, 237, 0.88));
+  background: linear-gradient(135deg, rgba(255, 248, 236, 0.96), rgba(255, 244, 236, 0.88));
 }
 
 .profile-reservations,
@@ -1000,33 +1022,33 @@ function logout() {
 .profile-reservations .text-caption,
 .profile-reservations .section-title,
 .profile-reservations .font-weight-bold {
-  color: #0f172a !important;
+  color: var(--er-text) !important;
 }
 
 .badge-info {
   display: inline-block;
   padding: 6px 12px;
-  background: rgba(37, 99, 235, 0.12);
-  color: #1d4ed8;
+  background: rgba(15, 118, 110, 0.12);
+  color: #115e59;
   border-radius: 20px;
   font-size: 0.82rem;
   font-weight: 600;
-  border: 1px solid rgba(59, 130, 246, 0.26);
+  border: 1px solid rgba(15, 118, 110, 0.18);
 }
 
 .profile-email {
   font-size: 0.82rem;
-  color: rgba(15, 23, 42, 0.62);
+  color: color-mix(in srgb, var(--er-text) 62%, transparent);
 }
 
 .logout-btn {
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(220, 38, 38, 0.38);
-  color: #7f1d1d !important;
+  background: rgba(201, 107, 59, 0.14);
+  border: 1px solid rgba(201, 107, 59, 0.28);
+  color: #9a4f2c !important;
 }
 
 .back-btn {
-  border-color: rgba(148, 163, 184, 0.45) !important;
+  border-color: rgba(21, 48, 71, 0.2) !important;
 }
 
 .gap-3 {
@@ -1046,6 +1068,10 @@ function logout() {
 @media (max-width: 600px) {
   .profile-bg {
     min-height: calc(100vh - 72px - 64px);
+  }
+
+  .profile-stat-grid {
+    grid-template-columns: 1fr;
   }
 
   .profile-header :deep(.v-card__text) {

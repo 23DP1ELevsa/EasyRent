@@ -18,6 +18,7 @@ import '@mdi/font/css/materialdesignicons.css'
 
 // Styles
 import 'unfonts.css'
+import './styles/design-system.css'
 
 const app = createApp(App)
 

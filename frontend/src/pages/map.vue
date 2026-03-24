@@ -6,12 +6,57 @@
 			<v-icon>mdi-menu</v-icon>
 		</v-btn>
 
+		<v-btn
+			class="map-hud-toggle"
+			icon
+			size="large"
+			variant="elevated"
+			:aria-label="hudVisible ? 'Paslēpt kartes informāciju' : 'Parādīt kartes informāciju'"
+			@click="toggleHud"
+		>
+			<v-icon>{{ hudVisible ? 'mdi-eye-off-outline' : 'mdi-information-outline' }}</v-icon>
+		</v-btn>
+
+		<v-expand-transition>
+			<div v-show="hudVisible" class="map-hud">
+				<div class="map-hud__head">
+					<div class="soft-eyebrow map-hud__eyebrow">EasyRent Live karte</div>
+					<v-btn
+						icon
+						variant="text"
+						size="small"
+						class="map-hud__close"
+						aria-label="Paslēpt kartes informāciju"
+						@click="toggleHud"
+					>
+						<v-icon>mdi-close</v-icon>
+					</v-btn>
+				</div>
+				<div class="map-hud__title">Atrodi tuvāko un piemērotāko nomas punktu.</div>
+				<div class="map-hud__copy">Filtrē pēc cenas, veida un pieejamības, pēc tam rezervē tieši no kartes.</div>
+				<div class="map-hud__stats">
+					<div class="map-hud__stat">
+						<strong>{{ filteredPoints.length }}</strong>
+						<span>Punkti</span>
+					</div>
+					<div class="map-hud__stat">
+						<strong>{{ transportItems.length }}</strong>
+						<span>Transporti</span>
+					</div>
+					<div class="map-hud__stat">
+						<strong>{{ selectedPoint ? selectedPoint.availableCount : filteredPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong>
+						<span>Pieejami</span>
+					</div>
+				</div>
+			</div>
+		</v-expand-transition>
+
 		<div class="floating-actions">
 			<v-btn size="small" class="action-btn" @click="locateUser">
 				Man tuvumā
 			</v-btn>
 			<v-btn size="small" class="action-btn" @click="resetMap">
-				Atstatīt
+				Atiestatīt
 			</v-btn>
 		</div>
 
@@ -20,7 +65,7 @@
 				<div class="drawer-header-main">
 					<div class="text-h6 font-weight-bold header-title">Karte un īres punkti</div>
 					<div class="text-caption header-subtitle">Filtri, punkti un rezervācijas vienuviet.</div>
-					<v-chip v-if="user" color="primary" size="small" variant="tonal" class="mt-2 text-black">
+					<v-chip v-if="user" color="primary" size="small" variant="tonal" class="mt-2 map-role-chip">
 						{{ roleLabel }}
 					</v-chip>
 				</div>
@@ -661,7 +706,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -934,6 +979,7 @@ const reviewForm = ref({
 })
 
 const snackbar = ref({ show: false, text: '', color: 'error' })
+const hudVisible = ref(true)
 
 const newVehicle = ref({
 	veids_id: null,
@@ -1739,16 +1785,31 @@ function resetMap() {
 	mapInstance.setView([56.8796, 24.6032], 7)
 }
 
+function getDefaultHudVisibility() {
+	return typeof window === 'undefined' ? true : window.innerWidth > 900
+}
+
+function toggleHud() {
+	hudVisible.value = !hudVisible.value
+	localStorage.setItem('map-hud-visible', hudVisible.value ? '1' : '0')
+}
+
 // Sākotnējā lapas ielāde un kartes inicializācija.
 onMounted(async () => {
 	const userStr = localStorage.getItem('user')
 	if (userStr) user.value = JSON.parse(userStr)
+	const storedHudVisibility = localStorage.getItem('map-hud-visible')
+	hudVisible.value = storedHudVisibility === null ? getDefaultHudVisibility() : storedHudVisibility === '1'
 	await loadTypes()
 	await loadTransport()
 	await resolveMissingPointCoords()
 	await nextTick()
 	initMap()
 	renderMarkers()
+})
+
+onBeforeUnmount(() => {
+	localStorage.setItem('map-hud-visible', hudVisible.value ? '1' : '0')
 })
 
 // Watchers uztur karti sinhroni ar datiem, filtriem un UI izmaiņām.
@@ -1786,29 +1847,111 @@ watch(drawer, async () => {
 	position: relative;
 	height: calc(100vh - 72px);
 	width: 100%;
-	background: radial-gradient(1100px circle at 8% 12%, rgba(255,255,255,0.10), transparent 46%),
-		linear-gradient(135deg, #0f172a, #111827, #0b1020);
+	background: var(--er-page-bg);
 }
 
 .surface {
-	background: rgba(255, 255, 255, 0.96);
-	border: 1px solid rgba(148, 163, 184, 0.24);
-	border-radius: 16px;
-	color: #0f172a;
-	backdrop-filter: blur(10px);
+	background: var(--er-surface);
+	border: 1px solid var(--er-stroke);
+	border-radius: 22px;
+	color: var(--er-text);
+	backdrop-filter: blur(12px);
+	box-shadow: var(--er-shadow-sm);
 }
 
 .map-canvas {
 	height: 100%;
 	width: 100%;
+	filter: saturate(0.96) contrast(1.02);
 }
 
 .map-menu-btn {
 	position: absolute;
-	top: 16px;
+	top: 24px;
 	left: 16px;
 	z-index: 500;
-	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
+	box-shadow: 0 16px 34px rgba(25, 41, 55, 0.16);
+}
+
+.map-hud-toggle {
+	position: absolute;
+	top: 24px;
+	right: 16px;
+	z-index: 500;
+	background: var(--er-action-surface) !important;
+	color: var(--er-text) !important;
+	border: 1px solid var(--er-stroke) !important;
+	box-shadow: var(--er-shadow-sm);
+}
+
+.map-hud {
+	position: absolute;
+	top: 86px;
+	right: 16px;
+	max-width: 360px;
+	padding: 18px;
+	border-radius: 28px;
+	background: color-mix(in srgb, var(--er-surface) 88%, transparent);
+	border: 1px solid var(--er-stroke);
+	box-shadow: var(--er-shadow-md);
+	backdrop-filter: blur(18px);
+	z-index: 450;
+}
+
+.map-hud__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.map-hud__eyebrow {
+	margin-bottom: 12px;
+}
+
+.map-hud__close {
+	margin-right: -6px;
+	margin-top: -6px;
+}
+
+.map-hud__title {
+	font-family: 'Syne', 'Plus Jakarta Sans', sans-serif;
+	font-size: clamp(1.4rem, 2vw, 2rem);
+	line-height: 1;
+	letter-spacing: -0.05em;
+	margin-bottom: 10px;
+}
+
+.map-hud__copy {
+	color: var(--er-text-muted);
+	font-size: 0.95rem;
+	line-height: 1.5;
+	margin-bottom: 16px;
+}
+
+.map-hud__stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.map-hud__stat {
+	padding: 12px;
+	border-radius: 18px;
+	background: var(--er-panel-soft);
+	border: 1px solid var(--er-stroke);
+	display: grid;
+	gap: 4px;
+}
+
+.map-hud__stat strong {
+	font-size: 1.15rem;
+	line-height: 1;
+}
+
+.map-hud__stat span {
+	font-size: 0.78rem;
+	color: var(--er-text-muted);
 }
 
 .floating-actions {
@@ -1821,14 +1964,15 @@ watch(drawer, async () => {
 }
 
 .action-btn {
-	background: rgba(255, 255, 255, 0.96);
-	color: #0f172a;
-	border: 1px solid rgba(148, 163, 184, 0.32);
+	background: var(--er-action-surface);
+	color: var(--er-text);
+	border: 1px solid var(--er-stroke);
 	backdrop-filter: blur(8px);
+	box-shadow: var(--er-shadow-sm);
 }
 
 .action-btn:hover {
-	background: #ffffff;
+	background: var(--er-action-hover);
 }
 
 
@@ -1845,7 +1989,7 @@ watch(drawer, async () => {
 }
 
 .map-drawer {
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(248, 250, 252, 0.975));
+	background: var(--er-drawer-bg);
 }
 
 .drawer-header {
@@ -1857,6 +2001,7 @@ watch(drawer, async () => {
 	position: relative;
 	text-align: left;
 	border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+	background: var(--er-header-soft);
 }
 
 .drawer-header-main {
@@ -1865,7 +2010,11 @@ watch(drawer, async () => {
 
 .header-title,
 .header-subtitle {
-	color: #020617;
+	color: var(--er-text);
+}
+
+.map-role-chip {
+	color: var(--er-text) !important;
 }
 
 .header-close-btn {
@@ -1895,6 +2044,7 @@ watch(drawer, async () => {
 	border: 1px solid rgba(148, 163, 184, 0.26);
 	border-radius: 14px;
 	overflow: hidden;
+	background: var(--er-panel-soft);
 }
 
 .list-wrap {
@@ -1904,16 +2054,17 @@ watch(drawer, async () => {
 
 .point-card {
 	cursor: pointer;
-	border: 1px solid rgba(148, 163, 184, 0.3);
-	border-radius: 14px;
+	border: 1px solid rgba(21, 48, 71, 0.1);
+	border-radius: 18px;
 	max-width: 100%;
 	overflow: hidden;
 	transition: transform 0.2s ease, box-shadow 0.2s ease;
+	background: var(--er-card-soft);
 }
 
 .point-card:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+	transform: translateY(-3px);
+	box-shadow: 0 18px 34px rgba(25, 41, 55, 0.14);
 }
 
 .point-card-header {
@@ -1945,9 +2096,9 @@ watch(drawer, async () => {
 	text-align: center;
 	gap: 12px;
 	padding: 12px;
-	border-radius: 12px;
-	border: 1px solid rgba(148, 163, 184, 0.3);
-	background: rgba(248, 250, 252, 0.95);
+	border-radius: 18px;
+	border: 1px solid rgba(21, 48, 71, 0.1);
+	background: var(--er-card-soft);
 	max-width: 100%;
 	overflow: hidden;
 }
@@ -1996,10 +2147,10 @@ watch(drawer, async () => {
 
 .reservation-summary {
 	padding: 10px 12px;
-	border-radius: 10px;
-	border: 1px solid rgba(148, 163, 184, 0.28);
-	background: rgba(248, 250, 252, 0.95);
-	color: #0f172a;
+	border-radius: 16px;
+	border: 1px solid rgba(21, 48, 71, 0.1);
+	background: var(--er-card-strong);
+	color: var(--er-text);
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -2007,7 +2158,7 @@ watch(drawer, async () => {
 }
 
 .reservation-summary strong {
-	color: #020617;
+	color: var(--er-text);
 }
 
 .drawer-scroll :deep(.v-input),
@@ -2022,10 +2173,10 @@ watch(drawer, async () => {
 	display: block;
 	width: 18px;
 	height: 18px;
-	border-radius: 6px;
-	background: linear-gradient(135deg, #2563eb, #1d4ed8);
-	border: 2px solid #0f172a;
-	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
+	border-radius: 7px;
+	background: linear-gradient(135deg, #0f766e, #c96b3b);
+	border: 2px solid var(--er-marker-border);
+	box-shadow: 0 8px 18px rgba(25, 41, 55, 0.25);
 }
 
 :deep(.map-popup-content) {
@@ -2037,13 +2188,47 @@ watch(drawer, async () => {
 	padding: 6px 10px;
 	border: 0;
 	border-radius: 8px;
-	background: #2563eb;
-	color: #fff;
+	background: #0f766e;
+	color: var(--er-on-primary);
 	cursor: pointer;
 	font-weight: 600;
 }
 
 :deep(.popup-company-link:hover) {
-	background: #1d4ed8;
+	background: #115e59;
+}
+
+@media (max-width: 900px) {
+	.map-hud {
+		left: 16px;
+		right: 16px;
+		max-width: none;
+		top: 86px;
+	}
+
+	.map-hud__stats {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 640px) {
+	.map-page {
+		height: calc(100vh - 72px);
+	}
+
+	.floating-actions {
+		left: 16px;
+		right: 16px;
+		bottom: 20px;
+		justify-content: stretch;
+	}
+
+	.floating-actions :deep(.v-btn) {
+		flex: 1 1 0;
+	}
+
+	.map-hud__stats {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

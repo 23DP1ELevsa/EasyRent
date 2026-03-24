@@ -1,7 +1,7 @@
 <template>
   <div class="company-page">
     <v-container class="py-8">
-      <v-btn variant="text" class="mb-4" @click="router.push('/map')">
+      <v-btn variant="text" class="mb-4 company-back-btn" @click="router.push('/map')">
         <v-icon start>mdi-arrow-left</v-icon>
         Atpakaļ uz karti
       </v-btn>
@@ -11,10 +11,28 @@
           <div v-if="loading" class="text-body-1">Ielādē kompāniju...</div>
           <v-alert v-else-if="errorText" type="error" variant="tonal">{{ errorText }}</v-alert>
           <template v-else-if="company">
-            <div class="text-overline opacity-70">Kompānija</div>
-            <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
-            <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
-            <div class="text-body-2 opacity-80 mb-6">{{ company.city }}</div>
+            <div class="company-hero mb-6">
+              <div>
+                <div class="soft-eyebrow mb-4">Pakalpojumu sniedzējs</div>
+                <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
+                <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
+                <div class="text-body-2 opacity-80">{{ company.city }}</div>
+              </div>
+              <div class="company-hero__stats">
+                <div class="metric-pill">
+                  <strong>{{ vehicles.length }}</strong>
+                  <span>Kopējais transports</span>
+                </div>
+                <div class="metric-pill">
+                  <strong>{{ vehicles.filter(vehicle => isVehicleAvailable(vehicle)).length }}</strong>
+                  <span>Pieejami šobrīd</span>
+                </div>
+                <div class="metric-pill">
+                  <strong>{{ vehicles.length ? formatPrice(Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0)))) : '0.00 €' }}</strong>
+                  <span>Sākuma cena dienā</span>
+                </div>
+              </div>
+            </div>
 
             <div class="d-flex align-center justify-space-between mb-3">
               <div class="text-h6 font-weight-bold">Transports</div>
@@ -26,7 +44,7 @@
             </v-alert>
 
             <template v-else>
-              <div class="d-flex justify-end flex-wrap ga-2 mb-3">
+                <div class="company-toolbar d-flex justify-end flex-wrap ga-2 mb-3">
                 <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
                   <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
                   {{ showFilters ? 'Aizvērt filtrus' : 'Filtri' }}
@@ -953,34 +971,68 @@ watch(availableEndTimeOptions, options => {
 <style scoped>
 .company-page {
   min-height: calc(100vh - 72px);
-  background: radial-gradient(900px circle at 8% 12%, rgba(255, 255, 255, 0.09), transparent 50%),
-    linear-gradient(135deg, #0f172a, #111827, #0b1020);
+  background: var(--er-page-bg);
 }
 
 .surface {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 16px;
-  color: #0f172a;
+  background: var(--er-surface);
+  border: 1px solid var(--er-stroke);
+  border-radius: 28px;
+  color: var(--er-text);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--er-shadow-md);
+}
+
+.company-back-btn {
+  border-radius: 999px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
+}
+
+.company-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.95fr);
+  gap: 18px;
+  padding: 22px;
+  border-radius: 26px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
+}
+
+.company-hero__stats {
+  display: grid;
+  gap: 12px;
+}
+
+.company-toolbar {
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
+  width: fit-content;
+  margin-left: auto;
 }
 
 .vehicles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
 }
 
 .vehicle-card {
-  border-radius: 12px;
-  color: #0f172a;
+  border-radius: 22px;
+  color: var(--er-text);
+  border: 1px solid var(--er-stroke) !important;
+  background: var(--er-card-soft);
+  box-shadow: var(--er-shadow-sm);
 }
 
 .reservation-summary {
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(248, 250, 252, 0.95);
-  color: #0f172a;
+  border-radius: 16px;
+  border: 1px solid var(--er-stroke);
+  background: var(--er-card-strong);
+  color: var(--er-text);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -988,6 +1040,19 @@ watch(availableEndTimeOptions, options => {
 }
 
 .reservation-summary strong {
-  color: #020617;
+	color: var(--er-text);
+}
+
+@media (max-width: 960px) {
+  .company-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .company-toolbar {
+    width: 100%;
+    justify-content: stretch;
+  }
 }
 </style>

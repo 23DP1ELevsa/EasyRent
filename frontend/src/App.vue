@@ -1,12 +1,14 @@
 <template>
-  <v-app>
+  <v-app :class="['app-shell', themeModeClass]">
+    <div class="app-shell__glow app-shell__glow--left"></div>
+    <div class="app-shell__glow app-shell__glow--right"></div>
     <v-app-bar height="72" class="appbar" flat>
-      <v-container class="d-flex align-center">
+      <v-container class="appbar__inner d-flex align-center">
         <v-btn icon variant="text" class="d-md-none me-2" @click="drawer = true" aria-label="Atvērt izvēlni">
           <v-icon>mdi-menu</v-icon>
         </v-btn>
 
-        <div class="d-flex align-center" role="button" style="cursor:pointer" @click="goHome">
+        <div class="brand-wrap d-flex align-center" role="button" style="cursor:pointer" @click="goHome">
           <v-avatar size="34" class="me-2" variant="tonal">
             <v-icon>mdi-car</v-icon>
           </v-avatar>
@@ -18,13 +20,27 @@
 
         <v-spacer />
 
-        <div class="d-none d-md-flex align-center ga-1">
-          <v-btn variant="text" @click="goHome">
+        <v-btn
+          icon
+          variant="text"
+          class="theme-toggle d-md-none me-2"
+          :aria-label="themeToggleLabel"
+          @click="toggleTheme"
+        >
+          <v-icon>{{ themeIcon }}</v-icon>
+        </v-btn>
+
+        <div class="d-none d-md-flex align-center ga-1 nav-cluster">
+          <v-btn icon variant="text" class="theme-toggle" :aria-label="themeToggleLabel" @click="toggleTheme">
+            <v-icon>{{ themeIcon }}</v-icon>
+          </v-btn>
+
+          <v-btn variant="text" class="nav-btn" @click="goHome">
             <v-icon start>mdi-home</v-icon>
             Sākums
           </v-btn>
 
-          <v-btn variant="text" @click="goMap">
+          <v-btn variant="text" class="nav-btn" @click="goMap">
             <v-icon start>mdi-map</v-icon>
             Karte
           </v-btn>
@@ -84,6 +100,7 @@
       <v-list nav density="comfortable">
         <v-list-item title="Sākums" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
         <v-list-item title="Karte" prepend-icon="mdi-map" @click="goMapFromDrawer" />
+        <v-list-item :title="themeToggleLabel" :prepend-icon="themeIcon" @click="toggleTheme" />
         <v-divider />
         <template v-if="user">
           <v-list-item title="Mans profils" prepend-icon="mdi-account-circle" @click="goProfileFromDrawer" />
@@ -93,7 +110,7 @@
       </v-list>
     </v-navigation-drawer>
 
-    <v-main class="main">
+    <v-main class="main app-main">
       <HomePage v-if="view === 'home' && route.path === '/'" />
       <AuthPage v-else-if="view === 'auth' && route.path === '/auth'" @auth-success="onAuthSuccess" />
       <RouterView v-else />
@@ -162,21 +179,40 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useTheme } from 'vuetify'
 import HomePage from './components/HomePage.vue'
 import AuthPage from './components/AuthPage.vue'
 
 const router = useRouter()
 const route = useRoute()
+const theme = useTheme()
 const drawer = ref(false)
 const view = ref('home')
 const user = ref(null)
+const themeMode = ref('light')
 const year = computed(() => new Date().getFullYear())
+const themeIcon = computed(() => themeMode.value === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night')
+const themeToggleLabel = computed(() => themeMode.value === 'dark' ? 'Gaišais režīms' : 'Tumšais režīms')
+const themeModeClass = computed(() => `theme-${themeMode.value}`)
+
+function applyTheme(mode) {
+  themeMode.value = mode === 'dark' ? 'dark' : 'light'
+  theme.global.name.value = themeMode.value === 'dark' ? 'easyRentDark' : 'easyRent'
+  document.documentElement.setAttribute('data-theme', themeMode.value)
+  localStorage.setItem('theme-mode', themeMode.value)
+}
+
+function toggleTheme() {
+  applyTheme(themeMode.value === 'dark' ? 'light' : 'dark')
+}
 
 onMounted(() => {
   const userData = localStorage.getItem('user')
   if (userData) {
     user.value = JSON.parse(userData)
   }
+
+  applyTheme(localStorage.getItem('theme-mode') || 'light')
 
   // Listen for user profile updates from profile.vue
   window.addEventListener('user-updated', (event) => {
@@ -274,51 +310,129 @@ function onAuthSuccess() {
 </script>
 
 <style>
+.app-shell {
+  background: transparent;
+  color: var(--er-text);
+}
+
+.app-shell__glow {
+  position: fixed;
+  z-index: 0;
+  inset: auto;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(12px);
+}
+
+.app-shell__glow--left {
+  top: 96px;
+  left: -140px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.app-shell__glow--right {
+  top: 220px;
+  right: -180px;
+  background: rgba(201, 107, 59, 0.08);
+}
+
 .appbar {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.78));
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+  background: var(--er-appbar-bg) !important;
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--er-appbar-border);
+  box-shadow: 0 16px 40px rgba(28, 40, 52, 0.08);
+}
+
+.appbar__inner {
+  min-height: 72px;
+}
+
+.brand-wrap {
+  padding: 8px 12px 8px 8px;
+  border-radius: 18px;
+  transition: background-color 0.2s ease;
+}
+
+.brand-wrap:hover {
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.nav-cluster {
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--er-nav-surface);
+  border: 1px solid var(--er-appbar-border);
+}
+
+.nav-btn {
+  color: var(--er-text) !important;
+  border-radius: 999px !important;
+}
+
+.theme-toggle {
+  color: var(--er-text) !important;
+  border-radius: 999px !important;
+}
+
+.nav-btn:hover {
+  background: rgba(15, 118, 110, 0.08) !important;
+}
+
+.theme-toggle:hover {
+  background: rgba(15, 118, 110, 0.08) !important;
 }
 
 .auth-btn {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  color: rgba(248, 250, 252, 0.95);
-  text-transform: none;
-  letter-spacing: 0.01em;
+  background: var(--er-auth-btn-bg);
+  border: 1px solid var(--er-auth-btn-border);
+  color: var(--er-auth-btn-text);
+  box-shadow: var(--er-auth-btn-shadow);
 }
 
 .footer {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--er-footer-bg);
+  border-top: 1px solid var(--er-footer-border);
 }
 
 .footer-title {
   font-weight: 800;
   margin-bottom: 10px;
-  color: rgba(255,255,255,0.92);
+  color: var(--er-footer-text-strong);
 }
 
 .footer-link {
   font-size: 14px;
   margin: 8px 0;
-  color: rgba(255,255,255,0.78);
+  color: var(--er-footer-text);
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
-.footer-link:hover { color: rgba(255,255,255,0.95); }
+.footer-link:hover { color: var(--er-footer-text-strong); }
 
-.footer-divider { border-color: rgba(255,255,255,0.12) !important; }
+.footer-divider { border-color: var(--er-footer-border) !important; }
 
 .footer-mini { cursor: pointer; }
-.footer-mini:hover { color: rgba(255,255,255,0.95); }
+.footer-mini:hover { color: var(--er-footer-text-strong); }
 
 .is-disabled { opacity: 0.55; cursor: default; }
 .drawer {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98));
+  background: var(--er-drawer-bg);
 }
 
-.brand__title { font-weight: 800; line-height: 1.05; color: rgba(255,255,255,0.92); }
-.brand__subtitle { font-size: 12px; opacity: 0.8; color: rgba(255,255,255,0.78); }
+.brand__title { font-weight: 800; line-height: 1.05; color: var(--er-text); }
+.brand__subtitle { font-size: 12px; opacity: 0.8; color: var(--er-text-muted); }
+
+.app-main {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 960px) {
+  .appbar {
+    background: color-mix(in srgb, var(--er-appbar-bg) 94%, transparent) !important;
+  }
+}
 </style>

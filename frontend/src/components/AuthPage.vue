@@ -3,9 +3,21 @@
     <v-container class="fill-height py-12 py-md-16">
       <div class="page-wrap">
         <v-row align="stretch" justify="center" class="auth-layout">
-        <v-col cols="12" sm="11" md="8" lg="6" xl="5">
-            <v-card class="surface" elevation="12">
+          <v-col cols="12" sm="11" md="9" lg="8" xl="7">
+            <v-card class="surface auth-form-card" elevation="12">
               <v-card-text class="pa-6 pa-md-8">
+                <div class="auth-header mb-6">
+                  <div>
+                    <div class="soft-eyebrow mb-4">EasyRent konts</div>
+                    <div class="auth-title">Ienāc savā profilā vai izveido jaunu kontu.</div>
+                    <div class="text-body-2 section-copy mt-3">Viss rezervācijām, profilam un transporta pārvaldībai vienā vietā.</div>
+                  </div>
+                  <div class="auth-header-strip mt-6">
+                    <div class="text-overline opacity-70">Pieslēgšanās un reģistrācija</div>
+                    <div class="text-body-2 section-copy">Atver piekļuvi rezervācijām, profilam un transporta pārvaldībai.</div>
+                  </div>
+                </div>
+
                 <div class="d-flex align-center justify-space-between mb-5">
                   <div>
                     <div class="text-h5 font-weight-bold mb-1">Autorizācija</div>
@@ -37,114 +49,154 @@
 
                 <div v-else>
                   <v-form ref="regForm" @submit.prevent="submitRegister">
-                    <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" prepend-inner-icon="mdi-account-outline" />
-                    <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" prepend-inner-icon="mdi-email-outline" />
-                    <v-text-field
-                      v-model="reg.kontakttalrunis"
-                      label="Tālrunis"
-                      variant="outlined"
-                      class="mb-3"
-                      placeholder="+371 26123456"
-                      :rules="phoneRules"
-                      prepend-inner-icon="mdi-phone-outline"
-                    />
-                    <v-select
-                      v-model="reg.loma"
-                      :items="lomas"
-                      item-title="title"
-                      item-value="value"
-                      label="Loma"
-                      variant="outlined"
-                      class="mb-3"
-                      prepend-inner-icon="mdi-account-switch-outline"
-                      @update:model-value="updateRegFields"
-                    />
+                    <v-row dense class="register-grid">
+                      <v-col cols="12" md="6">
+                        <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" prepend-inner-icon="mdi-account-outline" />
+                      </v-col>
 
-                    <v-text-field
-                      v-if="reg.loma === 'klients'"
-                      v-model="reg.lietotajvards"
-                      label="Lietotājvārds"
-                      variant="outlined"
-                      class="mb-3"
-                      :rules="usernameRules"
-                      prepend-inner-icon="mdi-at"
-                    />
+                      <v-col cols="12" md="6">
+                        <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" prepend-inner-icon="mdi-email-outline" />
+                      </v-col>
 
-                    <v-text-field
-                      v-model="reg.bankas_konts"
-                      label="Banka konta numurs (IBAN)"
-                      variant="outlined"
-                      class="mb-3"
-                      placeholder="LV00ABCD1234567890123"
-                      :rules="ibanRules"
-                      prepend-inner-icon="mdi-bank-outline"
-                    />
+                      <v-col cols="12" md="6">
+                        <v-text-field
+                          v-model="reg.kontakttalrunis"
+                          label="Tālrunis"
+                          variant="outlined"
+                          class="mb-3"
+                          placeholder="+371 26123456"
+                          :rules="phoneRules"
+                          prepend-inner-icon="mdi-phone-outline"
+                        />
+                      </v-col>
 
-                    <template v-if="reg.loma === 'pakalpojumu_sniedzejs'">
-                      <v-text-field
-                        v-model="reg.registracijas_numurs"
-                        label="Reģistrācijas numurs"
-                        variant="outlined"
-                        class="mb-3"
-                        :rules="regNumRules"
-                        prepend-inner-icon="mdi-file-document-outline"
-                      />
-                      <v-text-field
-                        v-model="reg.iela"
-                        label="Iela"
-                        variant="outlined"
-                        class="mb-3"
-                        :rules="streetRules"
-                        prepend-inner-icon="mdi-road-variant"
-                      />
-                      <v-text-field
-                        v-model="reg.majas_numurs"
-                        label="Mājas numurs"
-                        variant="outlined"
-                        class="mb-3"
-                        :rules="houseNumberRules"
-                        prepend-inner-icon="mdi-home-outline"
-                      />
-                      <v-text-field
-                        v-model="reg.dzivokla_numurs"
-                        label="Dzīvokļa numurs (neobligāts)"
-                        variant="outlined"
-                        class="mb-3"
-                        prepend-inner-icon="mdi-door"
-                      />
-                      <v-text-field
-                        v-model="reg.pilseta"
-                        label="Pilsēta"
-                        variant="outlined"
-                        class="mb-3"
-                        :rules="cityRules"
-                        prepend-inner-icon="mdi-city-variant-outline"
-                      />
-                      <v-text-field
-                        v-model="reg.pasta_indekss"
-                        label="Pasta indekss"
-                        variant="outlined"
-                        class="mb-3"
-                        :rules="postalCodeRules"
-                        prepend-inner-icon="mdi-mailbox-outline"
-                      />
-                    </template>
+                      <v-col cols="12" md="6">
+                        <v-select
+                          v-model="reg.loma"
+                          :items="lomas"
+                          item-title="title"
+                          item-value="value"
+                          label="Loma"
+                          variant="outlined"
+                          class="mb-3"
+                          prepend-inner-icon="mdi-account-switch-outline"
+                          @update:model-value="updateRegFields"
+                        />
+                      </v-col>
 
-                    <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" prepend-inner-icon="mdi-lock-outline" />
-                    <v-text-field
-                      v-model="reg.password_confirmation"
-                      label="Parole vēlreiz"
-                      variant="outlined"
-                      type="password"
-                      class="mb-4"
-                      :rules="passwordConfirmRules"
-                      prepend-inner-icon="mdi-lock-check-outline"
-                    />
+                      <v-col v-if="reg.loma === 'klients'" cols="12" md="6">
+                        <v-text-field
+                          v-model="reg.lietotajvards"
+                          label="Lietotājvārds"
+                          variant="outlined"
+                          class="mb-3"
+                          :rules="usernameRules"
+                          prepend-inner-icon="mdi-at"
+                        />
+                      </v-col>
 
-                    <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
-                      <v-icon start>mdi-account-plus</v-icon>
-                      Reģistrēties
-                    </v-btn>
+                      <v-col :cols="12" :md="reg.loma === 'klients' ? 6 : 12">
+                        <v-text-field
+                          v-model="reg.bankas_konts"
+                          label="Banka konta numurs (IBAN)"
+                          variant="outlined"
+                          class="mb-3"
+                          placeholder="LV00ABCD1234567890123"
+                          :rules="ibanRules"
+                          prepend-inner-icon="mdi-bank-outline"
+                        />
+                      </v-col>
+
+                      <template v-if="reg.loma === 'pakalpojumu_sniedzejs'">
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.registracijas_numurs"
+                            label="Reģistrācijas numurs"
+                            variant="outlined"
+                            class="mb-3"
+                            :rules="regNumRules"
+                            prepend-inner-icon="mdi-file-document-outline"
+                          />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.iela"
+                            label="Iela"
+                            variant="outlined"
+                            class="mb-3"
+                            :rules="streetRules"
+                            prepend-inner-icon="mdi-road-variant"
+                          />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.majas_numurs"
+                            label="Mājas numurs"
+                            variant="outlined"
+                            class="mb-3"
+                            :rules="houseNumberRules"
+                            prepend-inner-icon="mdi-home-outline"
+                          />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.dzivokla_numurs"
+                            label="Dzīvokļa numurs (neobligāts)"
+                            variant="outlined"
+                            class="mb-3"
+                            prepend-inner-icon="mdi-door"
+                          />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.pilseta"
+                            label="Pilsēta"
+                            variant="outlined"
+                            class="mb-3"
+                            :rules="cityRules"
+                            prepend-inner-icon="mdi-city-variant-outline"
+                          />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model="reg.pasta_indekss"
+                            label="Pasta indekss"
+                            variant="outlined"
+                            class="mb-3"
+                            :rules="postalCodeRules"
+                            prepend-inner-icon="mdi-mailbox-outline"
+                          />
+                        </v-col>
+                      </template>
+
+                      <v-col cols="12" md="6">
+                        <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" prepend-inner-icon="mdi-lock-outline" />
+                      </v-col>
+
+                      <v-col cols="12" md="6">
+                        <v-text-field
+                          v-model="reg.password_confirmation"
+                          label="Parole vēlreiz"
+                          variant="outlined"
+                          type="password"
+                          class="mb-4"
+                          :rules="passwordConfirmRules"
+                          prepend-inner-icon="mdi-lock-check-outline"
+                        />
+                      </v-col>
+
+                      <v-col cols="12">
+                        <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
+                          <v-icon start>mdi-account-plus</v-icon>
+                          Reģistrēties
+                        </v-btn>
+                      </v-col>
+                    </v-row>
                   </v-form>
                 </div>
 
@@ -484,10 +536,12 @@ async function submitLogin() {
 
 <style scoped>
 .bg {
+  position: relative;
   min-height: calc(100vh - 72px - 64px);
-  background: radial-gradient(1200px circle at 10% 10%, rgba(255,255,255,0.12), transparent 45%),
-              radial-gradient(900px circle at 90% 20%, rgba(255,255,255,0.10), transparent 40%),
-              linear-gradient(135deg, #0f172a, #111827, #0b1020);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--er-bg-soft) 92%, transparent), color-mix(in srgb, var(--er-bg) 94%, transparent)),
+    linear-gradient(135deg, color-mix(in srgb, var(--er-primary) 7%, transparent), transparent 42%),
+    linear-gradient(225deg, color-mix(in srgb, var(--er-secondary) 8%, transparent), transparent 36%);
 }
 
 .page-wrap { width: min(1200px, 100%); margin: 0 auto; }
@@ -496,32 +550,95 @@ async function submitLogin() {
   row-gap: 20px;
 }
 
+.auth-title {
+  font-family: 'Syne', 'Plus Jakarta Sans', sans-serif;
+  font-size: clamp(2rem, 3vw, 3.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
 .surface {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 22px;
-  color: #0f172a;
-  backdrop-filter: blur(12px);
+  background: var(--er-surface);
+  border: 1px solid var(--er-stroke);
+  border-radius: 34px;
+  color: var(--er-text);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--er-shadow-lg);
+}
+
+.auth-form-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-form-card::before {
+  content: '';
+  position: absolute;
+  inset: -120px auto auto -80px;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  filter: blur(10px);
+}
+
+.auth-form-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -80px -110px auto;
+  width: 240px;
+  height: 240px;
+  border-radius: 999px;
+  background: rgba(201, 107, 59, 0.08);
+  filter: blur(10px);
+}
+
+.auth-header {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-header-strip {
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
 }
 
 .auth-avatar {
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  border: 1px solid var(--er-stroke);
+  background: var(--er-primary-soft);
 }
 
 .auth-tabs {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(241, 245, 249, 0.95);
+  border-radius: 18px;
+  border: 1px solid var(--er-stroke);
+  background: var(--er-panel-soft);
   padding: 4px;
 }
 
 .submit-btn {
   min-height: 46px;
+  box-shadow: var(--er-auth-btn-shadow);
+}
+
+.register-grid {
+  align-items: start;
+}
+
+.register-grid :deep(.v-input) {
+  width: 100%;
 }
 
 @media (max-width: 1280px) {
   .page-wrap {
     width: min(1060px, 100%);
+  }
+}
+
+@media (max-width: 960px) {
+  .auth-title {
+    font-size: clamp(1.8rem, 9vw, 2.8rem);
   }
 }
 </style>
