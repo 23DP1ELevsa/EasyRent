@@ -200,13 +200,6 @@
                   </v-form>
                 </div>
 
-                <v-alert v-if="errorText" type="error" variant="tonal" class="mt-6">
-                  <div v-html="errorText.split('. ').filter(e => e).map(e => e + (e.endsWith('.') ? '' : '.')).join('<br/>')"></div>
-                </v-alert>
-
-                <v-alert v-if="okText" type="success" variant="tonal" class="mt-6">
-                  {{ okText }}
-                </v-alert>
               </v-card-text>
             </v-card>
           </v-col>
@@ -217,14 +210,24 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useNotifications } from '@/stores/notifications'
 
 const emit = defineEmits(['auth-success'])
+const { notifyError, notifySuccess } = useNotifications()
 
 const tab = ref('login')
 const loading = ref(false)
 const errorText = ref('')
 const okText = ref('')
+
+watch(errorText, value => {
+  if (value) notifyError(value)
+})
+
+watch(okText, value => {
+  if (value) notifySuccess(value)
+})
 
 const loginForm = ref(null)
 const regForm = ref(null)

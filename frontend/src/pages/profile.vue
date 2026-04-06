@@ -51,14 +51,6 @@
 
             <v-card-text class="pa-6 pa-sm-8">
               <!-- Success/Error Messages -->
-              <v-alert v-if="errorText" type="error" variant="tonal" class="mb-6" dismissible @update:model-value="errorText = ''">
-                <div v-html="errorText.split('. ').filter(e => e).map(e => e + (e.endsWith('.') ? '' : '.')).join('<br/>')"></div>
-              </v-alert>
-
-              <v-alert v-if="successText" type="success" variant="tonal" class="mb-6" dismissible @update:model-value="successText = ''">
-                {{ successText }}
-              </v-alert>
-
               <v-form ref="formRef" @submit.prevent="updateProfile">
                 <!-- Basic Information Section -->
                 <div class="section-title mb-4">Pamatinformācija</div>
@@ -341,14 +333,6 @@
                 Jums ir {{ unpaidReservations.length }} neapmaksāta(s) rezervācija(s).
               </v-alert>
 
-              <v-alert v-if="reservationsError" type="error" variant="tonal" class="mb-4">
-                {{ reservationsError }}
-              </v-alert>
-
-              <v-alert v-if="reservationsSuccess" type="success" variant="tonal" class="mb-4">
-                {{ reservationsSuccess }}
-              </v-alert>
-
               <div v-if="reservationsLoading" class="text-body-2 opacity-70">Ielādē...</div>
               <div v-else-if="!reservations.length" class="text-body-2 opacity-70">
                 Vēl nav rezervāciju.
@@ -470,10 +454,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { HOME_ROUTE } from '@/router/paths'
+import { useNotifications } from '@/stores/notifications'
 
 const router = useRouter()
+const { notifyError, notifySuccess } = useNotifications()
 // Profila lapas pamatstāvoklis un UI darbību statusi.
 const formRef = ref(null)
 const loading = ref(false)
@@ -501,6 +488,22 @@ const initialProviderAddress = ref({
 const initialProviderCoords = ref({
   latitude: '',
   longitude: '',
+})
+
+watch(errorText, value => {
+  if (value) notifyError(value)
+})
+
+watch(successText, value => {
+  if (value) notifySuccess(value)
+})
+
+watch(reservationsError, value => {
+  if (value) notifyError(value)
+})
+
+watch(reservationsSuccess, value => {
+  if (value) notifySuccess(value)
 })
 
 const email = ref('')
@@ -608,7 +611,7 @@ onMounted(() => {
 
   if (!userStr || !token) {
     errorText.value = 'Jums jāpiesakās, lai apskatītu profilu'
-    setTimeout(() => router.push('/'), 2000)
+    setTimeout(() => router.push(HOME_ROUTE), 2000)
     return
   }
 
@@ -950,7 +953,7 @@ function logout() {
   window.dispatchEvent(new CustomEvent('user-logged-out'))
   
   // Navigate to home
-  router.push('/')
+  router.push(HOME_ROUTE)
 }
 </script>
 

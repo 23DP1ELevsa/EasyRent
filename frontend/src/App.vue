@@ -111,12 +111,10 @@
     </v-navigation-drawer>
 
     <v-main class="main app-main">
-      <HomePage v-if="view === 'home' && route.path === '/'" />
-      <AuthPage v-else-if="view === 'auth' && route.path === '/auth'" @auth-success="onAuthSuccess" />
-      <RouterView v-else />
+      <RouterView />
     </v-main>
 
-    <v-footer v-if="route.path === '/'" class="footer" flat>
+    <v-footer v-if="route.path === HOME_ROUTE" class="footer" flat>
       <v-container>
         <v-row class="py-10" align="start">
           <v-col cols="12" md="4">
@@ -173,27 +171,43 @@
         </div>
       </v-container>
     </v-footer>
+
+    <v-snackbar
+      v-model="notificationVisible"
+      location="bottom"
+      :timeout="notificationState.timeout"
+      :content-props="{ class: 'app-notification__content' }"
+      class="app-notification"
+    >
+      <div class="app-notification__body" :class="`is-${notificationState.color}`">
+        <div class="app-notification__text">{{ notificationState.text }}</div>
+      </div>
+    </v-snackbar>
   </v-app>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useTheme } from 'vuetify'
-import HomePage from './components/HomePage.vue'
-import AuthPage from './components/AuthPage.vue'
+import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
+import { useNotifications } from '@/stores/notifications'
 
 const router = useRouter()
 const route = useRoute()
 const theme = useTheme()
 const drawer = ref(false)
-const view = ref('home')
 const user = ref(null)
 const themeMode = ref('light')
 const year = computed(() => new Date().getFullYear())
 const themeIcon = computed(() => themeMode.value === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night')
 const themeToggleLabel = computed(() => themeMode.value === 'dark' ? 'Gaišais režīms' : 'Tumšais režīms')
 const themeModeClass = computed(() => `theme-${themeMode.value}`)
+const { notificationState, setNotificationVisible } = useNotifications()
+const notificationVisible = computed({
+  get: () => notificationState.visible,
+  set: value => setNotificationVisible(value),
+})
 
 function applyTheme(mode) {
   themeMode.value = mode === 'dark' ? 'dark' : 'light'
@@ -206,78 +220,79 @@ function toggleTheme() {
   applyTheme(themeMode.value === 'dark' ? 'light' : 'dark')
 }
 
-onMounted(() => {
+function syncUserFromStorage() {
   const userData = localStorage.getItem('user')
-  if (userData) {
-    user.value = JSON.parse(userData)
-  }
+  user.value = userData ? JSON.parse(userData) : null
+}
 
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function navigateTo(path) {
+  router.push(path)
+  scrollToTop()
+}
+
+function closeDrawerAndRun(callback) {
+  drawer.value = false
+  setTimeout(callback, 50)
+}
+
+function handleUserUpdated(event) {
+  user.value = event.detail
+}
+
+function handleUserLoggedOut() {
+  user.value = null
+  navigateTo(HOME_ROUTE)
+}
+
+onMounted(() => {
+  syncUserFromStorage()
   applyTheme(localStorage.getItem('theme-mode') || 'light')
 
-  // Listen for user profile updates from profile.vue
-  window.addEventListener('user-updated', (event) => {
-    user.value = event.detail
-  })
-
-  // Listen for logout from profile.vue
-  window.addEventListener('user-logged-out', () => {
-    user.value = null
-    goHome()
-  })
+  window.addEventListener('user-updated', handleUserUpdated)
+  window.addEventListener('user-logged-out', handleUserLoggedOut)
 })
 
-// Watch route changes to keep view in sync for home/auth, but allow RouterView to handle other routes
-watch(() => route.path, (newPath) => {
-  if (newPath === '/' || newPath === '') {
-    view.value = 'home'
-  } else if (newPath === '/auth') {
-    view.value = 'auth'
-  }
-  // For other routes like /profile, view stays as is and RouterView handles it
+onBeforeUnmount(() => {
+  window.removeEventListener('user-updated', handleUserUpdated)
+  window.removeEventListener('user-logged-out', handleUserLoggedOut)
 })
 
 function goHome() {
-  view.value = 'home'
-  router.push('/')
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  navigateTo(HOME_ROUTE)
 }
 
 function goMap() {
-  view.value = 'map'
-  router.push('/map')
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  navigateTo(MAP_ROUTE)
 }
 
 function goAuth() {
-  view.value = 'auth'
-  router.push('/auth')
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  navigateTo(AUTH_ROUTE)
 }
 
 function goProfile() {
   if (user.value) {
-    router.push(`/profile`)
+    navigateTo(PROFILE_ROUTE)
   }
 }
 
 function goProfileFromDrawer() {
-  drawer.value = false
-  setTimeout(goProfile, 50)
+  closeDrawerAndRun(goProfile)
 }
 
 function goMapFromDrawer() {
-  drawer.value = false
-  setTimeout(goMap, 50)
+  closeDrawerAndRun(goMap)
 }
 
 function goHomeFromDrawer() {
-  drawer.value = false
-  setTimeout(goHome, 50)
+  closeDrawerAndRun(goHome)
 }
 
 function goAuthFromDrawer() {
-  drawer.value = false
-  setTimeout(goAuth, 50)
+  closeDrawerAndRun(goAuth)
 }
 
 function logout() {
@@ -298,14 +313,6 @@ function getUserDisplayName() {
   
   // Ja pakalpojumu sniedzējs, rādi vārdu
   return user.value.vards || 'Profils'
-}
-
-function onAuthSuccess() {
-  const userData = localStorage.getItem('user')
-  if (userData) {
-    user.value = JSON.parse(userData)
-  }
-  goHome()
 }
 </script>
 
@@ -430,9 +437,60 @@ function onAuthSuccess() {
   z-index: 1;
 }
 
+.app-notification {
+  z-index: 2400 !important;
+}
+
+.app-notification__content {
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-notification__body {
+  min-width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--er-stroke);
+  background: color-mix(in srgb, var(--er-surface) 94%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 40px rgba(25, 41, 55, 0.18);
+}
+
+.app-notification__body.is-success {
+  border-color: rgba(22, 163, 74, 0.38);
+}
+
+.app-notification__body.is-error {
+  border-color: rgba(220, 38, 38, 0.38);
+}
+
+.app-notification__body.is-warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.app-notification__body.is-info {
+  border-color: rgba(14, 116, 144, 0.34);
+}
+
+.app-notification__text {
+  color: var(--er-text);
+  line-height: 1.5;
+}
+
 @media (max-width: 960px) {
   .appbar {
     background: color-mix(in srgb, var(--er-appbar-bg) 94%, transparent) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-notification__body {
+    min-width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    padding: 12px 14px;
   }
 }
 </style>

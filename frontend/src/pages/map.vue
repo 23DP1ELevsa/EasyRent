@@ -353,12 +353,23 @@
 							<div class="text-subtitle-1 font-weight-bold">Pievienot transportu</div>
 						</v-expansion-panel-title>
 						<v-expansion-panel-text>
-							<v-alert v-if="providerError" type="error" variant="tonal" class="mb-3" density="compact">
-								{{ providerError }}
-							</v-alert>
-							<v-alert v-if="providerSuccess" type="success" variant="tonal" class="mb-3" density="compact">
-								{{ providerSuccess }}
-							</v-alert>
+							<div class="text-subtitle-2 font-weight-bold mb-2">Pievienot transporta veidu</div>
+							<v-form class="d-flex flex-column ga-3 mb-5" @submit.prevent="submitVehicleType">
+								<v-text-field
+									v-model="newVehicleType.nosaukums"
+									label="Jaunais transporta veids"
+									variant="outlined"
+									density="compact"
+									hint="Piemēram, Kvadracikls, Laiva vai Piekabe"
+									persistent-hint
+								/>
+								<v-btn type="submit" block color="primary" variant="tonal" :loading="vehicleTypeLoading">
+									Saglabāt jauno veidu
+								</v-btn>
+							</v-form>
+
+							<v-divider class="mb-4" />
+							<div class="text-subtitle-2 font-weight-bold mb-2">Pievienot transportlīdzekli</div>
 							<v-form @submit.prevent="submitVehicle">
 								<v-select
 									v-model="newVehicle.veids_id"
@@ -496,9 +507,6 @@
 						<div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
 						<div><strong>Kopā:</strong> {{ reservationTotal }}</div>
 					</div>
-					<v-alert v-if="reservationError" type="error" variant="tonal" class="mt-3" density="compact">
-						{{ reservationError }}
-					</v-alert>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
@@ -519,12 +527,6 @@
 					<div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
 						Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
 					</div>
-					<v-alert v-if="paymentError" type="error" variant="tonal" class="mt-3" density="compact">
-						{{ paymentError }}
-					</v-alert>
-					<v-alert v-if="paymentSuccess" type="success" variant="tonal" class="mt-3" density="compact">
-						{{ paymentSuccess }}
-					</v-alert>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
@@ -594,9 +596,6 @@
 						variant="outlined"
 						density="compact"
 					/>
-					<v-alert v-if="editError" type="error" variant="tonal" class="mt-3" density="compact">
-						{{ editError }}
-					</v-alert>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
@@ -650,12 +649,6 @@
 								variant="outlined"
 								density="compact"
 							/>
-							<v-alert v-if="reviewError" type="error" variant="tonal" density="compact">
-								{{ reviewError }}
-							</v-alert>
-							<v-alert v-if="reviewSuccess" type="success" variant="tonal" density="compact">
-								{{ reviewSuccess }}
-							</v-alert>
 							<div class="d-flex justify-end">
 								<v-btn color="primary" :loading="reviewSaving" @click="submitReview">
 									{{ ownReview ? 'Saglabāt izmaiņas' : 'Pievienot atsauksmi' }}
@@ -693,15 +686,12 @@
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" v-if="!user" @click="router.push('/auth')">Pieslēgties</v-btn>
+					<v-btn variant="text" v-if="!user" @click="router.push(AUTH_ROUTE)">Pieslēgties</v-btn>
 					<v-btn color="primary" variant="text" @click="reviewDialog = false">Aizvērt</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
-		<v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
-			{{ snackbar.text }}
-		</v-snackbar>
 	</div>
 </template>
 
@@ -710,9 +700,12 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { AUTH_ROUTE, buildCompanyRoute } from '@/router/paths'
+import { useNotifications } from '@/stores/notifications'
 
 const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
 
 // Lapas pamatstāvoklis: lietotājs, dati, ielāde un panelis.
 const user = ref(null)
@@ -960,6 +953,9 @@ const endDatePickerMenu = ref(false)
 const providerLoading = ref(false)
 const providerError = ref('')
 const providerSuccess = ref('')
+const vehicleTypeLoading = ref(false)
+const vehicleTypeError = ref('')
+const vehicleTypeSuccess = ref('')
 
 const editDialog = ref(false)
 const editLoading = ref(false)
@@ -981,6 +977,65 @@ const reviewForm = ref({
 const snackbar = ref({ show: false, text: '', color: 'error' })
 const hudVisible = ref(true)
 
+watch(vehicleTypeError, value => {
+	if (value) notifyError(value)
+})
+
+watch(vehicleTypeSuccess, value => {
+	if (value) notifySuccess(value)
+})
+
+watch(providerError, value => {
+	if (value) notifyError(value)
+})
+
+watch(providerSuccess, value => {
+	if (value) notifySuccess(value)
+})
+
+watch(reservationError, value => {
+	if (value) notifyError(value)
+})
+
+watch(paymentError, value => {
+	if (value) notifyError(value)
+})
+
+watch(paymentSuccess, value => {
+	if (value) notifySuccess(value)
+})
+
+watch(editError, value => {
+	if (value) notifyError(value)
+})
+
+watch(reviewError, value => {
+	if (value) notifyError(value)
+})
+
+watch(reviewSuccess, value => {
+	if (value) notifySuccess(value)
+})
+
+watch(
+	() => snackbar.value.show,
+	visible => {
+		if (!visible || !snackbar.value.text) return
+
+		if (snackbar.value.color === 'success') {
+			notifySuccess(snackbar.value.text)
+		} else if (snackbar.value.color === 'warning') {
+			notifyWarning(snackbar.value.text)
+		} else if (snackbar.value.color === 'info') {
+			notifyInfo(snackbar.value.text)
+		} else {
+			notifyError(snackbar.value.text)
+		}
+
+		snackbar.value = { ...snackbar.value, show: false }
+	}
+)
+
 const newVehicle = ref({
 	veids_id: null,
 	marka: '',
@@ -990,6 +1045,10 @@ const newVehicle = ref({
 	registracijas_numurs: '',
 	dienas_nomas_cena: null,
 	statuss: 'pieejams',
+})
+
+const newVehicleType = ref({
+	nosaukums: '',
 })
 
 const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
@@ -1274,7 +1333,7 @@ function selectPoint(id) {
 }
 
 function openCompany(companyId) {
-	router.push(`/company/${companyId}`)
+	router.push(buildCompanyRoute(companyId))
 }
 
 function isOwnVehicle(vehicle) {
@@ -1405,7 +1464,7 @@ async function submitReview() {
 function openReservation(vehicle) {
 	if (!user.value) {
 		snackbar.value = { show: true, text: 'Lūdzu, pieslēdzieties, lai rezervētu.', color: 'error' }
-		router.push('/auth')
+		router.push(AUTH_ROUTE)
 		return
 	}
 	if (!isClient.value) {
@@ -1661,6 +1720,42 @@ async function submitVehicle() {
 		providerError.value = 'Kļūda: Neizdevās pievienot transportu.'
 	} finally {
 		providerLoading.value = false
+	}
+}
+
+async function submitVehicleType() {
+	vehicleTypeLoading.value = true
+	vehicleTypeError.value = ''
+	vehicleTypeSuccess.value = ''
+
+	const nosaukums = (newVehicleType.value.nosaukums || '').trim()
+	if (!nosaukums) {
+		vehicleTypeError.value = 'Ievadiet transporta veida nosaukumu.'
+		vehicleTypeLoading.value = false
+		return
+	}
+
+	try {
+		const response = await fetch(`${API_BASE}/api/transport/veidi`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nosaukums }),
+		})
+
+		const result = await response.json()
+		if (!response.ok) {
+			vehicleTypeError.value = result?.message || 'Neizdevās pievienot transporta veidu.'
+			return
+		}
+
+		vehicleTypeSuccess.value = 'Transporta veids pievienots.'
+		newVehicleType.value = { nosaukums: '' }
+		newVehicle.value.veids_id = result?.veids_id ?? null
+		await loadTypes()
+	} catch (error) {
+		vehicleTypeError.value = 'Kļūda: Neizdevās pievienot transporta veidu.'
+	} finally {
+		vehicleTypeLoading.value = false
 	}
 }
 

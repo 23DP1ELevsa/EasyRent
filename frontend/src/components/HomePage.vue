@@ -6,76 +6,34 @@
         <!-- HERO: ievads (teksts + foto) -->
         <v-row align="stretch" justify="center">
           <v-col cols="12">
-            <v-card class="surface" elevation="12">
-              <v-card-text class="pa-8 pa-md-12">
+            <v-card class="surface hero-surface" elevation="12">
+              <v-card-text class="pa-6 pa-md-8">
                 <v-row align="stretch" class="hero-row">
                   <v-col cols="12" md="7" class="text-center text-md-left hero-copy-col">
 
                     <div class="hero-title mb-2">EasyRent</div>
 
-                    <div class="soft-eyebrow mb-4">Digitāla auto nomas platforma Latvijai</div>
-
                     <div class="hero-slogan mb-4">
                       Atrast un iznomāt transportu — vienkārši un ātri
                     </div>
 
-                    <div class="text-body-1 text-md-h6 opacity-90 mb-8 hero-desc">
+                    <div class="text-body-1 text-md-h6 opacity-90 mb-5 hero-desc">
                       EasyRent ir platforma, kur vienuviet varēsi apskatīt pieejamos transportlīdzekļus,
-                      salīdzināt cenas un rezervēt izvēlēto variantu. Pašlaik šī ir tikai dizaina versija —
-                      vēlāk pieslēgsim karti, filtrus un reālus datus no sistēmas.
+                      salīdzināt cenas un rezervēt izvēlēto variantu.
                     </div>
 
-                    <div class="hero-tags mb-8">
-                      <span class="hero-tag">Tiešraides pieejamība</span>
-                      <span class="hero-tag">Pakalpojumu sniedzēji vienuviet</span>
-                      <span class="hero-tag">Ātra rezervācija</span>
-                    </div>
-
-                    <div class="d-flex flex-column flex-sm-row justify-center justify-md-start ga-3 mb-6">
+                    <div class="d-flex flex-column flex-sm-row justify-center justify-md-start ga-3">
                       <v-btn size="x-large" rounded="xl" elevation="6" @click="goMap">
                         <v-icon start>mdi-map</v-icon>
                         Pāriet uz karti
                       </v-btn>
-                      <v-btn size="x-large" rounded="xl" variant="tonal" class="hero-secondary-btn" @click="goMap">
-                        <v-icon start>mdi-car-search</v-icon>
-                        Skatīt piedāvājumus
-                      </v-btn>
-                    </div>
-
-                    <div class="hero-mini-grid">
-                      <div class="hero-mini-card">
-                        <strong>Gudra izvēle</strong>
-                        <span>Salīdzini cenu, veidu un pieejamību vienā plūsmā bez liekiem klikšķiem.</span>
-                      </div>
-                      <div class="hero-mini-card">
-                        <strong>Skaidrs process</strong>
-                        <span>No kartes līdz rezervācijai un profilam viss ir pārskatāms un loģiski sakārtots.</span>
-                      </div>
                     </div>
                   </v-col>
 
-                  <v-col cols="12" md="5" class="mt-8 mt-md-0">
+                  <v-col cols="12" md="5" class="mt-4 mt-md-0">
                     <div class="hero-aside">
                       <div class="hero-media">
                         <v-img src="@/assets/hero.jpg" class="hero-img" aspect-ratio="16/9" contain/>
-                      </div>
-
-                      <div class="hero-insight surface-panel surface-panel--strong">
-                        <div class="text-overline mb-2">Kas būs vienuviet</div>
-                        <div class="hero-insight__list">
-                          <div class="hero-insight__item">
-                            <v-icon size="18">mdi-map-marker-radius</v-icon>
-                            <span>Nomas punkti ar pieejamības un cenu filtriem.</span>
-                          </div>
-                          <div class="hero-insight__item">
-                            <v-icon size="18">mdi-calendar-check-outline</v-icon>
-                            <span>Rezervācijas plūsma ar laika izvēli un statusiem.</span>
-                          </div>
-                          <div class="hero-insight__item">
-                            <v-icon size="18">mdi-account-cog-outline</v-icon>
-                            <span>Lietotāju un pakalpojumu sniedzēju profilu pārvaldība.</span>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </v-col>
@@ -86,25 +44,25 @@
         </v-row>
 
         <v-row class="mt-6 metrics-row" dense>
-          <v-col cols="12" sm="6" lg="3">
+          <v-col cols="12" sm="6" lg="3" class="metric-col">
             <div class="metric-pill">
               <strong>24/7</strong>
               <span>Piekļuve kartei un pieejamībai jebkurā laikā</span>
             </div>
           </v-col>
-          <v-col cols="12" sm="6" lg="3">
+          <v-col cols="12" sm="6" lg="3" class="metric-col">
             <div class="metric-pill">
-              <strong>1 vieta</strong>
+              <strong>Viss vienuviet</strong>
               <span>Piedāvājumu salīdzināšana bez pārlēkšanas starp lapām</span>
             </div>
           </v-col>
-          <v-col cols="12" sm="6" lg="3">
+          <v-col cols="12" sm="6" lg="3" class="metric-col">
             <div class="metric-pill">
               <strong>Dažādi veidi</strong>
-              <span>Auto, SUV, mikroautobusi un specializēts transports</span>
+              <span>Auto, motocikli, laivas un cits transports</span>
             </div>
           </v-col>
-          <v-col cols="12" sm="6" lg="3">
+          <v-col cols="12" sm="6" lg="3" class="metric-col">
             <div class="metric-pill">
               <strong>Vienots profils</strong>
               <span>Rezervācijas, maksājumi un konta dati vienā skata līmenī</span>
@@ -166,7 +124,7 @@
                   <v-icon size="28" class="mb-2">mdi-motorbike</v-icon>
                   <div class="text-h6 mb-1">Motocikli</div>
                   <div class="text-body-2 opacity-80 card-desc">
-                    Sezonas braucieniem un hobijam (ja pieejami).
+                    Sezonas braucieniem un hobijam.
                   </div>
                 </v-card>
               </v-col>
@@ -176,7 +134,7 @@
                   <v-icon size="28" class="mb-2">mdi-bicycle</v-icon>
                   <div class="text-h6 mb-1">E-skrejriteņi / velo</div>
                   <div class="text-body-2 opacity-80 card-desc">
-                    Ātrai pārvietošanai pilsētā (ja pievienosim kategoriju).
+                    Ātrai pārvietošanai pilsētā.
                   </div>
                 </v-card>
               </v-col>
@@ -250,7 +208,7 @@
                     <div class="text-h6 mb-0">Drošība</div>
                   </div>
                   <div class="text-body-2 opacity-80 card-desc">
-                    Pārskatāms statuss un rezervācijas. Vēlāk pievienosim arī maksājumu pārvaldību.
+                    Pārskatāms statuss un rezervācijas.
                   </div>
                 </v-card>
               </v-col>
@@ -355,6 +313,66 @@
                   ar autorizāciju un pārvaldību.
                 </v-expansion-panel-text>
               </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Kā notiks rezervācijas izveide?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Lietotājs izvēlēsies transportlīdzekli, norādīs nomas sākuma un beigu laiku,
+                  un sistēma automātiski pārbaudīs, vai tas konkrētajā periodā ir pieejams.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Vai rezervāciju varēs apmaksāt uzreiz?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Jā. Sistēmā ir paredzēta rezervācijas apmaksa uzreiz pēc izveides,
+                  kā arī iespēja atstāt to neapmaksātu un pabeigt vēlāk profilā.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Vai būs iespējams pievienot atsauksmes?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Jā. Autorizēti klienti varēs atstāt vērtējumu un komentāru par izmantoto transportlīdzekli,
+                  lai citi lietotāji redzētu reālu pieredzi un vidējo novērtējumu.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Ko varēs darīt pakalpojumu sniedzējs?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Pakalpojumu sniedzējs varēs pievienot jaunus transportlīdzekļus, pārvaldīt to datus,
+                  norādīt transporta veidus un sekot līdzi saviem piedāvājumiem kartē.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Vai kartē būs redzami visi nomas punkti?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Jā. Kartē būs redzami visi pievienotie pakalpojumu sniedzēju punkti,
+                  un lietotājs varēs atlasīt tikai sev atbilstošos pēc filtriem un pieejamības.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel>
+                <v-expansion-panel-title>
+                  Vai es redzēšu transporta cenu pirms rezervācijas?
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">
+                  Jā. Pirms rezervācijas būs redzama dienas cena, izvēlētais periods,
+                  aprēķinātais dienu skaits un kopējā summa par visu nomu.
+                </v-expansion-panel-text>
+              </v-expansion-panel>
             </v-expansion-panels>
           </v-col>
 
@@ -404,12 +422,6 @@
               </v-card-text>
             </v-card>
 
-            <v-snackbar v-model="snackbar" :timeout="3500">
-              {{ snackbarText }}
-              <template #actions>
-                <v-btn variant="text" @click="snackbar = false">Aizvērt</v-btn>
-              </template>
-            </v-snackbar>
           </v-col>
         </v-row>
 
@@ -421,16 +433,17 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { MAP_ROUTE } from '@/router/paths'
+import { useNotifications } from '@/stores/notifications'
 
 const router = useRouter()
+const { notifySuccess, notifyError } = useNotifications()
 
 const formRef = ref(null)
 const name = ref('')
 const email = ref('')
 const comment = ref('')
 const loading = ref(false)
-const snackbar = ref(false)
-const snackbarText = ref('')
 
 const nameRules = [v => !!v || 'Ievadi vārdu', v => (v?.length >= 2) || 'Vārdam jābūt vismaz 2 simboli']
 const emailRules = [v => !!v || 'Ievadi e-pastu', v => /.+@.+\..+/.test(v) || 'Nepareizs e-pasta formāts']
@@ -444,7 +457,7 @@ function resetForm() {
 }
 
 function goMap() {
-  router.push('/map')
+  router.push(MAP_ROUTE)
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -461,12 +474,10 @@ async function submitContact() {
       body: JSON.stringify({ name: name.value, email: email.value, comment: comment.value }),
     })
     if (!r.ok) throw new Error(await r.text())
-    snackbarText.value = 'Ziņa nosūtīta!'
-    snackbar.value = true
+    notifySuccess('Ziņa nosūtīta!')
     resetForm()
   } catch (e) {
-    snackbarText.value = 'Kļūda: ziņu neizdevās nosūtīt (pārbaudi backendu / mail iestatījumus).'
-    snackbar.value = true
+    notifyError('Kļūda: ziņu neizdevās nosūtīt (pārbaudi backendu / mail iestatījumus).')
   } finally {
     loading.value = false
   }
@@ -495,6 +506,10 @@ async function submitContact() {
 .surface :deep(.v-card-text),
 .surface :deep(.v-card-title),
 .surface :deep(.v-card-subtitle) { color: var(--er-text); }
+
+.hero-surface {
+  border-radius: 24px;
+}
 
 .section-title {
   padding-left: 14px;
@@ -539,6 +554,7 @@ async function submitContact() {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 6px;
 }
 
 .feature-card {
@@ -564,39 +580,6 @@ async function submitContact() {
   height: 100%;
 }
 
-.hero-insight {
-  padding: 20px 22px;
-}
-
-.hero-insight__list {
-  display: grid;
-  gap: 12px;
-}
-
-.hero-insight__item {
-  display: grid;
-  grid-template-columns: 20px 1fr;
-  gap: 10px;
-  align-items: start;
-  color: var(--er-text-muted);
-}
-
-.hero-mini-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: auto;
-}
-
-.hero-mini-card {
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
-  display: grid;
-  gap: 6px;
-}
-
 .hero-mini-card strong {
   color: var(--er-text);
 }
@@ -611,7 +594,7 @@ async function submitContact() {
   font-weight: 900;
   letter-spacing: -0.05em;
   line-height: 0.98;
-  font-size: clamp(54px, 7vw, 96px);
+  font-size: clamp(46px, 6vw, 82px);
   color: var(--er-text);
 }
 
@@ -619,18 +602,12 @@ async function submitContact() {
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1.02;
-  font-size: clamp(28px, 3.4vw, 48px);
+  font-size: clamp(24px, 3vw, 40px);
   color: color-mix(in srgb, var(--er-text) 92%, transparent);
 }
 
 .hero-desc { max-width: 680px; margin: 0 auto; }
 @media (min-width: 960px) { .hero-desc { margin: 0; } }
-
-.hero-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
 
 .hero-tag {
   padding: 10px 14px;
@@ -642,20 +619,44 @@ async function submitContact() {
   font-weight: 700;
 }
 
-.hero-secondary-btn {
-  border: 1px solid rgba(21, 48, 71, 0.12);
-}
-
 .hero-media {
   width: 100%;
-  border-radius: 28px;
+  border-radius: 24px;
   overflow: hidden;
-  border: 1px solid var(--er-stroke);
-  background: var(--er-glass-highlight);
-  box-shadow: var(--er-shadow-lg);
 }
+
 .hero-img {
   width: 100%;
+}
+
+.metric-col {
+  display: flex;
+}
+
+.metric-pill {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
+}
+
+.metric-pill strong {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  color: var(--er-text);
+}
+
+.metric-pill span {
+  display: block;
+  color: var(--er-text-muted);
+  line-height: 1.5;
 }
 
 .metrics-row {
@@ -673,14 +674,22 @@ async function submitContact() {
     position: static;
   }
 
+  .hero-copy-col {
+    gap: 2px;
+  }
+
   .hero-mini-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 600px) {
+  .hero-img :deep(.v-responsive__sizer) {
+    padding-bottom: 72% !important;
+  }
+
   .hero-media :deep(img) {
-    max-height: 260px;
+    max-height: 340px;
     object-fit: contain;
   }
 

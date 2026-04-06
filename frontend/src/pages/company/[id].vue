@@ -1,7 +1,7 @@
 <template>
   <div class="company-page">
     <v-container class="py-8">
-      <v-btn variant="text" class="mb-4 company-back-btn" @click="router.push('/map')">
+      <v-btn variant="text" class="mb-4 company-back-btn" @click="router.push(MAP_ROUTE)">
         <v-icon start>mdi-arrow-left</v-icon>
         Atpakaļ uz karti
       </v-btn>
@@ -266,9 +266,6 @@
               <div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
               <div><strong>Kopā:</strong> {{ reservationTotal }}</div>
             </div>
-            <v-alert v-if="reservationError" type="error" variant="tonal" class="mt-3" density="compact">
-              {{ reservationError }}
-            </v-alert>
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
@@ -287,12 +284,6 @@
             <div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
               Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
             </div>
-            <v-alert v-if="paymentError" type="error" variant="tonal" class="mt-3" density="compact">
-              {{ paymentError }}
-            </v-alert>
-            <v-alert v-if="paymentSuccess" type="success" variant="tonal" class="mt-3" density="compact">
-              {{ paymentSuccess }}
-            </v-alert>
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
@@ -302,9 +293,6 @@
         </v-card>
       </v-dialog>
 
-      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3500">
-        {{ snackbar.text }}
-      </v-snackbar>
     </v-container>
   </div>
 </template>
@@ -312,11 +300,14 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
+import { useNotifications } from '@/stores/notifications'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const route = useRoute()
 const router = useRouter()
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
+const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
 
 // Lapas pamatstāvoklis: kompānija, transports un rezervācijas dialogi.
 const user = ref(null)
@@ -337,6 +328,37 @@ const startDatePickerMenu = ref(false)
 const endDatePickerMenu = ref(false)
 
 const snackbar = ref({ show: false, text: '', color: 'error' })
+
+watch(reservationError, value => {
+  if (value) notifyError(value)
+})
+
+watch(paymentError, value => {
+  if (value) notifyError(value)
+})
+
+watch(paymentSuccess, value => {
+  if (value) notifySuccess(value)
+})
+
+watch(
+  () => snackbar.value.show,
+  visible => {
+    if (!visible || !snackbar.value.text) return
+
+    if (snackbar.value.color === 'success') {
+      notifySuccess(snackbar.value.text)
+    } else if (snackbar.value.color === 'warning') {
+      notifyWarning(snackbar.value.text)
+    } else if (snackbar.value.color === 'info') {
+      notifyInfo(snackbar.value.text)
+    } else {
+      notifyError(snackbar.value.text)
+    }
+
+    snackbar.value = { ...snackbar.value, show: false }
+  }
+)
 
 // Izveido sākotnējo rezervācijas periodu (no tagad+30min līdz nākamajai dienai).
 function buildDefaultReservationWindow() {
@@ -787,7 +809,7 @@ function upsertReservationInTransportState(reservationItem) {
 function openReservation(vehicle) {
   if (!user.value) {
     snackbar.value = { show: true, text: 'Lūdzu, pieslēdzieties, lai rezervētu.', color: 'error' }
-    router.push('/auth')
+    router.push(AUTH_ROUTE)
     return
   }
 
@@ -898,7 +920,6 @@ async function confirmPayment() {
     await loadTransport()
 
     paymentDialog.value = false
-    snackbar.value = { show: true, text: 'Apmaksāts veiksmīgi!', color: 'success' }
   } catch {
     paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
   } finally {

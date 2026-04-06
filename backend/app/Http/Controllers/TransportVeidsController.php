@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\TransportliedzieklsVeids;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TransportVeidsController extends Controller
 {
@@ -19,8 +20,20 @@ class TransportVeidsController extends Controller
             'tips' => ['nullable', 'string', 'max:50'],
         ]);
 
+        $data['nosaukums'] = trim($data['nosaukums']);
+
         if (empty($data['tips'])) {
-            $data['tips'] = $data['nosaukums'];
+            $data['tips'] = Str::slug($data['nosaukums'], '_');
+        } else {
+            $data['tips'] = Str::slug(trim($data['tips']), '_');
+        }
+
+        if ($data['tips'] === '') {
+            $data['tips'] = Str::slug(Str::ascii($data['nosaukums']), '_');
+        }
+
+        if ($data['tips'] === '') {
+            $data['tips'] = 'transporta_veids';
         }
 
         $veids = TransportliedzieklsVeids::create($data);
