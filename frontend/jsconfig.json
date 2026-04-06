@@ -1,13 +1,12 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "target": "es5",
+    "target": "es2020",
     "module": "esnext",
-    "baseUrl": "./frontend/src/components/HomePage.vue",
     "moduleResolution": "bundler",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "lib": [
