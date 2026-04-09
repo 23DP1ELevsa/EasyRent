@@ -157,6 +157,37 @@ class TransportController extends Controller
         return response()->json($transport->load(['sniedzejs.persona', 'veids', 'rezervacijas']));
     }
 
+    public function destroy(Request $request, $id)
+    {
+        $transport = Transportlidzeklis::find($id);
+
+        if (!$transport) {
+            return response()->json(['error' => 'Nav atrasts'], 404);
+        }
+
+        $data = $request->validate([
+            'sniedzejs_id' => ['required', 'integer', 'exists:pakalpojumu_sniedzejs,sniedzejs_id'],
+        ]);
+
+        if ((int) $data['sniedzejs_id'] !== (int) $transport->sniedzejs_id) {
+            return response()->json(['message' => 'Nav atļauts dzēst cita sniedzēja transportu.'], 403);
+        }
+
+        $hasActiveReservations = Rezervacija::where('transportlidzeklis_id', $transport->transportlidzeklis_id)
+            ->where('beigu_laiks', '>', Carbon::now())
+            ->exists();
+
+        if ($hasActiveReservations) {
+            return response()->json([
+                'message' => 'Transportlīdzekli nevar dzēst, kamēr tam ir aktīva vai gaidāma rezervācija.',
+            ], 409);
+        }
+
+        $transport->delete();
+
+        return response()->json(['message' => 'Transportlīdzeklis dzēsts.']);
+    }
+
     private function buildProviderAddress(PakalpojumuSniedzejs $provider): string
     {
         $street = trim((string) ($provider->iela ?? ''));

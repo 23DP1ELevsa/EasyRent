@@ -94,7 +94,7 @@
 								:items="companyOptions"
 								item-title="title"
 								item-value="value"
-								label="Kompānija"
+								label="Pakalpojumu sniedzējs"
 								variant="outlined"
 								density="compact"
 								clearable
@@ -137,79 +137,6 @@
 								inset
 								density="compact"
 							/>
-							<v-divider class="my-3" />
-							<div class="text-subtitle-2 font-weight-bold mb-2">Rezervācijas laiks</div>
-							<v-row dense>
-								<v-col cols="6">
-									<v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
-										<template #activator="{ props }">
-											<v-text-field
-												v-bind="props"
-												:model-value="reservationStartDateDisplay"
-												label="No datums"
-												variant="outlined"
-												density="compact"
-												placeholder="DD/MM/YYYY"
-												prepend-inner-icon="mdi-calendar"
-												readonly
-											/>
-										</template>
-										<v-date-picker
-											:model-value="reservationStartDate"
-											@update:model-value="onStartDatePicked"
-											:min="minReservationDate"
-											color="primary"
-											locale="lv"
-											hide-header
-										/>
-									</v-menu>
-								</v-col>
-								<v-col cols="6">
-									<v-select
-										v-model="reservationStartTime"
-										:items="availableStartTimeOptions"
-										label="No laiks"
-										variant="outlined"
-										density="compact"
-									/>
-								</v-col>
-								<v-col cols="6">
-									<v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
-										<template #activator="{ props }">
-											<v-text-field
-												v-bind="props"
-												:model-value="reservationEndDateDisplay"
-												label="Līdz datumam"
-												variant="outlined"
-												density="compact"
-												placeholder="DD/MM/YYYY"
-												prepend-inner-icon="mdi-calendar"
-												readonly
-											/>
-										</template>
-										<v-date-picker
-											:model-value="reservationEndDate"
-											@update:model-value="onEndDatePicked"
-											:min="minReservationDate"
-											color="primary"
-											locale="lv"
-											hide-header
-										/>
-									</v-menu>
-								</v-col>
-								<v-col cols="6">
-									<v-select
-										v-model="reservationEndTime"
-										:items="availableEndTimeOptions"
-										label="Līdz laikam"
-										variant="outlined"
-										density="compact"
-									/>
-								</v-col>
-								<v-col cols="12">
-									<div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
-								</v-col>
-							</v-row>
 						</v-expansion-panel-text>
 					</v-expansion-panel>
 
@@ -367,6 +294,30 @@
 									Saglabāt jauno veidu
 								</v-btn>
 							</v-form>
+
+							<div v-if="transportTypes.length" class="mb-5">
+								<div class="text-subtitle-2 font-weight-bold mb-2">Esošie transporta veidi</div>
+								<v-select
+									v-model="editingVehicleTypeId"
+									:items="vehicleTypeSelectOptions"
+									item-title="title"
+									item-value="value"
+									label="Izvēlies transporta veidu"
+									variant="outlined"
+									density="compact"
+									clearable
+								/>
+								<div class="d-flex justify-end mt-2">
+									<v-btn
+										size="small"
+										variant="tonal"
+										:disabled="!selectedVehicleTypeToEdit"
+										@click="startEditingVehicleType"
+									>
+										Labot izvēlēto veidu
+									</v-btn>
+								</div>
+							</div>
 
 							<v-divider class="mb-4" />
 							<div class="text-subtitle-2 font-weight-bold mb-2">Pievienot transportlīdzekli</div>
@@ -598,9 +549,51 @@
 					/>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
+					<v-btn color="error" variant="tonal" :loading="deleteVehicleLoading" :disabled="editLoading" @click="deleteVehicle">
+						Dzēst
+					</v-btn>
 					<v-spacer />
 					<v-btn variant="text" @click="editDialog = false">Atcelt</v-btn>
-					<v-btn color="primary" :loading="editLoading" @click="saveVehicle">Saglabāt</v-btn>
+					<v-btn color="primary" :loading="editLoading" :disabled="deleteVehicleLoading" @click="saveVehicle">Saglabāt</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
+		<v-dialog v-model="deleteVehicleDialog" max-width="420" persistent>
+			<v-card>
+				<v-card-title class="font-weight-bold">Dzēst transportlīdzekli</v-card-title>
+				<v-divider />
+				<v-card-text class="pa-4">
+					<div class="text-body-2">Vai tiešām vēlaties dzēst šo transportlīdzekli?</div>
+					<div v-if="editVehicle?.marka || editVehicle?.modelis" class="text-caption opacity-70 mt-2">
+						{{ editVehicle.marka }} {{ editVehicle.modelis }}
+					</div>
+				</v-card-text>
+				<v-card-actions class="px-4 pb-4">
+					<v-spacer />
+					<v-btn variant="text" :disabled="deleteVehicleLoading" @click="cancelDeleteVehicle">Atcelt</v-btn>
+					<v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">Dzēst</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
+		<v-dialog v-model="vehicleTypeDialog" max-width="420">
+			<v-card>
+				<v-card-title class="font-weight-bold">Labot transporta veidu</v-card-title>
+				<v-divider />
+				<v-card-text class="pa-4 d-flex flex-column ga-3">
+					<v-text-field
+						v-model="editingVehicleTypeName"
+						label="Transporta veida nosaukums"
+						variant="outlined"
+						density="compact"
+						hide-details
+					/>
+				</v-card-text>
+				<v-card-actions class="px-4 pb-4">
+					<v-spacer />
+					<v-btn variant="text" :disabled="vehicleTypeEditLoading" @click="cancelEditingVehicleType">Atcelt</v-btn>
+					<v-btn color="primary" :loading="vehicleTypeEditLoading" @click="saveVehicleType">Saglabāt</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -956,11 +949,17 @@ const providerSuccess = ref('')
 const vehicleTypeLoading = ref(false)
 const vehicleTypeError = ref('')
 const vehicleTypeSuccess = ref('')
+const vehicleTypeEditLoading = ref(false)
+const editingVehicleTypeId = ref(null)
+const editingVehicleTypeName = ref('')
+const vehicleTypeDialog = ref(false)
 
 const editDialog = ref(false)
 const editLoading = ref(false)
 const editError = ref('')
 const editVehicle = ref({})
+const deleteVehicleLoading = ref(false)
+const deleteVehicleDialog = ref(false)
 
 const reviewDialog = ref(false)
 const reviewLoading = ref(false)
@@ -1071,6 +1070,8 @@ const providerId = computed(() =>
 )
 
 const typeOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
+const vehicleTypeSelectOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
+const selectedVehicleTypeToEdit = computed(() => transportTypes.value.find(type => type.veids_id === editingVehicleTypeId.value) || null)
 
 function toValidCoordinate(value, type) {
 	if (value === null || value === undefined || value === '') return null
@@ -1284,12 +1285,13 @@ function getBillableDays() {
 function isVehicleAvailable(vehicle) {
 	if (!vehicle) return false
 	if (vehicle.statuss !== 'pieejams') return false
-	const { start, end } = getReservationRange()
+	const now = new Date()
 	if (!vehicle.rezervacijas || !vehicle.rezervacijas.length) return true
 	return !vehicle.rezervacijas.some(res => {
 		const rStart = new Date(res.sakuma_laiks)
 		const rEnd = new Date(res.beigu_laiks)
-		return rStart < end && rEnd > start
+		if (Number.isNaN(rStart.getTime()) || Number.isNaN(rEnd.getTime())) return false
+		return rStart <= now && rEnd > now && res.apmaksas_statuss === 'apmaksata'
 	})
 }
 
@@ -1371,6 +1373,19 @@ function resetReviewForm() {
 		vertejums: 0,
 		komentars: '',
 	}
+}
+
+function startEditingVehicleType() {
+	if (!selectedVehicleTypeToEdit.value) return
+	editingVehicleTypeName.value = selectedVehicleTypeToEdit.value.nosaukums || ''
+	vehicleTypeError.value = ''
+	vehicleTypeSuccess.value = ''
+	vehicleTypeDialog.value = true
+}
+
+function cancelEditingVehicleType() {
+	editingVehicleTypeName.value = ''
+	vehicleTypeDialog.value = false
 }
 
 async function loadVehicleReviews(transportlidzeklisId) {
@@ -1668,6 +1683,59 @@ async function saveVehicle() {
 	}
 }
 
+async function deleteVehicle() {
+	editDialog.value = false
+	nextTick().then(() => {
+		deleteVehicleDialog.value = true
+	})
+}
+
+function cancelDeleteVehicle() {
+	deleteVehicleDialog.value = false
+	nextTick().then(() => {
+		editDialog.value = true
+	})
+}
+
+async function confirmDeleteVehicle() {
+	if (!editVehicle.value.transportlidzeklis_id || !providerId.value) {
+		editError.value = 'Nav pieejami pakalpojumu sniedzēja dati.'
+		return
+	}
+
+	deleteVehicleDialog.value = false
+	deleteVehicleLoading.value = true
+	editError.value = ''
+
+	try {
+		const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ sniedzejs_id: providerId.value }),
+		})
+
+		const result = await response.json()
+		if (!response.ok) {
+			editError.value = result?.message || 'Neizdevās dzēst transportlīdzekli.'
+			nextTick().then(() => {
+				editDialog.value = true
+			})
+			return
+		}
+
+		editDialog.value = false
+		snackbar.value = { show: true, text: result?.message || 'Transportlīdzeklis dzēsts.', color: 'success' }
+		await loadTransport()
+	} catch (error) {
+		editError.value = 'Kļūda: Neizdevās dzēst transportlīdzekli.'
+		nextTick().then(() => {
+			editDialog.value = true
+		})
+	} finally {
+		deleteVehicleLoading.value = false
+	}
+}
+
 async function submitVehicle() {
 	providerLoading.value = true
 	providerError.value = ''
@@ -1759,6 +1827,46 @@ async function submitVehicleType() {
 	}
 }
 
+
+async function saveVehicleType() {
+	if (!editingVehicleTypeId.value) {
+		vehicleTypeError.value = 'Izvēlieties transporta veidu.'
+		return
+	}
+
+	const nosaukums = (editingVehicleTypeName.value || '').trim()
+	if (!nosaukums) {
+		vehicleTypeError.value = 'Ievadiet transporta veida nosaukumu.'
+		return
+	}
+
+	vehicleTypeEditLoading.value = true
+	vehicleTypeError.value = ''
+	vehicleTypeSuccess.value = ''
+
+	try {
+		const response = await fetch(`${API_BASE}/api/transport/veidi/${editingVehicleTypeId.value}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nosaukums }),
+		})
+
+		const result = await response.json()
+		if (!response.ok) {
+			vehicleTypeError.value = result?.message || 'Neizdevās atjaunināt transporta veidu.'
+			return
+		}
+
+		vehicleTypeSuccess.value = 'Transporta veids atjaunināts.'
+		cancelEditingVehicleType()
+		await loadTypes()
+	} catch (error) {
+		vehicleTypeError.value = 'Kļūda: Neizdevās atjaunināt transporta veidu.'
+	} finally {
+		vehicleTypeEditLoading.value = false
+	}
+}
+
 // Datu ielāde no API.
 async function loadTransport() {
 	loading.value = true
@@ -1821,7 +1929,7 @@ function renderMarkers() {
 				<strong>${point.name}</strong><br/>
 				${point.address}, ${point.city}<br/>
 				Transporti: ${point.vehicles.length} (${point.availableCount} pieejami)<br/>
-				<button type="button" class="popup-company-link" data-company-id="${point.id}">Skatīt kompāniju</button>
+				<button type="button" class="popup-company-link" data-company-id="${point.id}">Skatīt sniedzēju</button>
 			</div>
 		`)
 
@@ -2284,7 +2392,7 @@ watch(drawer, async () => {
 	border: 0;
 	border-radius: 8px;
 	background: #0f766e;
-	color: var(--er-on-primary);
+	color: #fff;
 	cursor: pointer;
 	font-weight: 600;
 }

@@ -17,8 +17,10 @@ Route::prefix('transport')->group(function () {
     Route::post('/', [TransportController::class, 'store']);
     Route::get('/veidi', [TransportVeidsController::class, 'index']);
     Route::post('/veidi', [TransportVeidsController::class, 'store']);
+    Route::put('/veidi/{id}', [TransportVeidsController::class, 'update']);
     Route::get('/{id}', [TransportController::class, 'show']);
     Route::put('/{id}', [TransportController::class, 'update']);
+    Route::delete('/{id}', [TransportController::class, 'destroy']);
 });
 
 // Auth API (JSON)
