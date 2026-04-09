@@ -1,18 +1,17 @@
 <template>
   <div class="profile-bg">
-    <v-container class="py-10 py-sm-16">
+    <v-container class="py-10 py-sm-16 profile-shell">
       <v-row justify="center">
         <!-- Profile Header Card -->
-        <v-col cols="12" md="8" lg="7">
+        <v-col cols="12" md="11" lg="10" xl="9">
           <v-card class="surface profile-header mb-6" elevation="12">
             <v-card-text class="pa-8">
               <div class="d-flex align-center justify-space-between flex-wrap ga-4">
                 <div>
-                  <div class="soft-eyebrow mb-4">Lietotāja profils</div>
                   <div class="text-h4 font-weight-bold mb-2">{{ form.vards }} {{ form.uzvards }}</div>
                   <div class="text-body-2 opacity-80 d-flex align-center ga-2 flex-wrap">
                     <span v-if="loma === 'klients'" class="badge-info">🔹 Klients</span>
-                    <span v-else class="badge-info">🏢 Pakalpojumu sniedzējs</span>
+                    <span v-else class="badge-info badge-info-provider">🏢 Pakalpojumu sniedzējs</span>
                     <span class="profile-email">{{ email }}</span>
                   </div>
                 </div>
@@ -963,6 +962,10 @@ function logout() {
   background: var(--er-page-bg);
 }
 
+.profile-shell {
+  max-width: 1480px;
+}
+
 .surface {
   background: var(--er-surface);
   border: 1px solid var(--er-stroke);
@@ -1037,6 +1040,12 @@ function logout() {
   font-size: 0.82rem;
   font-weight: 600;
   border: 1px solid rgba(15, 118, 110, 0.18);
+}
+
+.badge-info-provider {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: color-mix(in srgb, var(--er-text) 62%, transparent);
 }
 
 .profile-email {

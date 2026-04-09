@@ -115,8 +115,8 @@
     </v-main>
 
     <v-footer v-if="route.path === HOME_ROUTE" class="footer" flat>
-      <v-container>
-        <v-row class="py-10" align="start">
+      <v-container class="footer-shell">
+        <v-row class="footer-grid" align="start">
           <v-col cols="12" md="4">
             <div class="footer-brand d-flex align-center mb-3">
               <v-avatar size="34" class="me-2" variant="tonal">
@@ -124,16 +124,25 @@
               </v-avatar>
               <div>
                 <div class="text-subtitle-1 font-weight-black">EasyRent</div>
-                <div class="text-caption opacity-70">Transporta noma Latvijā</div>
+                <div class="text-caption footer-copy">Transporta noma Latvijā</div>
               </div>
             </div>
-            <div class="text-body-2 opacity-80 mb-4">
+            <div class="text-body-2 footer-copy mb-4">
               Vienota platforma, lai atrastu, salīdzinātu un rezervētu transportu.
             </div>
 
-            <div class="d-flex align-center ga-2">
-              <v-btn icon variant="text" size="small" disabled aria-label="Instagram"><v-icon>mdi-instagram</v-icon></v-btn>
-              <v-btn icon variant="text" size="small" disabled aria-label="LinkedIn"><v-icon>mdi-linkedin</v-icon></v-btn>
+            <div class="d-flex align-center ga-2 footer-social">
+                <v-btn
+                  icon
+                  variant="text"
+                  size="small"
+                  aria-label="GitHub"
+                  href="https://github.com/23DP1ELevsa/EasyRent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <v-icon>mdi-github</v-icon>
+                </v-btn>
             </div>
           </v-col>
 
@@ -141,33 +150,19 @@
             <div class="footer-title">Lietotājiem</div>
             <div class="footer-link" @click="goHome">Sākums</div>
             <div class="footer-link" @click="goMap">Karte</div>
-            <div class="footer-link is-disabled">Rezervācijas</div>
           </v-col>
 
           <v-col cols="6" sm="4" md="3">
             <div class="footer-title">Pakalpojumu sniedzējiem</div>
             <div class="footer-link" @click="goMap">Pievienot transportu</div>
             <div class="footer-link" @click="goMap">Pārvaldīt pieejamību</div>
-            <div class="footer-link is-disabled">Pasūtījumi</div>
-          </v-col>
-
-          <v-col cols="12" sm="4" md="3">
-            <div class="footer-title">Juridiski</div>
-            <div class="footer-link is-disabled">Noteikumi</div>
-            <div class="footer-link is-disabled">Privātums</div>
-            <div class="footer-link is-disabled">Sīkdatnes</div>
           </v-col>
         </v-row>
 
         <v-divider class="footer-divider" />
 
-        <div class="d-flex flex-column flex-md-row align-center justify-space-between py-4 gap-2">
-          <div class="text-caption opacity-70">© {{ year }} EasyRent</div>
-          <div class="d-flex flex-wrap justify-center ga-4 text-caption opacity-70">
-            <span class="footer-mini is-disabled">Palīdzība</span>
-            <span class="footer-mini is-disabled">Kontakti</span>
-            <span class="footer-mini is-disabled">Cookie settings</span>
-          </div>
+        <div class="d-flex align-center justify-space-between py-3">
+          <div class="text-caption footer-copy">© {{ year }} EasyRent</div>
         </div>
       </v-container>
     </v-footer>
@@ -403,6 +398,21 @@ function getUserDisplayName() {
   border-top: 1px solid var(--er-footer-border);
 }
 
+.footer-shell {
+  max-width: 1320px;
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+
+.footer-grid {
+  padding-top: 28px;
+  padding-bottom: 24px;
+}
+
+.footer-copy {
+  color: var(--er-footer-text);
+}
+
 .footer-title {
   font-weight: 800;
   margin-bottom: 10px;
@@ -421,8 +431,9 @@ function getUserDisplayName() {
 
 .footer-divider { border-color: var(--er-footer-border) !important; }
 
-.footer-mini { cursor: pointer; }
-.footer-mini:hover { color: var(--er-footer-text-strong); }
+.footer-social :deep(.v-btn) {
+  color: var(--er-footer-text-strong);
+}
 
 .is-disabled { opacity: 0.55; cursor: default; }
 .drawer {

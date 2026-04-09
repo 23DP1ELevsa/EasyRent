@@ -6,22 +6,9 @@
           <v-col cols="12" sm="11" md="9" lg="8" xl="7">
             <v-card class="surface auth-form-card" elevation="12">
               <v-card-text class="pa-6 pa-md-8">
-                <div class="auth-header mb-6">
-                  <div>
-                    <div class="soft-eyebrow mb-4">EasyRent konts</div>
-                    <div class="auth-title">Ienāc savā profilā vai izveido jaunu kontu.</div>
-                    <div class="text-body-2 section-copy mt-3">Viss rezervācijām, profilam un transporta pārvaldībai vienā vietā.</div>
-                  </div>
-                  <div class="auth-header-strip mt-6">
-                    <div class="text-overline opacity-70">Pieslēgšanās un reģistrācija</div>
-                    <div class="text-body-2 section-copy">Atver piekļuvi rezervācijām, profilam un transporta pārvaldībai.</div>
-                  </div>
-                </div>
-
                 <div class="d-flex align-center justify-space-between mb-5">
                   <div>
-                    <div class="text-h5 font-weight-bold mb-1">Autorizācija</div>
-                    <div class="text-body-2 opacity-75">Ieiet vai izveidot jaunu profilu.</div>
+                    <div class="auth-title">Autorizācija</div>
                   </div>
                   <v-avatar size="42" variant="tonal" class="auth-avatar">
                     <v-icon>mdi-account-circle</v-icon>
@@ -594,18 +581,6 @@ async function submitLogin() {
   border-radius: 999px;
   background: rgba(201, 107, 59, 0.08);
   filter: blur(10px);
-}
-
-.auth-header {
-  position: relative;
-  z-index: 1;
-}
-
-.auth-header-strip {
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
 }
 
 .auth-avatar {
