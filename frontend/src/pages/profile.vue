@@ -10,7 +10,7 @@
                 <div>
                   <div class="text-h4 font-weight-bold mb-2">{{ form.vards }} {{ form.uzvards }}</div>
                   <div class="text-body-2 opacity-80 d-flex align-center ga-2 flex-wrap">
-                    <span v-if="loma === 'klients'" class="badge-info">🔹 Klients</span>
+                    <span v-if="loma === 'klients'" class="badge-info badge-info-provider">🔹 Klients</span>
                     <span v-else class="badge-info badge-info-provider">🏢 Pakalpojumu sniedzējs</span>
                     <span class="profile-email">{{ email }}</span>
                   </div>
@@ -1018,6 +1018,27 @@ function logout() {
 .reservation-card-unpaid {
   border-color: rgba(245, 158, 11, 0.45);
   background: linear-gradient(135deg, rgba(255, 248, 236, 0.96), rgba(255, 244, 236, 0.88));
+  color: var(--er-text);
+}
+
+.reservation-card-unpaid :deep(.v-card-text),
+.reservation-card-unpaid .font-weight-bold,
+.reservation-card-unpaid .text-caption,
+.reservation-card-unpaid .text-body-2 {
+  color: inherit !important;
+}
+
+:root[data-theme='dark'] .reservation-card-unpaid {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: linear-gradient(135deg, rgba(78, 48, 12, 0.9), rgba(46, 30, 10, 0.96));
+  color: var(--er-text);
+}
+
+:root[data-theme='dark'] .reservation-card-unpaid :deep(.v-card-text),
+:root[data-theme='dark'] .reservation-card-unpaid .font-weight-bold,
+:root[data-theme='dark'] .reservation-card-unpaid .text-caption,
+:root[data-theme='dark'] .reservation-card-unpaid .text-body-2 {
+  color: var(--er-text) !important;
 }
 
 .profile-reservations,
