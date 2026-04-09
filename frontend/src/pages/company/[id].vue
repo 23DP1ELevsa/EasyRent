@@ -13,7 +13,6 @@
           <template v-else-if="company">
             <div class="company-hero mb-6">
               <div>
-                <div class="soft-eyebrow mb-4">Pakalpojumu sniedzējs</div>
                 <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
                 <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
                 <div class="text-body-2 opacity-80">{{ company.city }}</div>
@@ -109,8 +108,8 @@
                           hide-details
                         />
                       </v-col>
-                      <v-col cols="12" md="2" class="d-flex align-center justify-end">
-                        <v-btn variant="text" size="small" @click="resetVehicleFilters">Notīrīt</v-btn>
+                      <v-col cols="12" class="d-flex justify-end">
+                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleFilters">Notīrīt</v-btn>
                       </v-col>
                     </v-row>
                   </v-card-text>
@@ -133,7 +132,7 @@
                         />
                       </v-col>
                       <v-col cols="12" md="6" class="d-flex align-center justify-end">
-                        <v-btn variant="text" size="small" @click="resetVehicleSorting">Atiestatīt kārtošanu</v-btn>
+                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleSorting">Atiestatīt kārtošanu</v-btn>
                       </v-col>
                     </v-row>
                   </v-card-text>
@@ -162,23 +161,24 @@
                   <div class="text-body-2 mb-2">
                     {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
                   </div>
-                  <v-chip
-                    size="small"
-                    :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
-                    variant="tonal"
-                  >
-                    {{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Nav pieejams' }}
-                  </v-chip>
-                  <v-btn
-                    v-if="isClient"
-                    class="mt-3"
-                    size="small"
-                    color="primary"
-                    :disabled="!isVehicleAvailable(vehicle)"
-                    @click="openReservation(vehicle)"
-                  >
-                    Rezervēt
-                  </v-btn>
+                  <div class="vehicle-card__actions">
+                    <v-chip
+                      size="small"
+                      :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
+                      variant="tonal"
+                    >
+                      {{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Nav pieejams' }}
+                    </v-chip>
+                    <v-btn
+                      v-if="isClient"
+                      size="small"
+                      color="primary"
+                      :disabled="!isVehicleAvailable(vehicle)"
+                      @click="openReservation(vehicle)"
+                    >
+                      Rezervēt
+                    </v-btn>
+                  </div>
                 </v-card-text>
               </v-card>
             </div>
@@ -717,9 +717,7 @@ const company = computed(() => {
   const name = persona
     ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
     : `Pakalpojumu sniedzējs #${sniedzejs.sniedzejs_id}`
-  const address = [sniedzejs.iela, sniedzejs.majas_numurs, sniedzejs.dzivokla_numurs]
-    .filter(Boolean)
-    .join(' ')
+  const address = formatCompanyAddress(sniedzejs)
 
   return {
     name,
@@ -731,6 +729,17 @@ const company = computed(() => {
 function formatPrice(value) {
   const num = Number(value || 0)
   return `${num.toFixed(2)} €`
+}
+
+function formatCompanyAddress(provider) {
+  const street = provider?.iela?.trim?.() || ''
+  const houseNumber = String(provider?.majas_numurs || '').trim()
+  const apartmentNumber = String(provider?.dzivokla_numurs || '').trim()
+  const houseWithApartment = apartmentNumber
+    ? `${houseNumber}${houseNumber ? '-' : ''}${apartmentNumber}`
+    : houseNumber
+
+  return [street, houseWithApartment].filter(Boolean).join(' ')
 }
 
 function formatDateTime(value) {
@@ -1034,6 +1043,12 @@ watch(availableEndTimeOptions, options => {
   margin-left: auto;
 }
 
+.toolbar-secondary-btn {
+  min-height: 40px;
+  padding-inline: 18px;
+  font-size: 0.95rem;
+}
+
 .vehicles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -1046,6 +1061,14 @@ watch(availableEndTimeOptions, options => {
   border: 1px solid var(--er-stroke) !important;
   background: var(--er-card-soft);
   box-shadow: var(--er-shadow-sm);
+}
+
+.vehicle-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .reservation-summary {
