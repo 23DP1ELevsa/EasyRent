@@ -1094,6 +1094,29 @@ function getPointFallbackCoords(pointId) {
 }
 
 // Pārvērš API transporta sarakstu kompāniju punktos kartei/sarakstam.
+function formatProviderAddress(provider) {
+	const street = provider?.iela?.trim?.() || ''
+	const houseNumber = String(provider?.majas_numurs || '').trim()
+	const apartmentNumber = String(provider?.dzivokla_numurs || '').trim()
+	const houseWithApartment = apartmentNumber
+		? `${houseNumber}${houseNumber ? '-' : ''}${apartmentNumber}`
+		: houseNumber
+
+	if (!street) return houseWithApartment
+	if (!houseWithApartment) return street
+	if (street.endsWith(houseWithApartment)) return street
+
+	if (houseNumber && apartmentNumber && street.endsWith(houseNumber)) {
+		return `${street}-${apartmentNumber}`
+	}
+
+	if (houseNumber && street.endsWith(houseNumber)) {
+		return street
+	}
+
+	return [street, houseWithApartment].filter(Boolean).join(' ')
+}
+
 const points = computed(() => {
 	const map = new Map()
 	transportItems.value.forEach(item => {
@@ -1105,7 +1128,7 @@ const points = computed(() => {
 			const lng = toValidCoordinate(sniedzejs.longitude, 'lng')
 			const persona = sniedzejs.persona
 			const name = persona ? `${persona.vards} ${persona.uzvards}`.trim() : `Pakalpojumu sniedzējs #${id}`
-			const address = [sniedzejs.iela, sniedzejs.majas_numurs, sniedzejs.dzivokla_numurs].filter(Boolean).join(' ')
+			const address = formatProviderAddress(sniedzejs)
 			map.set(id, {
 				id,
 				name,

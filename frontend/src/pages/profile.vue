@@ -844,9 +844,13 @@ async function updateProfile() {
       if (form.value.registracijas_numurs) updateData.registracijas_numurs = form.value.registracijas_numurs
       if (form.value.iela) updateData.iela = form.value.iela
       if (form.value.majas_numurs) updateData.majas_numurs = form.value.majas_numurs
-      if (form.value.dzivokla_numurs) updateData.dzivokla_numurs = form.value.dzivokla_numurs
       if (form.value.pilseta) updateData.pilseta = form.value.pilseta
       if (form.value.pasta_indekss) updateData.pasta_indekss = form.value.pasta_indekss
+      const apartmentNumber = String(form.value.dzivokla_numurs ?? '').trim()
+      const initialApartmentNumber = String(initialProviderAddress.value.dzivokla_numurs ?? '').trim()
+      if (apartmentNumber !== initialApartmentNumber) {
+        updateData.dzivokla_numurs = apartmentNumber || null
+      }
       const addressChanged = isProviderAddressChanged()
       const coordsChanged = areProviderCoordsChanged()
       const needsCoords = form.value.latitude === '' || form.value.longitude === ''

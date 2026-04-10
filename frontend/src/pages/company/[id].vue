@@ -739,6 +739,18 @@ function formatCompanyAddress(provider) {
     ? `${houseNumber}${houseNumber ? '-' : ''}${apartmentNumber}`
     : houseNumber
 
+  if (!street) return houseWithApartment
+  if (!houseWithApartment) return street
+  if (street.endsWith(houseWithApartment)) return street
+
+  if (houseNumber && apartmentNumber && street.endsWith(houseNumber)) {
+    return `${street}-${apartmentNumber}`
+  }
+
+  if (houseNumber && street.endsWith(houseNumber)) {
+    return street
+  }
+
   return [street, houseWithApartment].filter(Boolean).join(' ')
 }
 

@@ -61,6 +61,8 @@ class AuthController extends Controller
                 'lietotajvards' => $data['lietotajvards'],
             ]);
         } else {
+            $apartmentNumber = $this->normalizeOptionalString($data['dzivokla_numurs'] ?? null);
+
             $coords = [
                 'lat' => $data['latitude'] ?? null,
                 'lng' => $data['longitude'] ?? null,
@@ -86,7 +88,7 @@ class AuthController extends Controller
                 'registracijas_numurs' => $data['registracijas_numurs'],
                 'iela' => $data['iela'],
                 'majas_numurs' => $data['majas_numurs'],
-                'dzivokla_numurs' => $data['dzivokla_numurs'] ?? null,
+                'dzivokla_numurs' => $apartmentNumber,
                 'pilseta' => $data['pilseta'],
                 'pasta_indekss' => $data['pasta_indekss'],
                 'latitude' => $coords['lat'],
@@ -178,5 +180,12 @@ class AuthController extends Controller
         }
 
         return ['lat' => null, 'lng' => null];
+    }
+
+    private function normalizeOptionalString(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+
+        return $normalized === '' ? null : $normalized;
     }
 }

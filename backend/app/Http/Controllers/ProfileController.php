@@ -102,7 +102,7 @@ class ProfileController extends Controller
                 if (isset($data['registracijas_numurs'])) $updateSniedzejs['registracijas_numurs'] = $data['registracijas_numurs'];
                 if (isset($data['iela'])) $updateSniedzejs['iela'] = $data['iela'];
                 if (isset($data['majas_numurs'])) $updateSniedzejs['majas_numurs'] = $data['majas_numurs'];
-                if (array_key_exists('dzivokla_numurs', $data)) $updateSniedzejs['dzivokla_numurs'] = $data['dzivokla_numurs'];
+                if (array_key_exists('dzivokla_numurs', $data)) $updateSniedzejs['dzivokla_numurs'] = $this->normalizeOptionalString($data['dzivokla_numurs']);
                 if (isset($data['pilseta'])) $updateSniedzejs['pilseta'] = $data['pilseta'];
                 if (isset($data['pasta_indekss'])) $updateSniedzejs['pasta_indekss'] = $data['pasta_indekss'];
                 if (array_key_exists('latitude', $data)) $updateSniedzejs['latitude'] = $data['latitude'];
@@ -119,6 +119,13 @@ class ProfileController extends Controller
             'persona' => $persona->load($relation),
             'message' => 'Profils atjaunināts',
         ]);
+    }
+
+    private function normalizeOptionalString(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+
+        return $normalized === '' ? null : $normalized;
     }
 }
 
