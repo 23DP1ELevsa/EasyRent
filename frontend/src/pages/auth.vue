@@ -6,14 +6,15 @@
 import { useRouter } from 'vue-router'
 import AuthPage from '@/components/AuthPage.vue'
 import { HOME_ROUTE } from '@/router/paths'
+import { getStoredUser } from '@/services/auth'
 
 const router = useRouter()
 
 function handleAuthSuccess() {
-  const userData = localStorage.getItem('user')
+  const userData = getStoredUser()
 
   if (userData) {
-    window.dispatchEvent(new CustomEvent('user-updated', { detail: JSON.parse(userData) }))
+    window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
   }
 
   router.push(HOME_ROUTE)

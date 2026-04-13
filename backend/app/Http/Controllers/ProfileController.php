@@ -13,7 +13,10 @@ class ProfileController extends Controller
 {
     public function show(Request $request, $personaId)
     {
-        $persona = Persona::findOrFail($personaId);
+        $persona = $this->resolveAuthorizedPersona($request, $personaId);
+        if ($persona instanceof \Illuminate\Http\JsonResponse) {
+            return $persona;
+        }
 
         $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
 
@@ -24,7 +27,10 @@ class ProfileController extends Controller
 
     public function update(Request $request, $personaId)
     {
-        $persona = Persona::findOrFail($personaId);
+        $persona = $this->resolveAuthorizedPersona($request, $personaId);
+        if ($persona instanceof \Illuminate\Http\JsonResponse) {
+            return $persona;
+        }
 
         // Check if trying to change loma or email
         if ($request->has('loma')) {
@@ -126,6 +132,21 @@ class ProfileController extends Controller
         $normalized = trim((string) ($value ?? ''));
 
         return $normalized === '' ? null : $normalized;
+    }
+
+    private function resolveAuthorizedPersona(Request $request, int|string $personaId): Persona|\Illuminate\Http\JsonResponse
+    {
+        $persona = $request->user();
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        if ((int) $persona->persona_id !== (int) $personaId) {
+            return response()->json(['message' => 'Nav atļauts piekļūt cita lietotāja profilam.'], 403);
+        }
+
+        return $persona;
     }
 }
 

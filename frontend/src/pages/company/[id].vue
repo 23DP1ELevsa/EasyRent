@@ -302,6 +302,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
+import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const route = useRoute()
@@ -889,9 +890,8 @@ async function createReservation() {
 
     const response = await fetch(`${API_BASE}/api/rezervacijas`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-Timezone': userTimezone }),
       body: JSON.stringify({
-        klients_id: user.value.klients.klients_id,
         transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
         sakuma_laiks: startApi,
         beigu_laiks: endApi,
@@ -925,8 +925,7 @@ async function confirmPayment() {
   try {
     const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     })
 
     const result = await response.json()
@@ -989,10 +988,9 @@ onMounted(loadTransport)
 // Sākotnējā ielāde un lietotāja sesijas nolasīšana.
 
 onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    user.value = JSON.parse(userStr)
-  }
+  syncCurrentUser().then(persona => {
+    user.value = persona
+  })
 })
 
 watch(availableStartTimeOptions, options => {

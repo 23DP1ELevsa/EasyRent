@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Maksajums;
+use App\Models\Klients;
 use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
@@ -75,12 +76,13 @@ class RezervacijaController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $data = $request->validate([
-            'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
-        ]);
+        $klients = $this->resolveAuthorizedClient($request);
+        if ($klients instanceof \Illuminate\Http\JsonResponse) {
+            return $klients;
+        }
 
         $rezervacijas = Rezervacija::with(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona'])
-            ->where('klients_id', $data['klients_id'])
+            ->where('klients_id', $klients->klients_id)
             ->orderByDesc('izveides_datums')
             ->get();
 
@@ -91,8 +93,12 @@ class RezervacijaController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
+        $klients = $this->resolveAuthorizedClient($request);
+        if ($klients instanceof \Illuminate\Http\JsonResponse) {
+            return $klients;
+        }
+
         $data = $request->validate([
-            'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
             'transportlidzeklis_id' => ['required', 'integer', 'exists:transportlidzeklis,transportlidzeklis_id'],
             'sakuma_laiks' => ['required', 'date'],
             'beigu_laiks' => ['required', 'date', 'after:sakuma_laiks'],
@@ -127,7 +133,7 @@ class RezervacijaController extends Controller
         $sum = $days * $transport->dienas_nomas_cena;
 
         $rezervacija = Rezervacija::create([
-            'klients_id' => $data['klients_id'],
+            'klients_id' => $klients->klients_id,
             'transportlidzeklis_id' => $transport->transportlidzeklis_id,
             'sakuma_laiks' => $start,
             'beigu_laiks' => $end,
@@ -145,13 +151,14 @@ class RezervacijaController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $data = $request->validate([
-            'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
-        ]);
+        $klients = $this->resolveAuthorizedClient($request);
+        if ($klients instanceof \Illuminate\Http\JsonResponse) {
+            return $klients;
+        }
 
         $rezervacija = Rezervacija::with(['transportlidzeklis'])->findOrFail($id);
 
-        if ($rezervacija->klients_id !== $data['klients_id']) {
+        if ((int) $rezervacija->klients_id !== (int) $klients->klients_id) {
             return response()->json(['message' => 'Nav atļauts apmaksāt šo rezervāciju.'], 403);
         }
 
@@ -191,13 +198,14 @@ class RezervacijaController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $data = $request->validate([
-            'klients_id' => ['required', 'integer', 'exists:klients,klients_id'],
-        ]);
+        $klients = $this->resolveAuthorizedClient($request);
+        if ($klients instanceof \Illuminate\Http\JsonResponse) {
+            return $klients;
+        }
 
         $rezervacija = Rezervacija::findOrFail($id);
 
-        if ($rezervacija->klients_id !== $data['klients_id']) {
+        if ((int) $rezervacija->klients_id !== (int) $klients->klients_id) {
             return response()->json(['message' => 'Nav atļauts atcelt šo rezervāciju.'], 403);
         }
 
@@ -208,5 +216,25 @@ class RezervacijaController extends Controller
         $rezervacija->delete();
 
         return response()->json(['message' => 'Rezervācija atcelta.']);
+    }
+
+    private function resolveAuthorizedClient(Request $request): Klients|\Illuminate\Http\JsonResponse
+    {
+        $persona = $request->user();
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        if ($persona->loma !== 'klients') {
+            return response()->json(['message' => 'Šī darbība pieejama tikai klientam.'], 403);
+        }
+
+        $klients = $persona->klients;
+        if (!$klients) {
+            return response()->json(['message' => 'Klienta profils nav atrasts.'], 403);
+        }
+
+        return $klients;
     }
 }

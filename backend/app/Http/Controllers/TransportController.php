@@ -103,8 +103,12 @@ class TransportController extends Controller
 
     public function store(Request $request)
     {
+        $provider = $this->resolveAuthorizedProvider($request);
+        if ($provider instanceof \Illuminate\Http\JsonResponse) {
+            return $provider;
+        }
+
         $data = $request->validate([
-            'sniedzejs_id' => ['required', 'integer', 'exists:pakalpojumu_sniedzejs,sniedzejs_id'],
             'veids_id' => ['required', 'integer', 'exists:transportlidzekla_veids,veids_id'],
             'marka' => ['required', 'string', 'max:50'],
             'modelis' => ['required', 'string', 'max:50'],
@@ -115,7 +119,7 @@ class TransportController extends Controller
             'registracijas_numurs' => ['required', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs'],
         ]);
 
-        $provider = PakalpojumuSniedzejs::findOrFail($data['sniedzejs_id']);
+        $data['sniedzejs_id'] = $provider->sniedzejs_id;
         $data['adrese'] = $this->buildProviderAddress($provider);
 
         $transport = Transportlidzeklis::create($data);
@@ -125,6 +129,11 @@ class TransportController extends Controller
 
     public function update(Request $request, $id)
     {
+        $provider = $this->resolveAuthorizedProvider($request);
+        if ($provider instanceof \Illuminate\Http\JsonResponse) {
+            return $provider;
+        }
+
         $transport = Transportlidzeklis::find($id);
 
         if (!$transport) {
@@ -132,7 +141,6 @@ class TransportController extends Controller
         }
 
         $data = $request->validate([
-            'sniedzejs_id' => ['sometimes', 'integer', 'exists:pakalpojumu_sniedzejs,sniedzejs_id'],
             'veids_id' => ['sometimes', 'integer', 'exists:transportlidzekla_veids,veids_id'],
             'marka' => ['sometimes', 'string', 'max:50'],
             'modelis' => ['sometimes', 'string', 'max:50'],
@@ -143,12 +151,11 @@ class TransportController extends Controller
             'registracijas_numurs' => ['sometimes', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs,' . $transport->transportlidzeklis_id . ',transportlidzeklis_id'],
         ]);
 
-        if (isset($data['sniedzejs_id']) && $data['sniedzejs_id'] !== $transport->sniedzejs_id) {
+        if ((int) $provider->sniedzejs_id !== (int) $transport->sniedzejs_id) {
             return response()->json(['message' => 'Nav atļauts mainīt cita sniedzēja transportu'], 403);
         }
 
         if ($request->hasAny(['marka', 'modelis', 'atrumkarba', 'degvielas_veids', 'dienas_nomas_cena', 'statuss', 'veids_id', 'registracijas_numurs'])) {
-            $provider = PakalpojumuSniedzejs::findOrFail($transport->sniedzejs_id);
             $data['adrese'] = $this->buildProviderAddress($provider);
         }
 
@@ -159,17 +166,18 @@ class TransportController extends Controller
 
     public function destroy(Request $request, $id)
     {
+        $provider = $this->resolveAuthorizedProvider($request);
+        if ($provider instanceof \Illuminate\Http\JsonResponse) {
+            return $provider;
+        }
+
         $transport = Transportlidzeklis::find($id);
 
         if (!$transport) {
             return response()->json(['error' => 'Nav atrasts'], 404);
         }
 
-        $data = $request->validate([
-            'sniedzejs_id' => ['required', 'integer', 'exists:pakalpojumu_sniedzejs,sniedzejs_id'],
-        ]);
-
-        if ((int) $data['sniedzejs_id'] !== (int) $transport->sniedzejs_id) {
+        if ((int) $provider->sniedzejs_id !== (int) $transport->sniedzejs_id) {
             return response()->json(['message' => 'Nav atļauts dzēst cita sniedzēja transportu.'], 403);
         }
 
@@ -207,5 +215,20 @@ class TransportController extends Controller
         }
 
         return $addressLine . ', ' . $city;
+    }
+
+    private function resolveAuthorizedProvider(Request $request): PakalpojumuSniedzejs|\Illuminate\Http\JsonResponse
+    {
+        $persona = $request->user()?->load('pakalpojumuSniedzejs');
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        if ($persona->loma !== 'pakalpojumu_sniedzejs' || !$persona->pakalpojumuSniedzejs) {
+            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+        }
+
+        return $persona->pakalpojumuSniedzejs;
     }
 }

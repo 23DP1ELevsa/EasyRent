@@ -55,13 +55,12 @@ class AtsauksmeController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'persona_id' => ['required', 'integer', 'exists:persona,persona_id'],
             'transportlidzeklis_id' => ['required', 'integer', 'exists:transportlidzeklis,transportlidzeklis_id'],
             'vertejums' => ['required', 'integer', 'between:1,5'],
             'komentars' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $klients = $this->resolveAuthorizedClient($data['persona_id']);
+        $klients = $this->resolveAuthorizedClient($request);
         if (!$klients) {
             return response()->json(['message' => 'Atsauksmi drīkst pievienot tikai autorizēts klients.'], 403);
         }
@@ -89,12 +88,11 @@ class AtsauksmeController extends Controller
     public function update(Request $request, int $id)
     {
         $data = $request->validate([
-            'persona_id' => ['required', 'integer', 'exists:persona,persona_id'],
             'vertejums' => ['required', 'integer', 'between:1,5'],
             'komentars' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $klients = $this->resolveAuthorizedClient($data['persona_id']);
+        $klients = $this->resolveAuthorizedClient($request);
         if (!$klients) {
             return response()->json(['message' => 'Atsauksmi drīkst rediģēt tikai autorizēts klients.'], 403);
         }
@@ -120,9 +118,9 @@ class AtsauksmeController extends Controller
         ]);
     }
 
-    private function resolveAuthorizedClient(int $personaId): ?\App\Models\Klients
+    private function resolveAuthorizedClient(Request $request): ?\App\Models\Klients
     {
-        $persona = Persona::with('klients')->find($personaId);
+        $persona = $request->user()?->load('klients');
 
         if (!$persona || $persona->loma !== 'klients') {
             return null;

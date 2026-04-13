@@ -457,6 +457,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { HOME_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
+import { clearAuthSession, getApiBase, getAuthHeaders, getStoredToken, setAuthSession, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
 const { notifyError, notifySuccess } = useNotifications()
@@ -603,18 +604,28 @@ const activeReservations = computed(() => {
   })
 })
 
-// Ielādē lietotāja datus no localStorage un aizpilda formu.
+// Ielādē lietotāja datus no sesijas un aizpilda formu.
 onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  const token = localStorage.getItem('token')
+  initializeProfile()
+})
 
-  if (!userStr || !token) {
+async function initializeProfile() {
+  const token = getStoredToken()
+
+  if (!token) {
     errorText.value = 'Jums jāpiesakās, lai apskatītu profilu'
     setTimeout(() => router.push(HOME_ROUTE), 2000)
     return
   }
 
-  const userData = JSON.parse(userStr)
+  const userData = await syncCurrentUser()
+
+  if (!userData) {
+    errorText.value = 'Jums jāpiesakās, lai apskatītu profilu'
+    setTimeout(() => router.push(HOME_ROUTE), 2000)
+    return
+  }
+
   email.value = userData.epasts
   loma.value = userData.loma
 
@@ -651,7 +662,7 @@ onMounted(() => {
       }
     }
   }
-})
+}
 
 // Ielādē klienta rezervācijas no API.
 async function loadReservations(klientsId) {
@@ -659,8 +670,9 @@ async function loadReservations(klientsId) {
   reservationsLoading.value = true
   reservationsError.value = ''
   try {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-    const response = await fetch(`${API_BASE}/api/rezervacijas?klients_id=${klientsId}`)
+    const response = await fetch(`${getApiBase()}/api/rezervacijas`, {
+      headers: getAuthHeaders({ Accept: 'application/json' }),
+    })
     const data = await response.json()
     if (!response.ok) {
       reservationsError.value = data?.message || 'Neizdevās ielādēt rezervācijas.'
@@ -682,11 +694,9 @@ async function payReservation(rezervacijaId) {
   reservationsError.value = ''
   reservationsSuccess.value = ''
   try {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-    const response = await fetch(`${API_BASE}/api/rezervacijas/${rezervacijaId}/pay`, {
+    const response = await fetch(`${getApiBase()}/api/rezervacijas/${rezervacijaId}/pay`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ klients_id: currentClientId.value }),
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     })
     const data = await response.json()
     if (!response.ok) {
@@ -715,11 +725,9 @@ async function cancelReservation() {
   reservationsError.value = ''
   reservationsSuccess.value = ''
   try {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-    const response = await fetch(`${API_BASE}/api/rezervacijas/${rezervacijaId}`, {
+    const response = await fetch(`${getApiBase()}/api/rezervacijas/${rezervacijaId}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ klients_id: currentClientId.value }),
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     })
     const data = await response.json()
     if (!response.ok) {
@@ -815,15 +823,14 @@ async function updateProfile() {
 
   loading.value = true
   try {
-    const token = localStorage.getItem('token')
-    const userStr = localStorage.getItem('user')
+    const token = getStoredToken()
     
-    if (!token || !userStr) {
+    if (!token) {
       throw new Error('Sesija beidzas. Lūdzu, piesakieties atkārtoti.')
     }
 
-    const user = JSON.parse(userStr)
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const user = await syncCurrentUser()
+    const API_BASE = getApiBase()
 
     if (!user?.persona_id) {
       throw new Error('Lietotāja dati nav ielādēti pareizi. Atsvaidziniet lapu.')
@@ -878,19 +885,13 @@ async function updateProfile() {
       if (form.value.longitude !== '') updateData.longitude = Number(form.value.longitude)
     }
 
-    console.log('Sending profile update to:', `${API_BASE}/api/profile/${user.persona_id}`)
-    console.log('Update data:', updateData)
-
     const response = await fetch(`${API_BASE}/api/profile/${user.persona_id}`, {
       method: 'PUT',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      }),
       body: JSON.stringify(updateData),
     })
-
-    console.log('Response status:', response.status)
     
     let result
     const contentType = response.headers.get('content-type')
@@ -899,8 +900,6 @@ async function updateProfile() {
     } else {
       result = { message: await response.text() }
     }
-
-    console.log('Response data:', result)
 
     if (!response.ok) {
       if (result?.errors) {
@@ -919,10 +918,7 @@ async function updateProfile() {
       throw new Error('Servera atbilde nav pareiza.')
     }
 
-    localStorage.setItem('user', JSON.stringify(result.persona))
-    
-    // Dispatch custom event to notify App.vue to update user display
-    window.dispatchEvent(new CustomEvent('user-updated', { detail: result.persona }))
+    setAuthSession({ token, persona: result.persona })
     
     successText.value = 'Profils atjaunināts sekmīgi!'
     form.value.password = ''
@@ -940,7 +936,6 @@ async function updateProfile() {
       }
     }
   } catch (error) {
-    console.error('Profile update error:', error)
     errorText.value = error?.message || 'Kļūda: Neizdevās savienot ar serveri'
   } finally {
     loading.value = false
@@ -949,13 +944,7 @@ async function updateProfile() {
 
 // Notīra sesiju un pārvirza uz sākumlapu.
 function logout() {
-  localStorage.removeItem('user')
-  localStorage.removeItem('token')
-  
-  // Dispatch event to notify App.vue to update state
-  window.dispatchEvent(new CustomEvent('user-logged-out'))
-  
-  // Navigate to home
+  clearAuthSession()
   router.push(HOME_ROUTE)
 }
 </script>

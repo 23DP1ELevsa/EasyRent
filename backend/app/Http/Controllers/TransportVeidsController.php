@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TransportliedzieklsVeids;
+use App\Models\Persona;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -16,6 +17,10 @@ class TransportVeidsController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = $this->ensureProvider($request)) {
+            return $response;
+        }
+
         $data = $request->validate([
             'nosaukums' => ['required', 'string', 'max:50', 'unique:transportlidzekla_veids,nosaukums'],
             'tips' => ['nullable', 'string', 'max:50'],
@@ -44,6 +49,10 @@ class TransportVeidsController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($response = $this->ensureProvider($request)) {
+            return $response;
+        }
+
         $veids = TransportliedzieklsVeids::find($id);
 
         if (!$veids) {
@@ -79,5 +88,21 @@ class TransportVeidsController extends Controller
         $veids->update($data);
 
         return response()->json($veids->refresh());
+    }
+
+    private function ensureProvider(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        /** @var Persona|null $persona */
+        $persona = $request->user();
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        if ($persona->loma !== 'pakalpojumu_sniedzejs') {
+            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+        }
+
+        return null;
     }
 }

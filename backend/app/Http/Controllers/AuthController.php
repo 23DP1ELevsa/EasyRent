@@ -96,7 +96,8 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = bin2hex(random_bytes(32));
+        $persona->tokens()->delete();
+        $token = $persona->createToken('frontend')->plainTextToken;
 
         return response()->json([
             'persona' => $persona->load($data['loma'] === 'klients' ? 'klients' : 'pakalpojumuSniedzejs'),
@@ -117,7 +118,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'Nepareizs e-pasts vai parole'], 422);
         }
 
-        $token = bin2hex(random_bytes(32));
+        $persona->tokens()->delete();
+        $token = $persona->createToken('frontend')->plainTextToken;
 
         // Lai atgrieztu arī klients/pakalpojumu sniedzējs datus, jānosaka attiecība
         $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
@@ -130,12 +132,19 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $request->user()?->currentAccessToken()?->delete();
+
         return response()->json(['message' => 'OK']);
     }
 
     public function me(Request $request)
     {
-        return response()->json(['user' => $request->user()]);
+        $persona = $request->user();
+        $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
+
+        return response()->json([
+            'persona' => $persona->load($relation),
+        ]);
     }
 
     private function geocodeAddress(array $parts, array $fallbackParts = []): array

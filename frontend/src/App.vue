@@ -8,7 +8,7 @@
           <v-icon>mdi-menu</v-icon>
         </v-btn>
 
-        <div class="brand-wrap d-flex align-center" role="button" style="cursor:pointer" @click="goHome">
+        <button type="button" class="brand-wrap d-flex align-center" @click="goHome">
           <v-avatar size="34" class="me-2" variant="tonal">
             <v-icon>mdi-car</v-icon>
           </v-avatar>
@@ -16,7 +16,7 @@
             <div class="brand__title">EasyRent</div>
             <div class="brand__subtitle d-none d-sm-block">Transporta noma Latvijā</div>
           </div>
-        </div>
+        </button>
 
         <v-spacer />
 
@@ -187,6 +187,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useTheme } from 'vuetify'
 import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
+import { getStoredUser, logoutRequest, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -216,8 +217,7 @@ function toggleTheme() {
 }
 
 function syncUserFromStorage() {
-  const userData = localStorage.getItem('user')
-  user.value = userData ? JSON.parse(userData) : null
+  user.value = getStoredUser()
 }
 
 function scrollToTop() {
@@ -243,9 +243,10 @@ function handleUserLoggedOut() {
   navigateTo(HOME_ROUTE)
 }
 
-onMounted(() => {
+onMounted(async () => {
   syncUserFromStorage()
   applyTheme(localStorage.getItem('theme-mode') || 'light')
+  user.value = await syncCurrentUser()
 
   window.addEventListener('user-updated', handleUserUpdated)
   window.addEventListener('user-logged-out', handleUserLoggedOut)
@@ -290,9 +291,8 @@ function goAuthFromDrawer() {
   closeDrawerAndRun(goAuth)
 }
 
-function logout() {
-  localStorage.removeItem('user')
-  localStorage.removeItem('token')
+async function logout() {
+  await logoutRequest()
   user.value = null
   drawer.value = false
   goHome()
@@ -352,6 +352,9 @@ function getUserDisplayName() {
 }
 
 .brand-wrap {
+  appearance: none;
+  background: transparent;
+  border: 0;
   padding: 8px 12px 8px 8px;
   border-radius: 18px;
   transition: background-color 0.2s ease;

@@ -33,7 +33,7 @@
                   <v-col cols="12" md="5" class="mt-4 mt-md-0">
                     <div class="hero-aside">
                       <div class="hero-media">
-                        <v-img src="@/assets/hero.jpg" class="hero-img" aspect-ratio="16/9" contain/>
+                        <v-img src="@/assets/hero.jpg" alt="EasyRent galvenais attēls ar transporta nomas vizuālo noformējumu" class="hero-img" aspect-ratio="16/9" contain/>
                       </div>
                     </div>
                   </v-col>

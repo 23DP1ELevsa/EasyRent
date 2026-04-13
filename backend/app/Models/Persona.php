@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-class Persona extends Model
+class Persona extends Authenticatable
 {
+    use HasApiTokens;
+    use Notifiable;
+
     protected $table = 'persona';
     protected $primaryKey = 'persona_id';
 
@@ -21,6 +26,11 @@ class Persona extends Model
     ];
 
     protected $hidden = ['parole'];
+
+    public function getAuthPassword(): string
+    {
+        return $this->parole;
+    }
 
     public function klients(): HasOne
     {

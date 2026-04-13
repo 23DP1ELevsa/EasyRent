@@ -695,6 +695,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AUTH_ROUTE, buildCompanyRoute } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
+import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
@@ -1462,7 +1463,6 @@ async function submitReview() {
 
 	try {
 		const payload = {
-			persona_id: user.value.persona_id,
 			vertejums: Number(reviewForm.value.vertejums),
 			komentars: (reviewForm.value.komentars || '').trim() || null,
 		}
@@ -1479,7 +1479,7 @@ async function submitReview() {
 
 		const response = await fetch(url, {
 			method,
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 			body: JSON.stringify(payload),
 		})
 
@@ -1543,9 +1543,8 @@ async function createReservation() {
 
 		const response = await fetch(`${API_BASE}/api/rezervacijas`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-Timezone': userTimezone }),
 			body: JSON.stringify({
-				klients_id: user.value.klients.klients_id,
 				transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
 				sakuma_laiks: startApi,
 				beigu_laiks: endApi,
@@ -1579,8 +1578,7 @@ async function confirmPayment() {
 	try {
 		const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 		})
 
 		const result = await response.json()
@@ -1636,8 +1634,7 @@ async function cancelPendingReservation() {
 	try {
 		const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
 			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ klients_id: user.value.klients.klients_id }),
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 		})
 		const data = await response.json()
 		if (!response.ok) {
@@ -1679,9 +1676,8 @@ async function saveVehicle() {
 	try {
 		const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
 			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 			body: JSON.stringify({
-				sniedzejs_id: providerId.value,
 				veids_id: editVehicle.value.veids_id,
 				marka: editVehicle.value.marka,
 				modelis: editVehicle.value.modelis,
@@ -1733,8 +1729,7 @@ async function confirmDeleteVehicle() {
 	try {
 		const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
 			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sniedzejs_id: providerId.value }),
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 		})
 
 		const result = await response.json()
@@ -1772,7 +1767,6 @@ async function submitVehicle() {
 
 	try {
 		const payload = {
-			sniedzejs_id: providerId.value,
 			veids_id: newVehicle.value.veids_id,
 			marka: newVehicle.value.marka,
 			modelis: newVehicle.value.modelis,
@@ -1785,7 +1779,7 @@ async function submitVehicle() {
 
 		const response = await fetch(`${API_BASE}/api/transport`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 			body: JSON.stringify(payload),
 		})
 
@@ -1829,7 +1823,7 @@ async function submitVehicleType() {
 	try {
 		const response = await fetch(`${API_BASE}/api/transport/veidi`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 			body: JSON.stringify({ nosaukums }),
 		})
 
@@ -1870,7 +1864,7 @@ async function saveVehicleType() {
 	try {
 		const response = await fetch(`${API_BASE}/api/transport/veidi/${editingVehicleTypeId.value}`, {
 			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 			body: JSON.stringify({ nosaukums }),
 		})
 
@@ -2022,8 +2016,7 @@ function toggleHud() {
 
 // Sākotnējā lapas ielāde un kartes inicializācija.
 onMounted(async () => {
-	const userStr = localStorage.getItem('user')
-	if (userStr) user.value = JSON.parse(userStr)
+	user.value = await syncCurrentUser()
 	const storedHudVisibility = localStorage.getItem('map-hud-visible')
 	hudVisible.value = storedHudVisibility === null ? getDefaultHudVisibility() : storedHudVisibility === '1'
 	await loadTypes()

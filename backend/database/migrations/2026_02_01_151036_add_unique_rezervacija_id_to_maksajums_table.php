@@ -10,10 +10,14 @@ return new class extends Migration
     public function up(): void
     {
         DB::statement("
-            DELETE m1 FROM maksajums m1
-            INNER JOIN maksajums m2
-              ON m1.rezervacija_id = m2.rezervacija_id
-             AND m1.maksajums_id < m2.maksajums_id
+            DELETE FROM maksajums
+            WHERE maksajums_id NOT IN (
+                SELECT maksajums_id FROM (
+                    SELECT MAX(maksajums_id) AS maksajums_id
+                    FROM maksajums
+                    GROUP BY rezervacija_id
+                ) AS latest_maksajumi
+            )
         ");
 
         Schema::table('maksajums', function (Blueprint $table) {

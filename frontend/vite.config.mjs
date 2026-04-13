@@ -1,6 +1,7 @@
 // Plugins
 import Components from 'unplugin-vue-components/vite'
 import Vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 import Fonts from 'unplugin-fonts/vite'
 import VueRouter from 'unplugin-vue-router/vite'
@@ -33,6 +34,45 @@ export default defineConfig({
             styles: ['normal', 'italic'],
           },
         ],
+      },
+    }),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'masked-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      manifest: {
+        name: 'EasyRent',
+        short_name: 'EasyRent',
+        description: 'Transporta nomas platforma ar karti, filtriem un rezervācijām.',
+        theme_color: '#0f766e',
+        background_color: '#f5f7f2',
+        display: 'standalone',
+        orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      },
+      devOptions: {
+        enabled: false,
       },
     }),
   ],

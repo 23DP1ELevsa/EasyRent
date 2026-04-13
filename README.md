@@ -24,6 +24,17 @@ EasyRent/
 └─ README.md
 ```
 
+## Izmantotie rīki un tehnoloģijas
+
+- Laravel 12
+- Laravel Sanctum API autentifikācijai
+- Vue 3
+- Vuetify 3
+- Vite 7
+- vite-plugin-pwa PWA funkcionalitātei
+- Leaflet interaktīvajai kartei
+- SQLite vai MySQL datubāze
+
 ## Ātrais starts
 
 ### 1) Backend uzstādīšana
@@ -100,6 +111,38 @@ Ja backend darbojas uz cita hosta/porta, atjauno šo vērtību un pārstartē `n
 - `npm run build` — produkcijas būvējums
 - `npm run preview` — lokāls produkcijas preview
 - `npm run lint` — ESLint ar automātisku labošanu
+
+## PWA
+
+Frontend ir konfigurēts kā progresīvā tīmekļa lietotne. Produkcijas būvējumā tiek ģenerēts service worker un manifest fails, lai lietotni varētu instalēt aplikācijas formātā.
+
+Lai pārbaudītu PWA lokāli:
+
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+Pēc tam atver `http://localhost:4173` un pārbaudi pārlūkā instalēšanas iespēju (`Install app` / `Add to home screen`).
+
+## Drošības piezīmes
+
+- API autentificētie maršruti izmanto `Bearer` tokenus ar Laravel Sanctum.
+- Lietotāja profils, rezervācijas, atsauksmju rediģēšana un pakalpojumu sniedzēja CRUD darbības ir aizsargātas ar autentifikāciju.
+- Paroles tiek glabātas tikai hashētā veidā.
+- Kontaktforma un autentifikācijas maršruti ir ierobežoti ar `throttle` middleware.
+
+## Testēšana
+
+Projektā ir iekļauti vismaz 5 feature test case, kas pārbauda API veselības punktu, autentifikāciju, autorizāciju, rezervācijas plūsmu un transporta pārvaldību.
+
+Palaist testus:
+
+```bash
+cd backend
+php artisan test
+```
 
 ## Biežākās problēmas
 

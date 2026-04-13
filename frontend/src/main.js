@@ -9,6 +9,7 @@ import { registerPlugins } from '@/plugins'
 
 // Components
 import App from './App.vue'
+import { registerPwa } from './pwa/register'
 
 // Composables
 import { createApp } from 'vue'
@@ -23,5 +24,7 @@ import './styles/design-system.css'
 const app = createApp(App)
 
 registerPlugins(app)
+
+registerPwa()
 
 app.mount('#app')

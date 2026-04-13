@@ -199,6 +199,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useNotifications } from '@/stores/notifications'
+import { getApiBase, setAuthSession } from '@/services/auth'
 
 const emit = defineEmits(['auth-success'])
 const { notifyError, notifySuccess } = useNotifications()
@@ -255,10 +256,6 @@ function updateRegFields() {
   } else {
     reg.value.lietotajvards = ''
   }
-}
-
-function getApiBase() {
-  return import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 }
 
 function buildProviderAddress() {
@@ -424,8 +421,6 @@ async function submitRegister() {
       }
     }
 
-    console.log('REG PAYLOAD:', payload)
-
     const r = await fetch(`${API}/api/auth/register`, {
       method: 'POST',
       headers: {
@@ -445,8 +440,7 @@ async function submitRegister() {
       throw new Error(data?.message || 'Neizdevās reģistrēties')
     }
 
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.persona))
+    setAuthSession({ token: data.token, persona: data.persona })
     
     okText.value = 'Reģistrācija veiksmīga!'
     
@@ -486,8 +480,6 @@ async function submitLogin() {
   try {
     const API = getApiBase()
 
-    console.log('LOGIN PAYLOAD:', login.value)
-
     const r = await fetch(`${API}/api/auth/login`, {
       method: 'POST',
       headers: {
@@ -504,8 +496,7 @@ async function submitLogin() {
       throw new Error(msg)
     }
 
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.persona))
+    setAuthSession({ token: data.token, persona: data.persona })
     
     okText.value = 'Pieslēgšanās veiksmīga!'
 

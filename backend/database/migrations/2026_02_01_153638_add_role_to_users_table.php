@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->string('loma', 32)->default('klients')->after('email'); // klients | pakalpojumu_sniedzejs
         });
@@ -21,8 +25,14 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
-            //
+            if (Schema::hasColumn('users', 'loma')) {
+                $table->dropColumn('loma');
+            }
         });
     }
 };
