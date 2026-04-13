@@ -586,6 +586,11 @@ async function submitLogin() {
   padding: 4px;
 }
 
+.auth-tabs :deep(.v-btn__content) {
+  line-height: -3;
+  transform: translateY(-4px);
+}
+
 .submit-btn {
   min-height: 46px;
   box-shadow: var(--er-auth-btn-shadow);
