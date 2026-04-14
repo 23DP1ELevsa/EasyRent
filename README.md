@@ -13,7 +13,7 @@ EasyRent ir pilna steka tīmekļa projekts ar:
 - Node.js `18+` (ieteicams `20+`) un `npm`
 - Git
 
-> Piezīme: pēc noklusējuma backend ir konfigurēts uz `sqlite` (`backend/.env.example`).
+> Piezīme: pēc noklusējuma backend ir konfigurēts uz XAMPP MySQL (`backend/.env.example`).
 
 ## Projekta struktūra
 
@@ -33,7 +33,7 @@ EasyRent/
 - Vite 7
 - vite-plugin-pwa PWA funkcionalitātei
 - Leaflet interaktīvajai kartei
-- SQLite vai MySQL datubāze
+- XAMPP ar ieslēgtu Apache un MySQL
 
 ## Ātrais starts
 
@@ -51,11 +51,32 @@ Izveido `.env` failu (PowerShell):
 Copy-Item .env.example .env
 ```
 
-Ja izmanto `sqlite`, izveido failu `backend/database/database.sqlite` (ja vēl nav):
+Palaid XAMPP un ieslēdz `Apache` un `MySQL`. Tad izveido datubāzi `easyrent` caur phpMyAdmin vai MySQL konsoli.
 
-```powershell
-New-Item -ItemType File -Path database/database.sqlite -Force
+phpMyAdmin variantā:
+
+1. Atver `http://localhost/phpmyadmin`
+2. Spied `New`
+3. Izveido datubāzi ar nosaukumu `easyrent`
+
+MySQL konsoles variantā:
+
+```sql
+CREATE DATABASE easyrent CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
+
+Pēc noklusējuma projekts izmanto šādus backend `.env` DB parametrus, kas atbilst tipiskam XAMPP setup:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=easyrent
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Ja tavā XAMPP MySQL lietotājam `root` ir parole, ieliec to `DB_PASSWORD` laukā failā `backend/.env`.
 
 Tad izpildi:
 
@@ -63,6 +84,8 @@ Tad izpildi:
 php artisan key:generate
 php artisan migrate
 ```
+
+Tas izveidos visas Laravel tabulas XAMPP MySQL datubāzē, tāpēc dati vairs netiks glabāti SQLite failā.
 
 Palaid API serveri:
 
@@ -104,6 +127,7 @@ Ja backend darbojas uz cita hosta/porta, atjauno šo vērtību un pārstartē `n
 - `php artisan migrate:fresh --seed` — pārbūvē DB un aizpilda datus (ja ir seederi)
 - `php artisan test` — palaiž testus
 - `composer run dev` — vienā komandā palaiž Laravel serveri, queue listeneri, logus un Vite (backend pusei)
+- `composer run setup` — sagatavo backend vidi; ja `easyrent` datubāze vēl nav izveidota XAMPP pusē, migrācijas tiek izlaistas bez fatālas kļūdas
 
 ### Frontend (`frontend/`)
 
@@ -152,7 +176,10 @@ Pārbaudi:
 - vai esi mapē `backend/`
 - vai `.env` eksistē
 - vai veikts `php artisan key:generate`
-- vai DB ir pieejama un `php artisan migrate` izpildās bez kļūdām
+- vai XAMPP `MySQL` ir palaists
+- vai datubāze `easyrent` eksistē
+- vai `backend/.env` ir pareizi `DB_*` parametri
+- vai `php artisan migrate` izpildās bez kļūdām
 
 ### `npm run dev` nepalaižas frontendā
 
