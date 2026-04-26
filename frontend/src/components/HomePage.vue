@@ -71,7 +71,7 @@
         </v-row>
 
         <!-- TRANSPORTA KATEGORIJAS -->
-        <v-row class="mt-10 section-shell" align="start">
+        <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-4">
@@ -153,7 +153,7 @@
         </v-row>
 
         <!-- KĀPĒC EASYRENT? -->
-        <v-row class="mt-12 section-shell" align="start">
+        <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-6 text-center text-md-left">
@@ -217,7 +217,7 @@
         </v-row>
 
         <!-- KĀ TAS STRĀDĀ -->
-        <v-row class="mt-12 section-shell" align="start">
+        <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-4">
@@ -274,8 +274,8 @@
           </v-col>
         </v-row>
 
-        <v-row class="mt-12 mb-12" align="start">
-          <v-col cols="12" lg="5">
+        <v-row class="faq-row" align="start" justify="center">
+          <v-col cols="12" lg="9" xl="8">
             <div class="section-title mb-4">
               <div class="text-h5 font-weight-bold">Biežākie jautājumi</div>
               <div class="text-body-2 opacity-80">
@@ -375,54 +375,6 @@
               </v-expansion-panel>
             </v-expansion-panels>
           </v-col>
-
-          <v-col cols="12" lg="7">
-            <div class="section-title mb-4">
-              <div class="text-h5 font-weight-bold">Sazināties ar mums</div>
-              <div class="text-body-2 opacity-80">
-                Atstāj savu ziņu — tā tiks nosūtīta uz e-pastu.
-              </div>
-            </div>
-
-            <v-card class="surface" elevation="12">
-              <v-card-text class="pa-6 pa-md-8">
-                <v-form ref="formRef" @submit.prevent="submitContact">
-                  <v-row dense>
-                    <v-col cols="12" md="6">
-                      <v-text-field v-model="name" label="Vārds" variant="outlined" :rules="nameRules" required />
-                    </v-col>
-
-                    <v-col cols="12" md="6">
-                      <v-text-field v-model="email" label="E-pasts" variant="outlined" :rules="emailRules" required />
-                    </v-col>
-
-                    <v-col cols="12">
-                      <v-textarea v-model="comment" label="Komentārs" variant="outlined" :rules="commentRules" rows="4" auto-grow required />
-                    </v-col>
-
-                    <v-col cols="12" class="d-flex flex-column flex-sm-row ga-3">
-                      <v-btn type="submit" size="large" rounded="xl" elevation="6" :loading="loading">
-                        <v-icon start>mdi-send</v-icon>
-                        Nosūtīt ziņu
-                      </v-btn>
-
-                      <v-btn size="large" rounded="xl" variant="tonal" :disabled="loading" @click="resetForm">
-                        <v-icon start>mdi-refresh</v-icon>
-                        Notīrīt
-                      </v-btn>
-                    </v-col>
-
-                    <v-col cols="12">
-                      <div class="text-caption opacity-70">
-                        Ziņa tiks nosūtīta, kad backendā būs sakonfigurēts e-pasta sūtīšanas serviss (SMTP).
-                      </div>
-                    </v-col>
-                  </v-row>
-                </v-form>
-              </v-card-text>
-            </v-card>
-
-          </v-col>
         </v-row>
 
       </div>
@@ -431,56 +383,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { MAP_ROUTE } from '@/router/paths'
-import { useNotifications } from '@/stores/notifications'
 
 const router = useRouter()
-const { notifySuccess, notifyError } = useNotifications()
-
-const formRef = ref(null)
-const name = ref('')
-const email = ref('')
-const comment = ref('')
-const loading = ref(false)
-
-const nameRules = [v => !!v || 'Ievadi vārdu', v => (v?.length >= 2) || 'Vārdam jābūt vismaz 2 simboli']
-const emailRules = [v => !!v || 'Ievadi e-pastu', v => /.+@.+\..+/.test(v) || 'Nepareizs e-pasta formāts']
-const commentRules = [v => !!v || 'Ievadi komentāru', v => (v?.length >= 10) || 'Komentāram jābūt vismaz 10 simboli']
-
-function resetForm() {
-  name.value = ''
-  email.value = ''
-  comment.value = ''
-  formRef.value?.resetValidation()
-}
 
 function goMap() {
   router.push(MAP_ROUTE)
   window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-async function submitContact() {
-  const res = await formRef.value?.validate()
-  if (!res?.valid) return
-
-  loading.value = true
-  try {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-    const r = await fetch(`${API_BASE}/api/contact`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.value, email: email.value, comment: comment.value }),
-    })
-    if (!r.ok) throw new Error(await r.text())
-    notifySuccess('Ziņa nosūtīta!')
-    resetForm()
-  } catch (e) {
-    notifyError('Kļūda: ziņu neizdevās nosūtīt (pārbaudi backendu / mail iestatījumus).')
-  } finally {
-    loading.value = false
-  }
 }
 </script>
 
@@ -526,6 +436,10 @@ async function submitContact() {
 .surface-panels :deep(.v-expansion-panel + .v-expansion-panel) { margin-top: 10px; }
 
 .feature-col { display: flex; }
+
+.content-section {
+  margin-top: 72px;
+}
 
 .section-shell {
   row-gap: 20px;
@@ -660,7 +574,12 @@ async function submitContact() {
 }
 
 .metrics-row {
-  margin-bottom: 16px;
+  margin-bottom: 40px;
+}
+
+.faq-row {
+  margin-top: 84px;
+  margin-bottom: 72px;
 }
 
 @media (max-width: 1260px) {
@@ -670,6 +589,15 @@ async function submitContact() {
 }
 
 @media (max-width: 960px) {
+  .content-section {
+    margin-top: 56px;
+  }
+
+  .faq-row {
+    margin-top: 64px;
+    margin-bottom: 56px;
+  }
+
   .sticky-section {
     position: static;
   }
@@ -684,6 +612,15 @@ async function submitContact() {
 }
 
 @media (max-width: 600px) {
+  .content-section {
+    margin-top: 44px;
+  }
+
+  .faq-row {
+    margin-top: 52px;
+    margin-bottom: 44px;
+  }
+
   .hero-img :deep(.v-responsive__sizer) {
     padding-bottom: 72% !important;
   }

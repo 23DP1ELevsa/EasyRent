@@ -10,9 +10,6 @@
                   <div>
                     <div class="auth-title">Autorizācija</div>
                   </div>
-                  <v-avatar size="42" variant="tonal" class="auth-avatar">
-                    <v-icon>mdi-account-circle</v-icon>
-                  </v-avatar>
                 </div>
 
                 <v-tabs v-model="tab" grow class="auth-tabs" color="primary">
@@ -564,19 +561,7 @@ async function submitLogin() {
 }
 
 .auth-form-card::after {
-  content: '';
-  position: absolute;
-  inset: auto -80px -110px auto;
-  width: 240px;
-  height: 240px;
-  border-radius: 999px;
-  background: rgba(201, 107, 59, 0.08);
-  filter: blur(10px);
-}
-
-.auth-avatar {
-  border: 1px solid var(--er-stroke);
-  background: var(--er-primary-soft);
+  content: none;
 }
 
 .auth-tabs {
