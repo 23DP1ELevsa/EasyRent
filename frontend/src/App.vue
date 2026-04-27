@@ -4,7 +4,7 @@
     <div class="app-shell__glow app-shell__glow--right"></div>
     <v-app-bar height="72" class="appbar" flat>
       <v-container class="appbar__inner d-flex align-center">
-        <v-btn icon variant="text" class="d-md-none me-2" @click="drawer = true" aria-label="Atvērt izvēlni">
+        <v-btn icon variant="text" class="d-md-none me-2" @click="drawer = true" :aria-label="t('app.nav.openMenu')">
           <v-icon>mdi-menu</v-icon>
         </v-btn>
 
@@ -14,7 +14,7 @@
           </v-avatar>
           <div class="brand">
             <div class="brand__title">EasyRent</div>
-            <div class="brand__subtitle d-none d-sm-block">Transporta noma Latvijā</div>
+            <div class="brand__subtitle d-none d-sm-block">{{ t('app.brandSubtitle') }}</div>
           </div>
         </button>
 
@@ -31,18 +31,38 @@
         </v-btn>
 
         <div class="d-none d-md-flex align-center ga-1 nav-cluster">
+          <v-menu location="bottom end">
+            <template #activator="{ props }">
+              <v-btn variant="text" class="lang-btn" v-bind="props" :aria-label="t('app.language.selectAria')">
+                <span>{{ currentLanguage.nativeName }}</span>
+                <v-icon size="18">mdi-chevron-down</v-icon>
+              </v-btn>
+            </template>
+
+            <v-list>
+              <v-list-item
+                v-for="language in supportedLanguages"
+                :key="language.code"
+                :active="language.code === locale"
+                @click="setLocale(language.code)"
+              >
+                <v-list-item-title>{{ language.nativeName }}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+
           <v-btn icon variant="text" class="theme-toggle" :aria-label="themeToggleLabel" @click="toggleTheme">
             <v-icon>{{ themeIcon }}</v-icon>
           </v-btn>
 
           <v-btn variant="text" class="nav-btn" @click="goHome">
             <v-icon start>mdi-home</v-icon>
-            Sākums
+            {{ t('app.nav.home') }}
           </v-btn>
 
           <v-btn variant="text" class="nav-btn" @click="goMap">
             <v-icon start>mdi-map</v-icon>
-            Karte
+            {{ t('app.nav.map') }}
           </v-btn>
 
           <v-divider vertical class="mx-2" />
@@ -58,12 +78,12 @@
 
               <v-list>
                 <v-list-item 
-                  title="Mans profils" 
+                  :title="t('app.auth.profile')" 
                   prepend-icon="mdi-account-circle"
                   @click="goProfile"
                 />
                 <v-list-item 
-                  title="Izlogoties" 
+                  :title="t('app.auth.logout')" 
                   prepend-icon="mdi-logout"
                   @click="logout"
                 />
@@ -72,7 +92,7 @@
           </template>
 
           <v-btn v-else class="auth-btn" rounded="xl" elevation="6" @click="goAuth">
-            Login/Register
+            {{ t('app.auth.loginRegister') }}
           </v-btn>
         </div>
       </v-container>
@@ -85,12 +105,12 @@
         </v-avatar>
         <div>
           <div class="text-subtitle-1 font-weight-bold">EasyRent</div>
-          <div class="text-caption opacity-70">Izvēlne</div>
+          <div class="text-caption opacity-70">{{ t('app.nav.menu') }}</div>
         </div>
 
         <v-spacer />
 
-        <v-btn icon variant="text" @click="drawer = false" aria-label="Aizvērt izvēlni">
+        <v-btn icon variant="text" @click="drawer = false" :aria-label="t('app.nav.closeMenu')">
           <v-icon>mdi-close</v-icon>
         </v-btn>
       </div>
@@ -98,15 +118,24 @@
       <v-divider />
 
       <v-list nav density="comfortable">
-        <v-list-item title="Sākums" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
-        <v-list-item title="Karte" prepend-icon="mdi-map" @click="goMapFromDrawer" />
+        <v-list-item :title="t('app.nav.home')" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
+        <v-list-item :title="t('app.nav.map')" prepend-icon="mdi-map" @click="goMapFromDrawer" />
+        <v-list-subheader>{{ t('app.language.select') }}</v-list-subheader>
+        <v-list-item
+          v-for="language in supportedLanguages"
+          :key="`drawer-${language.code}`"
+          :active="language.code === locale"
+          @click="setLocale(language.code)"
+        >
+          <v-list-item-title>{{ language.nativeName }}</v-list-item-title>
+        </v-list-item>
         <v-list-item :title="themeToggleLabel" :prepend-icon="themeIcon" @click="toggleTheme" />
         <v-divider />
         <template v-if="user">
-          <v-list-item title="Mans profils" prepend-icon="mdi-account-circle" @click="goProfileFromDrawer" />
-          <v-list-item title="Izlogoties" prepend-icon="mdi-logout" @click="logout" />
+          <v-list-item :title="t('app.auth.profile')" prepend-icon="mdi-account-circle" @click="goProfileFromDrawer" />
+          <v-list-item :title="t('app.auth.logout')" prepend-icon="mdi-logout" @click="logout" />
         </template>
-        <v-list-item v-else title="Login/Register" prepend-icon="mdi-account" @click="goAuthFromDrawer" />
+        <v-list-item v-else :title="t('app.auth.loginRegister')" prepend-icon="mdi-account" @click="goAuthFromDrawer" />
       </v-list>
     </v-navigation-drawer>
 
@@ -124,11 +153,11 @@
               </v-avatar>
               <div>
                 <div class="text-subtitle-1 font-weight-black">EasyRent</div>
-                <div class="text-caption footer-copy">Transporta noma Latvijā</div>
+                <div class="text-caption footer-copy">{{ t('app.brandSubtitle') }}</div>
               </div>
             </div>
             <div class="text-body-2 footer-copy mb-4">
-              Vienota platforma, lai atrastu, salīdzinātu un rezervētu transportu.
+              {{ t('app.footer.summary') }}
             </div>
 
             <div class="d-flex align-center ga-2 footer-social">
@@ -147,15 +176,15 @@
           </v-col>
 
           <v-col cols="6" sm="4" md="2">
-            <div class="footer-title">Lietotājiem</div>
-            <div class="footer-link" @click="goHome">Sākums</div>
-            <div class="footer-link" @click="goMap">Karte</div>
+            <div class="footer-title">{{ t('app.footer.users') }}</div>
+            <div class="footer-link" @click="goHome">{{ t('app.nav.home') }}</div>
+            <div class="footer-link" @click="goMap">{{ t('app.nav.map') }}</div>
           </v-col>
 
           <v-col cols="6" sm="4" md="3">
-            <div class="footer-title">Pakalpojumu sniedzējiem</div>
-            <div class="footer-link" @click="goMap">Pievienot transportu</div>
-            <div class="footer-link" @click="goMap">Pārvaldīt pieejamību</div>
+            <div class="footer-title">{{ t('app.footer.providers') }}</div>
+            <div class="footer-link" @click="goMap">{{ t('app.footer.addVehicle') }}</div>
+            <div class="footer-link" @click="goMap">{{ t('app.footer.manageAvailability') }}</div>
           </v-col>
         </v-row>
 
@@ -186,18 +215,20 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useTheme } from 'vuetify'
 import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
+import { useLocale } from '@/stores/locale'
 import { useNotifications } from '@/stores/notifications'
 import { getStoredUser, logoutRequest, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
 const route = useRoute()
 const theme = useTheme()
+const { locale, currentLanguage, supportedLanguages, setLocale, t } = useLocale()
 const drawer = ref(false)
 const user = ref(null)
 const themeMode = ref('light')
 const year = computed(() => new Date().getFullYear())
 const themeIcon = computed(() => themeMode.value === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night')
-const themeToggleLabel = computed(() => themeMode.value === 'dark' ? 'Gaišais režīms' : 'Tumšais režīms')
+const themeToggleLabel = computed(() => themeMode.value === 'dark' ? t('app.theme.light') : t('app.theme.dark'))
 const themeModeClass = computed(() => `theme-${themeMode.value}`)
 const { notificationState, setNotificationVisible } = useNotifications()
 const notificationVisible = computed({
@@ -299,7 +330,7 @@ async function logout() {
 }
 
 function getUserDisplayName() {
-  if (!user.value) return 'Profils'
+  if (!user.value) return t('app.auth.profile')
   
   // Ja klients, rādi lietotajvardu
   if (user.value.loma === 'klients' && user.value.klients?.lietotajvards) {
@@ -307,7 +338,7 @@ function getUserDisplayName() {
   }
   
   // Ja pakalpojumu sniedzējs, rādi vārdu
-  return user.value.vards || 'Profils'
+  return user.value.vards || t('app.auth.profile')
 }
 </script>
 
@@ -371,6 +402,22 @@ function getUserDisplayName() {
   border: 1px solid var(--er-appbar-border);
 }
 
+.lang-btn {
+  color: var(--er-text) !important;
+  border-radius: 999px !important;
+  text-transform: none;
+  gap: 8px;
+}
+
+.lang-label {
+  font-weight: 700;
+}
+
+.lang-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .nav-btn {
   color: var(--er-text) !important;
   border-radius: 999px !important;
@@ -381,7 +428,8 @@ function getUserDisplayName() {
   border-radius: 999px !important;
 }
 
-.nav-btn:hover {
+.nav-btn:hover,
+.lang-btn:hover {
   background: rgba(15, 118, 110, 0.08) !important;
 }
 

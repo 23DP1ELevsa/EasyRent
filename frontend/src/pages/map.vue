@@ -11,7 +11,7 @@
 			icon
 			size="large"
 			variant="elevated"
-			:aria-label="hudVisible ? 'Paslēpt kartes informāciju' : 'Parādīt kartes informāciju'"
+			:aria-label="hudVisible ? copy.hudHide : copy.hudShow"
 			@click="toggleHud"
 		>
 			<v-icon>{{ hudVisible ? 'mdi-eye-off-outline' : 'mdi-information-outline' }}</v-icon>
@@ -20,32 +20,32 @@
 		<v-expand-transition>
 			<div v-show="hudVisible" class="map-hud">
 				<div class="map-hud__head">
-					<div class="soft-eyebrow map-hud__eyebrow">EasyRent Live karte</div>
+					<div class="soft-eyebrow map-hud__eyebrow">{{ copy.hudEyebrow }}</div>
 					<v-btn
 						icon
 						variant="text"
 						size="small"
 						class="map-hud__close"
-						aria-label="Paslēpt kartes informāciju"
+						:aria-label="copy.hudHide"
 						@click="toggleHud"
 					>
 						<v-icon>mdi-close</v-icon>
 					</v-btn>
 				</div>
-				<div class="map-hud__title">Atrodi tuvāko un piemērotāko nomas punktu.</div>
-				<div class="map-hud__copy">Filtrē pēc cenas, veida un pieejamības, pēc tam rezervē tieši no kartes.</div>
+				<div class="map-hud__title">{{ copy.hudTitle }}</div>
+				<div class="map-hud__copy">{{ copy.hudCopy }}</div>
 				<div class="map-hud__stats">
 					<div class="map-hud__stat">
 						<strong>{{ filteredPoints.length }}</strong>
-						<span>Punkti</span>
+						<span>{{ copy.stats.points }}</span>
 					</div>
 					<div class="map-hud__stat">
 						<strong>{{ transportItems.length }}</strong>
-						<span>Transporti</span>
+						<span>{{ copy.stats.vehicles }}</span>
 					</div>
 					<div class="map-hud__stat">
 						<strong>{{ selectedPoint ? selectedPoint.availableCount : filteredPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong>
-						<span>Pieejami</span>
+						<span>{{ copy.stats.available }}</span>
 					</div>
 				</div>
 			</div>
@@ -53,23 +53,23 @@
 
 		<div class="floating-actions">
 			<v-btn size="small" class="action-btn" @click="locateUser">
-				Man tuvumā
+				{{ copy.nearMe }}
 			</v-btn>
 			<v-btn size="small" class="action-btn" @click="resetMap">
-				Atiestatīt
+				{{ copy.reset }}
 			</v-btn>
 		</div>
 
 		<v-navigation-drawer v-model="drawer" temporary location="left" width="360" class="map-drawer">
 			<div class="drawer-header">
 				<div class="drawer-header-main">
-					<div class="text-h6 font-weight-bold header-title">Karte un īres punkti</div>
-					<div class="text-caption header-subtitle">Filtri, punkti un rezervācijas vienuviet.</div>
+					<div class="text-h6 font-weight-bold header-title">{{ copy.drawerTitle }}</div>
+					<div class="text-caption header-subtitle">{{ copy.drawerSubtitle }}</div>
 					<v-chip v-if="user" color="primary" size="small" variant="tonal" class="mt-2 map-role-chip">
 						{{ roleLabel }}
 					</v-chip>
 				</div>
-				<v-btn class="header-close-btn" icon variant="text" @click="drawer = false" aria-label="Aizvērt">
+				<v-btn class="header-close-btn" icon variant="text" @click="drawer = false" :aria-label="copy.close">
 					<v-icon>mdi-close</v-icon>
 				</v-btn>
 			</div>
@@ -80,12 +80,12 @@
 				<v-expansion-panels v-model="expandedPanels" multiple variant="accordion" class="drawer-panels">
 					<v-expansion-panel value="filters" class="surface">
 						<v-expansion-panel-title>
-							<div class="text-subtitle-1 font-weight-bold">Filtri</div>
+							<div class="text-subtitle-1 font-weight-bold">{{ copy.filters }}</div>
 						</v-expansion-panel-title>
 						<v-expansion-panel-text>
 							<v-text-field
 								v-model="filters.q"
-								label="Meklēt pēc nosaukuma vai pilsētas"
+								:label="copy.filterLabels.search"
 								variant="outlined"
 								density="compact"
 							/>
@@ -94,7 +94,7 @@
 								:items="companyOptions"
 								item-title="title"
 								item-value="value"
-								label="Pakalpojumu sniedzējs"
+								:label="copy.filterLabels.provider"
 								variant="outlined"
 								density="compact"
 								clearable
@@ -104,7 +104,7 @@
 								:items="typeOptions"
 								item-title="title"
 								item-value="value"
-								label="Transporta veids"
+								:label="copy.filterLabels.type"
 								variant="outlined"
 								density="compact"
 								clearable
@@ -113,7 +113,7 @@
 								<v-col cols="6">
 									<v-text-field
 										v-model.number="filters.minPrice"
-										label="Cena no (€)"
+										:label="copy.filterLabels.minPrice"
 										variant="outlined"
 										density="compact"
 										type="number"
@@ -123,7 +123,7 @@
 								<v-col cols="6">
 									<v-text-field
 										v-model.number="filters.maxPrice"
-										label="Cena līdz (€)"
+										:label="copy.filterLabels.maxPrice"
 										variant="outlined"
 										density="compact"
 										type="number"
@@ -133,7 +133,7 @@
 							</v-row>
 							<v-switch
 								v-model="filters.onlyAvailable"
-								label="Rādīt tikai pieejamo"
+								:label="copy.filterLabels.onlyAvailable"
 								inset
 								density="compact"
 							/>
@@ -143,7 +143,7 @@
 					<v-expansion-panel value="points" class="surface mt-4">
 						<v-expansion-panel-title>
 							<div class="d-flex align-center justify-space-between w-100 pr-2">
-								<div class="text-subtitle-1 font-weight-bold">Īres punkti</div>
+								<div class="text-subtitle-1 font-weight-bold">{{ copy.rentalPoints }}</div>
 								<div class="d-flex align-center ga-2">
 									<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
 									<v-chip
@@ -159,9 +159,9 @@
 						</v-expansion-panel-title>
 						<v-expansion-panel-text>
 							<div class="list-wrap">
-								<div v-if="loading" class="pa-2 text-body-2">Ielādē...</div>
+								<div v-if="loading" class="pa-2 text-body-2">{{ copy.loading }}</div>
 								<div v-else-if="errorText" class="pa-2 text-error">{{ errorText }}</div>
-								<div v-else-if="!filteredPoints.length" class="pa-2 text-body-2 opacity-70">Nav rezultātu.</div>
+								<div v-else-if="!filteredPoints.length" class="pa-2 text-body-2 opacity-70">{{ copy.noResults }}</div>
 								<div v-else class="pa-2 d-flex flex-column ga-3">
 									<v-card
 										v-for="point in filteredPoints"
@@ -181,7 +181,7 @@
 													{{ point.availableCount }}/{{ point.vehicles.length }}
 												</v-chip>
 											</div>
-											<div class="text-caption mt-2" v-if="!point.hasCoords">Nav koordināšu kartē</div>
+											<div class="text-caption mt-2" v-if="!point.hasCoords">{{ copy.noMapCoords }}</div>
 										</v-card-text>
 									</v-card>
 								</div>
@@ -193,13 +193,13 @@
 										<div class="text-h6 font-weight-bold">{{ selectedPoint.name }}</div>
 										<div class="text-caption opacity-70">{{ selectedPoint.address }} • {{ selectedPoint.city }}</div>
 									</div>
-									<v-btn icon variant="text" @click="selectedPointId = null" aria-label="Aizvērt">
+									<v-btn icon variant="text" @click="selectedPointId = null" :aria-label="copy.close">
 										<v-icon>mdi-close</v-icon>
 									</v-btn>
 								</v-card-title>
 								<v-divider />
 								<v-card-text class="pa-4">
-									<div v-if="!selectedPoint.vehicles.length" class="text-body-2 opacity-70">Nav transporta.</div>
+									<div v-if="!selectedPoint.vehicles.length" class="text-body-2 opacity-70">{{ copy.noVehicles }}</div>
 									<div v-else class="d-flex flex-column ga-3">
 										<div
 											v-for="vehicle in selectedPoint.vehicles"
@@ -216,7 +216,7 @@
 													{{ vehicle.marka }} {{ vehicle.modelis }}
 												</div>
 												<div class="text-caption opacity-70">
-													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
+													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
 												</div>
 												<div class="vehicle-rating mt-1">
 													<v-rating
@@ -241,14 +241,14 @@
 													:class="{ 'status-chip-unavailable': !isVehicleAvailable(vehicle) }"
 													variant="tonal"
 												>
-													{{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Aizņemts' }}
+													{{ isVehicleAvailable(vehicle) ? copy.available : copy.busy }}
 												</v-chip>
 												<v-btn
 													size="small"
 													variant="tonal"
 													@click="openReviews(vehicle)"
 												>
-													Atsauksmes
+													{{ copy.reviews }}
 												</v-btn>
 												<v-btn
 													v-if="isClient"
@@ -257,7 +257,7 @@
 													:disabled="!isVehicleAvailable(vehicle)"
 													@click="openReservation(vehicle)"
 												>
-													Rezervēt
+													{{ copy.reserve }}
 												</v-btn>
 												<v-btn
 													v-else-if="isProvider && isOwnVehicle(vehicle)"
@@ -265,7 +265,7 @@
 													variant="tonal"
 													@click="openEditVehicle(vehicle)"
 												>
-													Rediģēt
+													{{ copy.edit }}
 												</v-btn>
 											</div>
 										</div>
@@ -277,32 +277,32 @@
 
 					<v-expansion-panel v-if="isProvider" value="add-vehicle" class="surface mt-4">
 						<v-expansion-panel-title>
-							<div class="text-subtitle-1 font-weight-bold">Pievienot transportu</div>
+							<div class="text-subtitle-1 font-weight-bold">{{ copy.addVehicle }}</div>
 						</v-expansion-panel-title>
 						<v-expansion-panel-text>
-							<div class="text-subtitle-2 font-weight-bold mb-2">Pievienot transporta veidu</div>
+							<div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleType }}</div>
 							<v-form class="d-flex flex-column ga-3 mb-5" @submit.prevent="submitVehicleType">
 								<v-text-field
 									v-model="newVehicleType.nosaukums"
-									label="Jaunais transporta veids"
+									:label="copy.newVehicleType"
 									variant="outlined"
 									density="compact"
-									hint="Piemēram, Kvadracikls, Laiva vai Piekabe"
+									:hint="copy.vehicleTypeHint"
 									persistent-hint
 								/>
 								<v-btn type="submit" block color="primary" variant="tonal" :loading="vehicleTypeLoading">
-									Saglabāt jauno veidu
+									{{ copy.saveNewType }}
 								</v-btn>
 							</v-form>
 
 							<div v-if="transportTypes.length" class="mb-5">
-								<div class="text-subtitle-2 font-weight-bold mb-2">Esošie transporta veidi</div>
+								<div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.existingVehicleTypes }}</div>
 								<v-select
 									v-model="editingVehicleTypeId"
 									:items="vehicleTypeSelectOptions"
 									item-title="title"
 									item-value="value"
-									label="Izvēlies transporta veidu"
+									:label="copy.selectVehicleType"
 									variant="outlined"
 									density="compact"
 									clearable
@@ -314,42 +314,42 @@
 										:disabled="!selectedVehicleTypeToEdit"
 										@click="startEditingVehicleType"
 									>
-										Labot izvēlēto veidu
+										{{ copy.editSelectedType }}
 									</v-btn>
 								</div>
 							</div>
 
 							<v-divider class="mb-4" />
-							<div class="text-subtitle-2 font-weight-bold mb-2">Pievienot transportlīdzekli</div>
+							<div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleItem }}</div>
 							<v-form @submit.prevent="submitVehicle">
 								<v-select
 									v-model="newVehicle.veids_id"
 									:items="typeOptions"
 									item-title="title"
 									item-value="value"
-									label="Transporta veids"
+									:label="copy.vehicleFields.type"
 									variant="outlined"
 									density="compact"
 								/>
-								<v-text-field v-model="newVehicle.marka" label="Marka" variant="outlined" density="compact" />
-								<v-text-field v-model="newVehicle.modelis" label="Modelis" variant="outlined" density="compact" />
+								<v-text-field v-model="newVehicle.marka" :label="copy.vehicleFields.brand" variant="outlined" density="compact" />
+								<v-text-field v-model="newVehicle.modelis" :label="copy.vehicleFields.model" variant="outlined" density="compact" />
 								<v-select
 									v-model="newVehicle.atrumkarba"
 									:items="gearboxOptions"
-									label="Ātrumkārba"
+									:label="copy.vehicleFields.gearbox"
 									variant="outlined"
 									density="compact"
 								/>
 								<v-select
 									v-model="newVehicle.degvielas_veids"
 									:items="fuelOptions"
-									label="Degvielas veids"
+									:label="copy.vehicleFields.fuel"
 									variant="outlined"
 									density="compact"
 								/>
 								<v-text-field
 									v-model.number="newVehicle.dienas_nomas_cena"
-									label="Dienas nomas cena"
+									:label="copy.vehicleFields.dailyPrice"
 									type="number"
 									min="0"
 									variant="outlined"
@@ -358,18 +358,18 @@
 								<v-select
 									v-model="newVehicle.statuss"
 									:items="statusOptions"
-									label="Statuss"
+									:label="copy.vehicleFields.status"
 									variant="outlined"
 									density="compact"
 								/>
 								<v-text-field
 									v-model="newVehicle.registracijas_numurs"
-									label="Reģistrācijas numurs"
+									:label="copy.vehicleFields.registrationNumber"
 									variant="outlined"
 									density="compact"
 								/>
 								<v-btn type="submit" block color="primary" :loading="providerLoading" class="mt-2">
-									Pievienot
+									{{ copy.save }}
 								</v-btn>
 							</v-form>
 						</v-expansion-panel-text>
@@ -380,7 +380,7 @@
 
 		<v-dialog v-model="reservationDialog" max-width="520">
 			<v-card>
-				<v-card-title class="font-weight-bold">Rezervācija</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.reservationTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
 					<div v-if="activeVehicle">
@@ -391,7 +391,7 @@
 							{{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
 						</div>
 					</div>
-					<div class="text-body-2 mb-2">Izvēlieties nomas periodu.</div>
+					<div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
 					<v-row dense>
 						<v-col cols="6">
 							<v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
@@ -399,7 +399,7 @@
 									<v-text-field
 										v-bind="props"
 										:model-value="reservationStartDateDisplay"
-										label="No datums"
+										:label="copy.startDate"
 										variant="outlined"
 										density="compact"
 										placeholder="DD/MM/YYYY"
@@ -412,13 +412,13 @@
 									@update:model-value="onStartDatePicked"
 									:min="minReservationDate"
 									color="primary"
-									locale="lv"
+									:locale="datePickerLocale"
 									hide-header
 								/>
 							</v-menu>
 						</v-col>
 						<v-col cols="6">
-							<v-select v-model="reservationStartTime" :items="availableStartTimeOptions" label="No laiks" variant="outlined" density="compact" />
+							<v-select v-model="reservationStartTime" :items="availableStartTimeOptions" :label="copy.startTime" variant="outlined" density="compact" />
 						</v-col>
 						<v-col cols="6">
 							<v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
@@ -426,7 +426,7 @@
 									<v-text-field
 										v-bind="props"
 										:model-value="reservationEndDateDisplay"
-										label="Līdz datumam"
+										:label="copy.endDate"
 										variant="outlined"
 										density="compact"
 										placeholder="DD/MM/YYYY"
@@ -439,73 +439,71 @@
 									@update:model-value="onEndDatePicked"
 									:min="minReservationDate"
 									color="primary"
-									locale="lv"
+									:locale="datePickerLocale"
 									hide-header
 								/>
 							</v-menu>
 						</v-col>
 						<v-col cols="6">
-							<v-select v-model="reservationEndTime" :items="availableEndTimeOptions" label="Līdz laikam" variant="outlined" density="compact" />
+							<v-select v-model="reservationEndTime" :items="availableEndTimeOptions" :label="copy.endTime" variant="outlined" density="compact" />
 						</v-col>
 						<v-col cols="12">
-							<div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
+							<div class="text-caption opacity-70">{{ copy.timezone }}: {{ userTimezone }}</div>
 						</v-col>
 					</v-row>
 
 					<div class="reservation-summary mt-2">
-						<div><strong>Periods:</strong> {{ reservationPeriodText }}</div>
-						<div><strong>Apmaksas dienas:</strong> {{ reservationBillableDays }}</div>
-						<div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
-						<div><strong>Kopā:</strong> {{ reservationTotal }}</div>
+						<div><strong>{{ copy.period }}:</strong> {{ reservationPeriodText }}</div>
+						<div><strong>{{ copy.billableDays }}:</strong> {{ reservationBillableDays }}</div>
+						<div><strong>{{ copy.pricePerDay }}:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+						<div><strong>{{ copy.total }}:</strong> {{ reservationTotal }}</div>
 					</div>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" @click="reservationDialog = false">Atcelt</v-btn>
-					<v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">Rezervēt</v-btn>
+					<v-btn variant="text" @click="reservationDialog = false">{{ copy.cancel }}</v-btn>
+					<v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">{{ copy.reserve }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
 		<v-dialog v-model="paymentDialog" max-width="480">
 			<v-card>
-				<v-card-title class="font-weight-bold">Apmaksa</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.paymentTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
-					<div class="text-body-2">
-						Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.
-					</div>
+					<div class="text-body-2">{{ copy.paymentPrompt }}</div>
 					<div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
-						Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
+						{{ copy.reservationAmount }}: {{ formatPrice(pendingReservation.kopa_summa) }}
 					</div>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" color="error" :disabled="paymentLoading" @click="cancelDialog = true">Atcelt rezervāciju</v-btn>
-					<v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
-					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
+					<v-btn variant="text" color="error" :disabled="paymentLoading" @click="cancelDialog = true">{{ copy.cancelReservation }}</v-btn>
+					<v-btn variant="text" :disabled="paymentLoading" @click="payLater">{{ copy.payLater }}</v-btn>
+					<v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">{{ copy.payNow }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
 		<v-dialog v-model="cancelDialog" max-width="420">
 			<v-card>
-				<v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.confirmTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
-					Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
+					{{ copy.confirmCancelReservation }}
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" :disabled="paymentLoading" @click="cancelDialog = false">Nē</v-btn>
-					<v-btn color="error" :loading="paymentLoading" @click="cancelPendingReservation">Jā, atcelt</v-btn>
+					<v-btn variant="text" :disabled="paymentLoading" @click="cancelDialog = false">{{ copy.no }}</v-btn>
+					<v-btn color="error" :loading="paymentLoading" @click="cancelPendingReservation">{{ copy.yesCancel }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
 		<v-dialog v-model="editDialog" max-width="520">
 			<v-card>
-				<v-card-title class="font-weight-bold">Rediģēt transportu</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.editVehicleTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
 					<v-select
@@ -513,78 +511,78 @@
 						:items="typeOptions"
 						item-title="title"
 						item-value="value"
-						label="Transporta veids"
+						:label="copy.vehicleFields.type"
 						variant="outlined"
 						density="compact"
 					/>
-					<v-text-field v-model="editVehicle.marka" label="Marka" variant="outlined" density="compact" />
-					<v-text-field v-model="editVehicle.modelis" label="Modelis" variant="outlined" density="compact" />
+					<v-text-field v-model="editVehicle.marka" :label="copy.vehicleFields.brand" variant="outlined" density="compact" />
+					<v-text-field v-model="editVehicle.modelis" :label="copy.vehicleFields.model" variant="outlined" density="compact" />
 					<v-select
 						v-model="editVehicle.atrumkarba"
 						:items="gearboxOptions"
-						label="Ātrumkārba"
+						:label="copy.vehicleFields.gearbox"
 						variant="outlined"
 						density="compact"
 					/>
 					<v-select
 						v-model="editVehicle.degvielas_veids"
 						:items="fuelOptions"
-						label="Degvielas veids"
+						:label="copy.vehicleFields.fuel"
 						variant="outlined"
 						density="compact"
 					/>
-					<v-text-field v-model.number="editVehicle.dienas_nomas_cena" label="Cena (€ / diena)" type="number" min="0" variant="outlined" density="compact" />
+					<v-text-field v-model.number="editVehicle.dienas_nomas_cena" :label="copy.vehicleFields.dailyPrice" type="number" min="0" variant="outlined" density="compact" />
 					<v-select
 						v-model="editVehicle.statuss"
 						:items="statusOptions"
-						label="Statuss"
+						:label="copy.vehicleFields.status"
 						variant="outlined"
 						density="compact"
 					/>
 					<v-text-field
 						v-model="editVehicle.registracijas_numurs"
-						label="Reģistrācijas numurs"
+						:label="copy.vehicleFields.registrationNumber"
 						variant="outlined"
 						density="compact"
 					/>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-btn color="error" variant="tonal" :loading="deleteVehicleLoading" :disabled="editLoading" @click="deleteVehicle">
-						Dzēst
+						{{ copy.delete }}
 					</v-btn>
 					<v-spacer />
-					<v-btn variant="text" @click="editDialog = false">Atcelt</v-btn>
-					<v-btn color="primary" :loading="editLoading" :disabled="deleteVehicleLoading" @click="saveVehicle">Saglabāt</v-btn>
+					<v-btn variant="text" @click="editDialog = false">{{ copy.cancel }}</v-btn>
+					<v-btn color="primary" :loading="editLoading" :disabled="deleteVehicleLoading" @click="saveVehicle">{{ copy.save }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
 		<v-dialog v-model="deleteVehicleDialog" max-width="420" persistent>
 			<v-card>
-				<v-card-title class="font-weight-bold">Dzēst transportlīdzekli</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.deleteVehicleTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4">
-					<div class="text-body-2">Vai tiešām vēlaties dzēst šo transportlīdzekli?</div>
+					<div class="text-body-2">{{ copy.deleteVehicleConfirm }}</div>
 					<div v-if="editVehicle?.marka || editVehicle?.modelis" class="text-caption opacity-70 mt-2">
 						{{ editVehicle.marka }} {{ editVehicle.modelis }}
 					</div>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" :disabled="deleteVehicleLoading" @click="cancelDeleteVehicle">Atcelt</v-btn>
-					<v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">Dzēst</v-btn>
+					<v-btn variant="text" :disabled="deleteVehicleLoading" @click="cancelDeleteVehicle">{{ copy.cancel }}</v-btn>
+					<v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">{{ copy.delete }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
 		<v-dialog v-model="vehicleTypeDialog" max-width="420">
 			<v-card>
-				<v-card-title class="font-weight-bold">Labot transporta veidu</v-card-title>
+				<v-card-title class="font-weight-bold">{{ copy.editVehicleTypeTitle }}</v-card-title>
 				<v-divider />
 				<v-card-text class="pa-4 d-flex flex-column ga-3">
 					<v-text-field
 						v-model="editingVehicleTypeName"
-						label="Transporta veida nosaukums"
+						:label="copy.vehicleTypeName"
 						variant="outlined"
 						density="compact"
 						hide-details
@@ -592,8 +590,8 @@
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" :disabled="vehicleTypeEditLoading" @click="cancelEditingVehicleType">Atcelt</v-btn>
-					<v-btn color="primary" :loading="vehicleTypeEditLoading" @click="saveVehicleType">Saglabāt</v-btn>
+					<v-btn variant="text" :disabled="vehicleTypeEditLoading" @click="cancelEditingVehicleType">{{ copy.cancel }}</v-btn>
+					<v-btn color="primary" :loading="vehicleTypeEditLoading" @click="saveVehicleType">{{ copy.save }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -602,7 +600,7 @@
 			<v-card>
 				<v-card-title class="font-weight-bold d-flex align-center justify-space-between">
 					<div>
-						<div>Atsauksmes</div>
+						<div>{{ copy.reviews }}</div>
 						<div v-if="reviewVehicle" class="text-caption opacity-70">
 							{{ reviewVehicle.marka }} {{ reviewVehicle.modelis }}
 						</div>
@@ -614,16 +612,16 @@
 				<v-divider />
 				<v-card-text class="pa-4">
 					<v-alert v-if="!user" type="info" variant="tonal" density="compact" class="mb-3">
-						Atsauksmes var pievienot tikai autorizēti klienti.
+						{{ copy.reviewClientOnly }}
 					</v-alert>
 					<v-alert v-else-if="!isClient" type="warning" variant="tonal" density="compact" class="mb-3">
-						Pakalpojumu sniedzējs atsauksmes pievienot nevar.
+						{{ copy.reviewProviderBlocked }}
 					</v-alert>
 
 					<v-card v-if="canReview" class="mb-4" variant="outlined">
 						<v-card-text class="pa-4 d-flex flex-column ga-3">
 							<div class="text-subtitle-2 font-weight-bold">
-								{{ ownReview ? 'Rediģēt savu atsauksmi' : 'Pievienot atsauksmi' }}
+								{{ ownReview ? copy.reviewEditOwn : copy.reviewAdd }}
 							</div>
 							<v-rating
 								v-model="reviewForm.vertejums"
@@ -635,7 +633,7 @@
 							/>
 							<v-textarea
 								v-model="reviewForm.komentars"
-								label="Komentārs"
+								:label="copy.reviewComment"
 								rows="3"
 								auto-grow
 								counter="2000"
@@ -644,15 +642,15 @@
 							/>
 							<div class="d-flex justify-end">
 								<v-btn color="primary" :loading="reviewSaving" @click="submitReview">
-									{{ ownReview ? 'Saglabāt izmaiņas' : 'Pievienot atsauksmi' }}
+									{{ ownReview ? copy.reviewSaveChanges : copy.reviewAdd }}
 								</v-btn>
 							</div>
 						</v-card-text>
 					</v-card>
 
-					<div class="text-subtitle-2 font-weight-bold mb-2">Visas atsauksmes</div>
-					<div v-if="reviewLoading" class="text-body-2">Ielādē atsauksmes...</div>
-					<div v-else-if="!vehicleReviews.length" class="text-body-2 opacity-70">Šim transportlīdzeklim vēl nav atsauksmju.</div>
+					<div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.reviewAll }}</div>
+					<div v-if="reviewLoading" class="text-body-2">{{ copy.reviewLoading }}</div>
+					<div v-else-if="!vehicleReviews.length" class="text-body-2 opacity-70">{{ copy.reviewEmpty }}</div>
 					<div v-else class="d-flex flex-column ga-3">
 						<v-card v-for="review in vehicleReviews" :key="review.atsauksme_id" variant="outlined">
 							<v-card-text class="pa-3">
@@ -672,15 +670,15 @@
 									/>
 									<span class="text-caption">{{ review.vertejums }}/5</span>
 								</div>
-								<div class="mt-2 text-body-2">{{ review.komentars || 'Komentārs nav pievienots.' }}</div>
+								<div class="mt-2 text-body-2">{{ review.komentars || copy.reviewNoComment }}</div>
 							</v-card-text>
 						</v-card>
 					</div>
 				</v-card-text>
 				<v-card-actions class="px-4 pb-4">
 					<v-spacer />
-					<v-btn variant="text" v-if="!user" @click="router.push(AUTH_ROUTE)">Pieslēgties</v-btn>
-					<v-btn color="primary" variant="text" @click="reviewDialog = false">Aizvērt</v-btn>
+					<v-btn variant="text" v-if="!user" @click="router.push(AUTH_ROUTE)">{{ copy.login }}</v-btn>
+					<v-btn color="primary" variant="text" @click="reviewDialog = false">{{ copy.close }}</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -693,13 +691,18 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, buildCompanyRoute } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
 import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
+const { t, getIntlLocale, getDatePickerLocale } = useLocale()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
+const copy = computed(() => t('map'))
+const datePickerLocale = computed(() => getDatePickerLocale())
+const intlLocale = computed(() => getIntlLocale())
 
 // Lapas pamatstāvoklis: lietotājs, dati, ielāde un panelis.
 const user = ref(null)
@@ -1056,8 +1059,8 @@ const gearboxOptions = ['Automāts', 'Mehānika', '-']
 const fuelOptions = ['Benzīns', 'Dīzelis', 'Elektro', '-']
 
 const roleLabel = computed(() => {
-	if (!user.value) return 'Viesis'
-	return user.value.loma === 'pakalpojumu_sniedzejs' ? 'Pakalpojumu sniedzējs' : 'Klients'
+	if (!user.value) return ''
+	return user.value.loma === 'pakalpojumu_sniedzejs' ? t('profile.roles.provider') : t('profile.roles.client')
 })
 
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
@@ -1274,7 +1277,7 @@ function formatPrice(value) {
 function formatDateTime(value) {
 	const date = value instanceof Date ? value : new Date(value)
 	if (Number.isNaN(date.getTime())) return '—'
-	return new Intl.DateTimeFormat('lv-LV', {
+	return new Intl.DateTimeFormat(intlLocale.value, {
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -1377,7 +1380,7 @@ function formatReviewDate(value) {
 	if (!value) return '—'
 	const date = new Date(value)
 	if (Number.isNaN(date.getTime())) return '—'
-	return new Intl.DateTimeFormat('lv-LV', {
+	return new Intl.DateTimeFormat(intlLocale.value, {
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -1421,7 +1424,7 @@ async function loadVehicleReviews(transportlidzeklisId) {
 		const result = await response.json()
 
 		if (!response.ok) {
-			reviewError.value = result?.message || 'Neizdevās ielādēt atsauksmes.'
+			reviewError.value = result?.message || copy.value.messages.reviewLoadFailed
 			vehicleReviews.value = []
 			return
 		}
@@ -1429,7 +1432,7 @@ async function loadVehicleReviews(transportlidzeklisId) {
 		vehicleReviews.value = Array.isArray(result?.atsauksmes) ? result.atsauksmes : []
 		resetReviewForm()
 	} catch (error) {
-		reviewError.value = 'Kļūda: Neizdevās ielādēt atsauksmes.'
+		reviewError.value = copy.value.messages.reviewLoadError
 		vehicleReviews.value = []
 	} finally {
 		reviewLoading.value = false
@@ -1448,12 +1451,12 @@ async function submitReview() {
 	if (!reviewVehicle.value) return
 
 	if (!canReview.value) {
-		reviewError.value = 'Atsauksmi drīkst pievienot tikai autorizēts klients.'
+		reviewError.value = copy.value.messages.reviewOnlyClients
 		return
 	}
 
 	if (!Number.isInteger(Number(reviewForm.value.vertejums)) || Number(reviewForm.value.vertejums) < 1 || Number(reviewForm.value.vertejums) > 5) {
-		reviewError.value = 'Lūdzu, izvēlieties vērtējumu no 1 līdz 5 zvaigznēm.'
+		reviewError.value = copy.value.messages.reviewRatingRequired
 		return
 	}
 
@@ -1485,15 +1488,15 @@ async function submitReview() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			reviewError.value = result?.message || 'Neizdevās saglabāt atsauksmi.'
+			reviewError.value = result?.message || copy.value.messages.reviewSaveFailed
 			return
 		}
 
-		reviewSuccess.value = result?.message || 'Atsauksme saglabāta.'
+		reviewSuccess.value = result?.message || copy.value.messages.reviewSaved
 		await loadVehicleReviews(reviewVehicle.value.transportlidzeklis_id)
 		await loadTransport()
 	} catch (error) {
-		reviewError.value = 'Kļūda: Neizdevās saglabāt atsauksmi.'
+		reviewError.value = copy.value.messages.reviewSaveError
 	} finally {
 		reviewSaving.value = false
 	}
@@ -1501,12 +1504,12 @@ async function submitReview() {
 
 function openReservation(vehicle) {
 	if (!user.value) {
-		snackbar.value = { show: true, text: 'Lūdzu, pieslēdzieties, lai rezervētu.', color: 'error' }
+		snackbar.value = { show: true, text: copy.value.loginToReserve, color: 'error' }
 		router.push(AUTH_ROUTE)
 		return
 	}
 	if (!isClient.value) {
-		snackbar.value = { show: true, text: 'Rezervācijas pieejamas tikai klientiem.', color: 'error' }
+		snackbar.value = { show: true, text: copy.value.messages.reservationClientOnly, color: 'error' }
 		return
 	}
 	activeVehicle.value = vehicle
@@ -1517,12 +1520,12 @@ function openReservation(vehicle) {
 // Izveido rezervāciju un pēc tam atver apmaksas izvēli.
 async function createReservation() {
 	if (!activeVehicle.value || !user.value?.klients?.klients_id) {
-		reservationError.value = 'Nav klienta datu.'
+		reservationError.value = copy.value.messages.clientDataMissing
 		return
 	}
 
 	if (!isReservationFormValid.value) {
-		reservationError.value = 'Lūdzu, izvēlieties periodu nākotnē (beigu laiks pēc sākuma laika).'
+		reservationError.value = copy.value.messages.invalidPeriod
 		return
 	}
 
@@ -1537,7 +1540,7 @@ async function createReservation() {
 		const endApi = formatApiDateTime(end)
 
 		if (!startApi || !endApi) {
-			reservationError.value = 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.'
+			reservationError.value = copy.value.invalidReservationTime
 			return
 		}
 
@@ -1553,7 +1556,7 @@ async function createReservation() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			reservationError.value = result?.message || 'Neizdevās izveidot rezervāciju.'
+			reservationError.value = result?.message || copy.value.messages.createReservationFailed
 			return
 		}
 
@@ -1561,7 +1564,7 @@ async function createReservation() {
 		reservationDialog.value = false
 		paymentDialog.value = true
 	} catch (error) {
-		reservationError.value = 'Kļūda: Neizdevās izveidot rezervāciju.'
+		reservationError.value = copy.value.messages.createReservationError
 	} finally {
 		reservationLoading.value = false
 	}
@@ -1583,11 +1586,11 @@ async function confirmPayment() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			paymentError.value = result?.message || 'Maksājums neizdevās.'
+			paymentError.value = result?.message || copy.value.messages.paymentFailed
 			return
 		}
 
-		paymentSuccess.value = 'Apmaksāts veiksmīgi!'
+		paymentSuccess.value = copy.value.messages.paymentSuccess
 		pendingReservation.value = result.rezervacija
 		upsertReservationInTransportState(result.rezervacija)
 		await loadTransport()
@@ -1601,7 +1604,7 @@ async function confirmPayment() {
 			paymentError.value = ''
 		}, 1200)
 	} catch (error) {
-		paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
+		paymentError.value = copy.value.messages.paymentProcessingError
 	} finally {
 		paymentLoading.value = false
 	}
@@ -1612,7 +1615,7 @@ function closePaymentDialog() {
 	if (pendingReservation.value?.apmaksas_statuss !== 'apmaksata') {
 		snackbar.value = {
 			show: true,
-			text: 'Rezervācija ir izveidota, bet neapmaksāta. To var apmaksāt Profilā.',
+			text: copy.value.messages.reservationCreatedUnpaid,
 			color: 'warning',
 		}
 	}
@@ -1638,17 +1641,17 @@ async function cancelPendingReservation() {
 		})
 		const data = await response.json()
 		if (!response.ok) {
-			paymentError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
+			paymentError.value = data?.message || copy.value.messages.cancelReservationFailed
 			return
 		}
 
 		pendingReservation.value = null
 		paymentDialog.value = false
 		cancelDialog.value = false
-		snackbar.value = { show: true, text: 'Rezervācija atcelta. Transports atkal pieejams.', color: 'success' }
+		snackbar.value = { show: true, text: copy.value.messages.reservationCanceledAvailable, color: 'success' }
 		await loadTransport()
 	} catch {
-		paymentError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
+		paymentError.value = copy.value.messages.cancelReservationError
 	} finally {
 		paymentLoading.value = false
 	}
@@ -1690,13 +1693,13 @@ async function saveVehicle() {
 		})
 		const result = await response.json()
 		if (!response.ok) {
-			editError.value = result?.message || 'Neizdevās saglabāt.'
+			editError.value = result?.message || copy.value.messages.saveFailed
 			return
 		}
 		editDialog.value = false
 		await loadTransport()
 	} catch (error) {
-		editError.value = 'Kļūda: Neizdevās saglabāt.'
+		editError.value = copy.value.messages.saveError
 	} finally {
 		editLoading.value = false
 	}
@@ -1718,7 +1721,7 @@ function cancelDeleteVehicle() {
 
 async function confirmDeleteVehicle() {
 	if (!editVehicle.value.transportlidzeklis_id || !providerId.value) {
-		editError.value = 'Nav pieejami pakalpojumu sniedzēja dati.'
+		editError.value = copy.value.messages.providerMissing
 		return
 	}
 
@@ -1734,7 +1737,7 @@ async function confirmDeleteVehicle() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			editError.value = result?.message || 'Neizdevās dzēst transportlīdzekli.'
+			editError.value = result?.message || copy.value.messages.deleteVehicleFailed
 			nextTick().then(() => {
 				editDialog.value = true
 			})
@@ -1742,10 +1745,10 @@ async function confirmDeleteVehicle() {
 		}
 
 		editDialog.value = false
-		snackbar.value = { show: true, text: result?.message || 'Transportlīdzeklis dzēsts.', color: 'success' }
+		snackbar.value = { show: true, text: result?.message || copy.value.messages.vehicleDeleted, color: 'success' }
 		await loadTransport()
 	} catch (error) {
-		editError.value = 'Kļūda: Neizdevās dzēst transportlīdzekli.'
+		editError.value = copy.value.messages.deleteVehicleError
 		nextTick().then(() => {
 			editDialog.value = true
 		})
@@ -1760,7 +1763,7 @@ async function submitVehicle() {
 	providerSuccess.value = ''
 
 	if (!providerId.value) {
-		providerError.value = 'Nav pieejami pakalpojumu sniedzēja dati.'
+		providerError.value = copy.value.messages.providerMissing
 		providerLoading.value = false
 		return
 	}
@@ -1785,11 +1788,11 @@ async function submitVehicle() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			providerError.value = result?.message || 'Neizdevās pievienot transportu.'
+			providerError.value = result?.message || copy.value.messages.addVehicleFailed
 			return
 		}
 
-		providerSuccess.value = 'Transports pievienots!'
+		providerSuccess.value = copy.value.messages.vehicleAdded
 		newVehicle.value = {
 			veids_id: null,
 			marka: '',
@@ -1802,7 +1805,7 @@ async function submitVehicle() {
 		}
 		await loadTransport()
 	} catch (error) {
-		providerError.value = 'Kļūda: Neizdevās pievienot transportu.'
+		providerError.value = copy.value.messages.addVehicleError
 	} finally {
 		providerLoading.value = false
 	}
@@ -1815,7 +1818,7 @@ async function submitVehicleType() {
 
 	const nosaukums = (newVehicleType.value.nosaukums || '').trim()
 	if (!nosaukums) {
-		vehicleTypeError.value = 'Ievadiet transporta veida nosaukumu.'
+		vehicleTypeError.value = copy.value.messages.vehicleTypeNameRequired
 		vehicleTypeLoading.value = false
 		return
 	}
@@ -1829,16 +1832,16 @@ async function submitVehicleType() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			vehicleTypeError.value = result?.message || 'Neizdevās pievienot transporta veidu.'
+			vehicleTypeError.value = result?.message || copy.value.messages.addVehicleTypeFailed
 			return
 		}
 
-		vehicleTypeSuccess.value = 'Transporta veids pievienots.'
+		vehicleTypeSuccess.value = copy.value.messages.vehicleTypeAdded
 		newVehicleType.value = { nosaukums: '' }
 		newVehicle.value.veids_id = result?.veids_id ?? null
 		await loadTypes()
 	} catch (error) {
-		vehicleTypeError.value = 'Kļūda: Neizdevās pievienot transporta veidu.'
+		vehicleTypeError.value = copy.value.messages.addVehicleTypeError
 	} finally {
 		vehicleTypeLoading.value = false
 	}
@@ -1847,13 +1850,13 @@ async function submitVehicleType() {
 
 async function saveVehicleType() {
 	if (!editingVehicleTypeId.value) {
-		vehicleTypeError.value = 'Izvēlieties transporta veidu.'
+		vehicleTypeError.value = copy.value.messages.selectVehicleType
 		return
 	}
 
 	const nosaukums = (editingVehicleTypeName.value || '').trim()
 	if (!nosaukums) {
-		vehicleTypeError.value = 'Ievadiet transporta veida nosaukumu.'
+		vehicleTypeError.value = copy.value.messages.vehicleTypeNameRequired
 		return
 	}
 
@@ -1870,15 +1873,15 @@ async function saveVehicleType() {
 
 		const result = await response.json()
 		if (!response.ok) {
-			vehicleTypeError.value = result?.message || 'Neizdevās atjaunināt transporta veidu.'
+			vehicleTypeError.value = result?.message || copy.value.messages.updateVehicleTypeFailed
 			return
 		}
 
-		vehicleTypeSuccess.value = 'Transporta veids atjaunināts.'
+		vehicleTypeSuccess.value = copy.value.messages.updateVehicleTypeSuccess
 		cancelEditingVehicleType()
 		await loadTypes()
 	} catch (error) {
-		vehicleTypeError.value = 'Kļūda: Neizdevās atjaunināt transporta veidu.'
+		vehicleTypeError.value = copy.value.messages.updateVehicleTypeError
 	} finally {
 		vehicleTypeEditLoading.value = false
 	}
@@ -1892,12 +1895,12 @@ async function loadTransport() {
 		const response = await fetch(`${API_BASE}/api/transport`)
 		const data = await response.json()
 		if (!response.ok) {
-			errorText.value = data?.message || 'Neizdevās ielādēt transportu.'
+			errorText.value = data?.message || copy.value.messages.loadTransportFailed
 			return
 		}
 		transportItems.value = data
 	} catch (error) {
-		errorText.value = 'Kļūda: Neizdevās ielādēt transportu.'
+		errorText.value = copy.value.messages.loadTransportError
 	} finally {
 		loading.value = false
 	}
@@ -1945,8 +1948,8 @@ function renderMarkers() {
 			<div class="map-popup-content">
 				<strong>${point.name}</strong><br/>
 				${point.address}, ${point.city}<br/>
-				Transporti: ${point.vehicles.length} (${point.availableCount} pieejami)<br/>
-				<button type="button" class="popup-company-link" data-company-id="${point.id}">Skatīt sniedzēju</button>
+				${copy.value.popupVehicles.replace('{count}', point.vehicles.length).replace('{available}', point.availableCount)}<br/>
+				<button type="button" class="popup-company-link" data-company-id="${point.id}">${copy.value.viewProvider}</button>
 			</div>
 		`)
 

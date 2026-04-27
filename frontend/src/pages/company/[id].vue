@@ -3,12 +3,12 @@
     <v-container class="py-8">
       <v-btn variant="text" class="mb-4 company-back-btn" @click="router.push(MAP_ROUTE)">
         <v-icon start>mdi-arrow-left</v-icon>
-        Atpakaļ uz karti
+        {{ copy.backToMap }}
       </v-btn>
 
       <v-card class="surface" elevation="10">
         <v-card-text class="pa-6">
-          <div v-if="loading" class="text-body-1">Ielādē kompāniju...</div>
+          <div v-if="loading" class="text-body-1">{{ copy.loadingCompany }}</div>
           <v-alert v-else-if="errorText" type="error" variant="tonal">{{ errorText }}</v-alert>
           <template v-else-if="company">
             <div class="company-hero mb-6">
@@ -20,37 +20,37 @@
               <div class="company-hero__stats">
                 <div class="metric-pill">
                   <strong>{{ vehicles.length }}</strong>
-                  <span>Kopējais transports</span>
+                  <span>{{ copy.stats.totalVehicles }}</span>
                 </div>
                 <div class="metric-pill">
                   <strong>{{ vehicles.filter(vehicle => isVehicleAvailable(vehicle)).length }}</strong>
-                  <span>Pieejami šobrīd</span>
+                  <span>{{ copy.stats.availableNow }}</span>
                 </div>
                 <div class="metric-pill">
                   <strong>{{ vehicles.length ? formatPrice(Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0)))) : '0.00 €' }}</strong>
-                  <span>Sākuma cena dienā</span>
+                  <span>{{ copy.stats.startingPrice }}</span>
                 </div>
               </div>
             </div>
 
             <div class="d-flex align-center justify-space-between mb-3">
-              <div class="text-h6 font-weight-bold">Transports</div>
+              <div class="text-h6 font-weight-bold">{{ copy.vehiclesTitle }}</div>
               <v-chip color="primary" variant="tonal">{{ filteredSortedVehicles.length }}/{{ vehicles.length }}</v-chip>
             </div>
 
             <v-alert v-if="!vehicles.length" type="info" variant="tonal">
-              Šai kompānijai pašlaik nav pieejama transporta.
+              {{ copy.noVehicles }}
             </v-alert>
 
             <template v-else>
                 <div class="company-toolbar d-flex justify-end flex-wrap ga-2 mb-3">
                 <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
                   <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
-                  {{ showFilters ? 'Aizvērt filtrus' : 'Filtri' }}
+                  {{ showFilters ? copy.closeFilters : copy.filters }}
                 </v-btn>
                 <v-btn color="primary" variant="tonal" @click="showSorting = !showSorting">
                   <v-icon start>{{ showSorting ? 'mdi-sort-variant-remove' : 'mdi-sort-variant' }}</v-icon>
-                  {{ showSorting ? 'Aizvērt kārtošanu' : 'Kārtot' }}
+                  {{ showSorting ? copy.closeSorting : copy.sort }}
                 </v-btn>
               </div>
 
@@ -61,7 +61,7 @@
                       <v-col cols="12" md="6">
                         <v-text-field
                           v-model="vehicleFilters.q"
-                          label="Meklēt pēc markas vai modeļa"
+                          :label="copy.filterLabels.search"
                           variant="outlined"
                           density="compact"
                           clearable
@@ -73,7 +73,7 @@
                           :items="vehicleTypeOptions"
                           item-title="title"
                           item-value="value"
-                          label="Transporta veids"
+                          :label="copy.filterLabels.type"
                           variant="outlined"
                           density="compact"
                           clearable
@@ -82,7 +82,7 @@
                       <v-col cols="6" md="3">
                         <v-text-field
                           v-model.number="vehicleFilters.minPrice"
-                          label="Cena no (€)"
+                          :label="copy.filterLabels.minPrice"
                           variant="outlined"
                           density="compact"
                           type="number"
@@ -92,7 +92,7 @@
                       <v-col cols="6" md="3">
                         <v-text-field
                           v-model.number="vehicleFilters.maxPrice"
-                          label="Cena līdz (€)"
+                          :label="copy.filterLabels.maxPrice"
                           variant="outlined"
                           density="compact"
                           type="number"
@@ -102,14 +102,14 @@
                       <v-col cols="12" md="4" class="d-flex align-center">
                         <v-switch
                           v-model="vehicleFilters.onlyAvailable"
-                          label="Tikai pieejamie"
+                          :label="copy.filterLabels.onlyAvailable"
                           inset
                           density="compact"
                           hide-details
                         />
                       </v-col>
                       <v-col cols="12" class="d-flex justify-end">
-                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleFilters">Notīrīt</v-btn>
+                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleFilters">{{ copy.clear }}</v-btn>
                       </v-col>
                     </v-row>
                   </v-card-text>
@@ -126,13 +126,13 @@
                           :items="sortOptions"
                           item-title="title"
                           item-value="value"
-                          label="Kārtot pēc"
+                          :label="copy.sortBy"
                           variant="outlined"
                           density="compact"
                         />
                       </v-col>
                       <v-col cols="12" md="6" class="d-flex align-center justify-end">
-                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleSorting">Atiestatīt kārtošanu</v-btn>
+                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleSorting">{{ copy.resetSorting }}</v-btn>
                       </v-col>
                     </v-row>
                   </v-card-text>
@@ -140,7 +140,7 @@
               </v-expand-transition>
 
               <v-alert v-if="!filteredSortedVehicles.length" type="info" variant="tonal" class="mb-2">
-                Pēc izvēlētajiem filtriem transports netika atrasts.
+                {{ copy.noVehiclesByFilter }}
               </v-alert>
             </template>
 
@@ -156,10 +156,10 @@
                     {{ vehicle.marka }} {{ vehicle.modelis }}
                   </div>
                   <div class="text-body-2 opacity-80 mb-1">
-                    {{ vehicle.veids?.nosaukums || 'Transporta veids nav norādīts' }}
+                    {{ vehicle.veids?.nosaukums || copy.typeNotProvided }}
                   </div>
                   <div class="text-body-2 mb-2">
-                    {{ formatPrice(vehicle.dienas_nomas_cena) }} / dienā
+                    {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
                   </div>
                   <div class="vehicle-card__actions">
                     <v-chip
@@ -167,7 +167,7 @@
                       :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
                       variant="tonal"
                     >
-                      {{ isVehicleAvailable(vehicle) ? 'Pieejams' : 'Nav pieejams' }}
+                      {{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}
                     </v-chip>
                     <v-btn
                       v-if="isClient"
@@ -176,7 +176,7 @@
                       :disabled="!isVehicleAvailable(vehicle)"
                       @click="openReservation(vehicle)"
                     >
-                      Rezervēt
+                      {{ copy.reserve }}
                     </v-btn>
                   </div>
                 </v-card-text>
@@ -188,7 +188,7 @@
 
       <v-dialog v-model="reservationDialog" max-width="520">
         <v-card>
-          <v-card-title class="font-weight-bold">Rezervācija</v-card-title>
+          <v-card-title class="font-weight-bold">{{ copy.reservationTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
             <div v-if="activeVehicle">
@@ -199,7 +199,7 @@
                 {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
               </div>
             </div>
-            <div class="text-body-2 mb-2">Izvēlieties nomas periodu.</div>
+            <div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
             <v-row dense>
               <v-col cols="6">
                 <v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
@@ -207,7 +207,7 @@
                     <v-text-field
                       v-bind="props"
                       :model-value="reservationStartDateDisplay"
-                      label="No datums"
+                      :label="copy.startDate"
                       variant="outlined"
                       density="compact"
                       placeholder="DD/MM/YYYY"
@@ -220,13 +220,13 @@
                     @update:model-value="onStartDatePicked"
                     :min="minReservationDate"
                     color="primary"
-                    locale="lv"
+                    :locale="datePickerLocale"
                     hide-header
                   />
                 </v-menu>
               </v-col>
               <v-col cols="6">
-                <v-select v-model="reservationStartTime" :items="availableStartTimeOptions" label="No laiks" variant="outlined" density="compact" />
+                <v-select v-model="reservationStartTime" :items="availableStartTimeOptions" :label="copy.startTime" variant="outlined" density="compact" />
               </v-col>
               <v-col cols="6">
                 <v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
@@ -234,7 +234,7 @@
                     <v-text-field
                       v-bind="props"
                       :model-value="reservationEndDateDisplay"
-                      label="Līdz datumam"
+                      :label="copy.endDate"
                       variant="outlined"
                       density="compact"
                       placeholder="DD/MM/YYYY"
@@ -247,48 +247,48 @@
                     @update:model-value="onEndDatePicked"
                     :min="minReservationDate"
                     color="primary"
-                    locale="lv"
+                    :locale="datePickerLocale"
                     hide-header
                   />
                 </v-menu>
               </v-col>
               <v-col cols="6">
-                <v-select v-model="reservationEndTime" :items="availableEndTimeOptions" label="Līdz laikam" variant="outlined" density="compact" />
+                <v-select v-model="reservationEndTime" :items="availableEndTimeOptions" :label="copy.endTime" variant="outlined" density="compact" />
               </v-col>
               <v-col cols="12">
-                <div class="text-caption opacity-70">Laika josla: {{ userTimezone }}</div>
+                <div class="text-caption opacity-70">{{ copy.timezone }}: {{ userTimezone }}</div>
               </v-col>
             </v-row>
 
             <div class="reservation-summary mt-2">
-              <div><strong>Periods:</strong> {{ reservationPeriodText }}</div>
-              <div><strong>Apmaksas dienas:</strong> {{ reservationBillableDays }}</div>
-              <div><strong>Cena par dienu:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
-              <div><strong>Kopā:</strong> {{ reservationTotal }}</div>
+              <div><strong>{{ copy.period }}:</strong> {{ reservationPeriodText }}</div>
+              <div><strong>{{ copy.billableDays }}:</strong> {{ reservationBillableDays }}</div>
+              <div><strong>{{ copy.pricePerDay }}:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+              <div><strong>{{ copy.total }}:</strong> {{ reservationTotal }}</div>
             </div>
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
-            <v-btn variant="text" @click="reservationDialog = false">Atcelt</v-btn>
-            <v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">Rezervēt</v-btn>
+            <v-btn variant="text" @click="reservationDialog = false">{{ copy.cancel }}</v-btn>
+            <v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">{{ copy.reserve }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
 
       <v-dialog v-model="paymentDialog" max-width="480">
         <v-card>
-          <v-card-title class="font-weight-bold">Apmaksa</v-card-title>
+          <v-card-title class="font-weight-bold">{{ copy.paymentTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
-            <div class="text-body-2">Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.</div>
+            <div class="text-body-2">{{ copy.paymentPrompt }}</div>
             <div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
-              Rezervācijas summa: {{ formatPrice(pendingReservation.kopa_summa) }}
+              {{ copy.reservationAmount }}: {{ formatPrice(pendingReservation.kopa_summa) }}
             </div>
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
-            <v-btn variant="text" :disabled="paymentLoading" @click="payLater">Maksāšu vēlāk</v-btn>
-            <v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">Apmaksāt</v-btn>
+            <v-btn variant="text" :disabled="paymentLoading" @click="payLater">{{ copy.payLater }}</v-btn>
+            <v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">{{ copy.payNow }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -300,6 +300,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
 import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
@@ -307,8 +308,12 @@ import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const route = useRoute()
 const router = useRouter()
+const { t, getIntlLocale, getDatePickerLocale } = useLocale()
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
+const copy = computed(() => t('company'))
+const datePickerLocale = computed(() => getDatePickerLocale())
+const intlLocale = computed(() => getIntlLocale())
 
 // Lapas pamatstāvoklis: kompānija, transports un rezervācijas dialogi.
 const user = ref(null)
@@ -587,13 +592,7 @@ const vehicleSorting = ref({
   sortBy: 'availability_desc',
 })
 
-const sortOptions = [
-  { title: 'Pieejamie vispirms', value: 'availability_desc' },
-  { title: 'Cena: no lētākā', value: 'price_asc' },
-  { title: 'Cena: no dārgākā', value: 'price_desc' },
-  { title: 'Marka A-Z', value: 'brand_asc' },
-  { title: 'Marka Z-A', value: 'brand_desc' },
-]
+const sortOptions = computed(() => copy.value.sortOptions)
 
 // Kompānijas transporta saraksts ar filtru un kārtošanas loģiku.
 const vehicles = computed(() =>
@@ -654,11 +653,11 @@ const filteredSortedVehicles = computed(() => {
     }
 
     if (sortBy === 'brand_asc') {
-      return `${a.marka || ''} ${a.modelis || ''}`.localeCompare(`${b.marka || ''} ${b.modelis || ''}`, 'lv')
+      return `${a.marka || ''} ${a.modelis || ''}`.localeCompare(`${b.marka || ''} ${b.modelis || ''}`, intlLocale.value)
     }
 
     if (sortBy === 'brand_desc') {
-      return `${b.marka || ''} ${b.modelis || ''}`.localeCompare(`${a.marka || ''} ${a.modelis || ''}`, 'lv')
+      return `${b.marka || ''} ${b.modelis || ''}`.localeCompare(`${a.marka || ''} ${a.modelis || ''}`, intlLocale.value)
     }
 
     const availableDiff = Number(isVehicleAvailable(b)) - Number(isVehicleAvailable(a))
@@ -758,7 +757,7 @@ function formatCompanyAddress(provider) {
 function formatDateTime(value) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('lv-LV', {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -830,13 +829,13 @@ function upsertReservationInTransportState(reservationItem) {
 
 function openReservation(vehicle) {
   if (!user.value) {
-    snackbar.value = { show: true, text: 'Lūdzu, pieslēdzieties, lai rezervētu.', color: 'error' }
+    snackbar.value = { show: true, text: copy.value.loginToReserve, color: 'error' }
     router.push(AUTH_ROUTE)
     return
   }
 
   if (!isClient.value) {
-    snackbar.value = { show: true, text: 'Rezervācijas pieejamas tikai klientiem.', color: 'error' }
+    snackbar.value = { show: true, text: copy.value.clientOnly, color: 'error' }
     return
   }
 
@@ -884,7 +883,7 @@ async function createReservation() {
     const endApi = formatApiDateTime(end)
 
     if (!startApi || !endApi) {
-      reservationError.value = 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.'
+      reservationError.value = copy.value.invalidReservationTime
       return
     }
 

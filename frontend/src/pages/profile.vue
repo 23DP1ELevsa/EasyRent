@@ -10,8 +10,8 @@
                 <div>
                   <div class="text-h4 font-weight-bold mb-2">{{ form.vards }} {{ form.uzvards }}</div>
                   <div class="text-body-2 opacity-80 d-flex align-center ga-2 flex-wrap">
-                    <span v-if="loma === 'klients'" class="badge-info badge-info-provider">🔹 Klients</span>
-                    <span v-else class="badge-info badge-info-provider">🏢 Pakalpojumu sniedzējs</span>
+                    <span v-if="loma === 'klients'" class="badge-info badge-info-provider">🔹 {{ copy.roles.client }}</span>
+                    <span v-else class="badge-info badge-info-provider">🏢 {{ copy.roles.provider }}</span>
                     <span class="profile-email">{{ email }}</span>
                   </div>
                 </div>
@@ -22,16 +22,16 @@
 
               <div class="profile-stat-grid mt-6">
                 <div class="metric-pill">
-                  <strong>{{ loma === 'klients' ? activeReservations.length : 'Aktīvs' }}</strong>
-                  <span>{{ loma === 'klients' ? 'Apmaksātās aktīvās rezervācijas' : 'Konta statuss' }}</span>
+                  <strong>{{ loma === 'klients' ? activeReservations.length : copy.hints.active }}</strong>
+                  <span>{{ loma === 'klients' ? copy.stats.activePaid : copy.stats.accountStatus }}</span>
                 </div>
                 <div class="metric-pill">
-                  <strong>{{ loma === 'klients' ? unpaidReservations.length : (form.pilseta || 'Nav') }}</strong>
-                  <span>{{ loma === 'klients' ? 'Neapmaksātās rezervācijas' : 'Pilsēta' }}</span>
+                  <strong>{{ loma === 'klients' ? unpaidReservations.length : (form.pilseta || copy.hints.none) }}</strong>
+                  <span>{{ loma === 'klients' ? copy.stats.unpaid : copy.stats.city }}</span>
                 </div>
                 <div class="metric-pill">
                   <strong>{{ form.kontakttalrunis || '—' }}</strong>
-                  <span>Primārais kontakts</span>
+                  <span>{{ copy.stats.primaryContact }}</span>
                 </div>
               </div>
             </v-card-text>
@@ -41,8 +41,8 @@
           <v-card class="surface" elevation="12">
             <v-card-title class="pa-6 pa-sm-8">
               <div>
-                <div class="text-h5 font-weight-bold">Rediģēt profilu</div>
-                <div class="text-caption opacity-70 mt-1">Atjaunojiet kontaktus, bankas datus un profila informāciju.</div>
+                <div class="text-h5 font-weight-bold">{{ copy.page.title }}</div>
+                <div class="text-caption opacity-70 mt-1">{{ copy.page.subtitle }}</div>
               </div>
             </v-card-title>
 
@@ -52,13 +52,13 @@
               <!-- Success/Error Messages -->
               <v-form ref="formRef" @submit.prevent="updateProfile">
                 <!-- Basic Information Section -->
-                <div class="section-title mb-4">Pamatinformācija</div>
+                <div class="section-title mb-4">{{ copy.sections.basic }}</div>
                 
                 <v-row dense class="mb-6">
                   <v-col cols="12" sm="6">
                     <v-text-field
                       v-model="form.vards"
-                      label="Vārds"
+                      :label="copy.fields.firstName"
                       variant="outlined"
                       density="compact"
                       :rules="nameRules"
@@ -70,7 +70,7 @@
                   <v-col cols="12" sm="6">
                     <v-text-field
                       v-model="form.uzvards"
-                      label="Uzvārds"
+                      :label="copy.fields.lastName"
                       variant="outlined"
                       density="compact"
                       :error="!!fieldErrors.uzvards"
@@ -81,18 +81,18 @@
                   <v-col cols="12">
                     <v-text-field
                       v-model="email"
-                      label="E-pasts"
+                      :label="copy.fields.email"
                       variant="outlined"
                       density="compact"
                       disabled
-                      hint="E-pastu mainīt nevar"
+                      :hint="copy.hints.emailLocked"
                     />
                   </v-col>
 
                   <v-col cols="12">
                     <v-text-field
                       v-model="form.kontakttalrunis"
-                      label="Kontakttālrunis"
+                      :label="copy.fields.phone"
                       variant="outlined"
                       density="compact"
                       placeholder="+371 26123456"
@@ -104,13 +104,13 @@
                 </v-row>
 
                 <!-- IBAN Section -->
-                <div class="section-title mb-4">Bankas informācija</div>
+                <div class="section-title mb-4">{{ copy.sections.bank }}</div>
 
                 <v-row dense class="mb-6">
                   <v-col cols="12">
                     <v-text-field
                       v-model="form.bankas_konts"
-                      label="IBAN"
+                      :label="copy.fields.iban"
                       variant="outlined"
                       density="compact"
                       placeholder="LV00ABCD1234567890123"
@@ -124,13 +124,13 @@
                 <!-- Klients Section -->
                 <template v-if="loma === 'klients'">
                   <v-divider class="my-6" />
-                  <div class="section-title mb-4">Klienta informācija</div>
+                  <div class="section-title mb-4">{{ copy.sections.client }}</div>
 
                   <v-row dense class="mb-6">
                     <v-col cols="12">
                       <v-text-field
                         v-model="form.lietotajvards"
-                        label="Lietotājvārds"
+                        :label="copy.fields.username"
                         variant="outlined"
                         density="compact"
                         :rules="usernameRules"
@@ -144,13 +144,13 @@
                 <!-- Pakalpojumu sniedzējs Section -->
                 <template v-if="loma === 'pakalpojumu_sniedzejs'">
                   <v-divider class="my-6" />
-                  <div class="section-title mb-4">Pakalpojumu sniedzēja informācija</div>
+                  <div class="section-title mb-4">{{ copy.sections.provider }}</div>
 
                   <v-row dense class="mb-6">
                     <v-col cols="12">
                       <v-text-field
                         v-model="form.registracijas_numurs"
-                        label="Reģistrācijas numurs"
+                        :label="copy.fields.registrationNumber"
                         variant="outlined"
                         density="compact"
                         :rules="regNumRules"
@@ -162,7 +162,7 @@
                     <v-col cols="12">
                       <v-text-field
                         v-model="form.iela"
-                        label="Iela"
+                        :label="copy.fields.street"
                         variant="outlined"
                         density="compact"
                         :rules="streetRules"
@@ -174,7 +174,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.majas_numurs"
-                        label="Mājas numurs"
+                        :label="copy.fields.houseNumber"
                         variant="outlined"
                         density="compact"
                         :rules="houseNumberRules"
@@ -186,7 +186,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.dzivokla_numurs"
-                        label="Dzīvokļa numurs (neobligāts)"
+                        :label="copy.fields.apartmentNumber"
                         variant="outlined"
                         density="compact"
                         :error="!!fieldErrors.dzivokla_numurs"
@@ -197,7 +197,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.pilseta"
-                        label="Pilsēta"
+                        :label="copy.fields.city"
                         variant="outlined"
                         density="compact"
                         :rules="cityRules"
@@ -209,7 +209,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.pasta_indekss"
-                        label="Pasta indekss"
+                        :label="copy.fields.postalCode"
                         variant="outlined"
                         density="compact"
                         :rules="postalCodeRules"
@@ -221,7 +221,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.latitude"
-                        label="Platums (latitude)"
+                        :label="copy.fields.latitude"
                         variant="outlined"
                         density="compact"
                         placeholder="56.9496"
@@ -231,7 +231,7 @@
                     <v-col cols="12" sm="6">
                       <v-text-field
                         v-model="form.longitude"
-                        label="Garums (longitude)"
+                        :label="copy.fields.longitude"
                         variant="outlined"
                         density="compact"
                         placeholder="24.1052"
@@ -239,7 +239,7 @@
                     </v-col>
 
                     <v-col cols="12">
-                      <div v-if="geocodeLoading" class="text-caption opacity-70">Meklējam koordinātes no adreses...</div>
+                      <div v-if="geocodeLoading" class="text-caption opacity-70">{{ copy.hints.geocodeLoading }}</div>
                       <div v-else-if="geocodeError" class="text-caption text-error">{{ geocodeError }}</div>
                     </v-col>
                   </v-row>
@@ -247,14 +247,14 @@
 
                 <!-- Password Section -->
                 <v-divider class="my-6" />
-                <div class="section-title mb-4">Parole</div>
+                <div class="section-title mb-4">{{ copy.sections.password }}</div>
 
                 <v-row dense class="mb-8">
                   <v-col cols="12">
                     <v-text-field
                       v-model="form.password"
                       type="password"
-                      label="Jauna parole"
+                      :label="copy.fields.newPassword"
                       variant="outlined"
                       density="compact"
                       :rules="passwordRules"
@@ -276,7 +276,7 @@
                       min-width="160"
                     >
                       <v-icon start>mdi-check</v-icon>
-                      Saglabāt
+                      {{ copy.actions.save }}
                     </v-btn>
                   </v-col>
 
@@ -291,7 +291,7 @@
                       class="logout-btn"
                     >
                       <v-icon start>mdi-logout</v-icon>
-                      Izlogoties
+                      {{ copy.actions.logout }}
                     </v-btn>
                   </v-col>
 
@@ -305,7 +305,7 @@
                       class="back-btn"
                     >
                       <v-icon start>mdi-arrow-left</v-icon>
-                      Atpakaļ
+                      {{ copy.actions.back }}
                     </v-btn>
                   </v-col>
                 </v-row>
@@ -317,8 +317,8 @@
           <v-card v-if="loma === 'klients'" class="surface mt-6 profile-reservations" elevation="12">
             <v-card-title class="pa-6 pa-sm-8">
               <div>
-                <div class="text-h5 font-weight-bold">Rezervācijas</div>
-                <div class="text-caption opacity-70 mt-1">Pārskatiet aktīvās un neapmaksātās rezervācijas.</div>
+                <div class="text-h5 font-weight-bold">{{ copy.reservations.title }}</div>
+                <div class="text-caption opacity-70 mt-1">{{ copy.reservations.subtitle }}</div>
               </div>
             </v-card-title>
             <v-divider />
@@ -329,20 +329,18 @@
                 variant="tonal"
                 class="mb-4"
               >
-                Jums ir {{ unpaidReservations.length }} neapmaksāta(s) rezervācija(s).
+                {{ copy.reservations.unpaidAlert.replace('{count}', unpaidReservations.length) }}
               </v-alert>
 
-              <div v-if="reservationsLoading" class="text-body-2 opacity-70">Ielādē...</div>
+              <div v-if="reservationsLoading" class="text-body-2 opacity-70">{{ copy.reservations.loading }}</div>
               <div v-else-if="!reservations.length" class="text-body-2 opacity-70">
-                Vēl nav rezervāciju.
+                {{ copy.reservations.empty }}
               </div>
 
               <template v-else>
-                <div class="section-title mb-3">Aktīvās rezervācijas</div>
+                <div class="section-title mb-3">{{ copy.reservations.activeTitle }}</div>
 
-                <div v-if="!activeReservations.length" class="text-body-2 opacity-70 mb-4">
-                  Nav aktīvu rezervāciju.
-                </div>
+                <div v-if="!activeReservations.length" class="text-body-2 opacity-70 mb-4">{{ copy.reservations.noActive }}</div>
 
                 <div v-else class="d-flex flex-column ga-3 mb-6">
                   <v-card
@@ -366,18 +364,16 @@
                         </div>
                         <div class="text-right">
                           <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
-                          <v-chip size="small" color="success" variant="tonal">Apmaksāts</v-chip>
+                          <v-chip size="small" color="success" variant="tonal">{{ copy.reservations.paid }}</v-chip>
                         </div>
                       </div>
                     </v-card-text>
                   </v-card>
                 </div>
 
-                <div class="section-title mb-3">Neapmaksātās rezervācijas</div>
+                <div class="section-title mb-3">{{ copy.reservations.unpaidTitle }}</div>
 
-                <div v-if="!unpaidReservations.length" class="text-body-2 opacity-70">
-                  Nav neapmaksātu rezervāciju.
-                </div>
+                <div v-if="!unpaidReservations.length" class="text-body-2 opacity-70">{{ copy.reservations.noUnpaid }}</div>
 
                 <div v-else class="d-flex flex-column ga-3">
                   <v-card
@@ -401,7 +397,7 @@
                         </div>
                         <div class="text-right">
                           <div class="font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
-                          <v-chip size="small" color="warning" variant="tonal">Neapmaksāts</v-chip>
+                          <v-chip size="small" color="warning" variant="tonal">{{ copy.reservations.unpaidStatus }}</v-chip>
                         </div>
                       </div>
 
@@ -412,7 +408,7 @@
                         :loading="payingReservationId === item.rezervacija_id"
                         @click="payReservation(item.rezervacija_id)"
                       >
-                        Apmaksāt tagad
+                        {{ copy.reservations.payNow }}
                       </v-btn>
                       <v-btn
                         color="error"
@@ -422,7 +418,7 @@
                         :loading="cancellingReservationId === item.rezervacija_id"
                         @click="openCancelDialog(item.rezervacija_id)"
                       >
-                        Atcelt rezervāciju
+                        {{ copy.reservations.cancelReservation }}
                       </v-btn>
                     </v-card-text>
                   </v-card>
@@ -431,15 +427,15 @@
 
               <v-dialog v-model="cancelDialog" max-width="420">
                 <v-card>
-                  <v-card-title class="font-weight-bold">Drošības apstiprinājums</v-card-title>
+                  <v-card-title class="font-weight-bold">{{ copy.confirm.title }}</v-card-title>
                   <v-divider />
                   <v-card-text class="pa-4">
-                    Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?
+                    {{ copy.confirm.cancelReservation }}
                   </v-card-text>
                   <v-card-actions class="px-4 pb-4">
                     <v-spacer />
-                    <v-btn variant="text" :disabled="cancellingReservationId !== null" @click="cancelDialog = false">Nē</v-btn>
-                    <v-btn color="error" :loading="cancellingReservationId !== null" @click="cancelReservation">Jā, atcelt</v-btn>
+                    <v-btn variant="text" :disabled="cancellingReservationId !== null" @click="cancelDialog = false">{{ copy.confirm.no }}</v-btn>
+                    <v-btn color="error" :loading="cancellingReservationId !== null" @click="cancelReservation">{{ copy.confirm.yesCancel }}</v-btn>
                   </v-card-actions>
                 </v-card>
               </v-dialog>
@@ -455,12 +451,15 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/stores/locale'
 import { HOME_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
 import { clearAuthSession, getApiBase, getAuthHeaders, getStoredToken, setAuthSession, syncCurrentUser } from '@/services/auth'
 
 const router = useRouter()
+const { t, getIntlLocale } = useLocale()
 const { notifyError, notifySuccess } = useNotifications()
+const copy = computed(() => t('profile'))
 // Profila lapas pamatstāvoklis un UI darbību statusi.
 const formRef = ref(null)
 const loading = ref(false)
@@ -546,49 +545,49 @@ function ibanIsValid(iban) {
 
 // Formas validācijas noteikumi pa laukiem.
 const nameRules = [
-  v => !!v || 'Vārds ir obligāts',
-  v => (v && v.trim().length >= 2) || 'Vārdam jābūt vismaz 2 simbolu garam'
+  v => !!v || copy.value.validation.firstNameRequired,
+  v => (v && v.trim().length >= 2) || copy.value.validation.firstNameMin
 ]
 
 const phoneRules = [
-  v => !v || (v && v.length >= 6) || 'Tālrunim jābūt vismaz 6 simbolu garam',
-  v => !v || (v && v.length <= 20) || 'Tālruņa garums nedrīkst pārsniegt 20 simbolus',
-  v => !v || /^\+?[0-9 \-()]+$/.test(v) || 'Ievadiet derīgu telefona numuru'
+  v => !v || (v && v.length >= 6) || copy.value.validation.phoneMin,
+  v => !v || (v && v.length <= 20) || copy.value.validation.phoneMax,
+  v => !v || /^\+?[0-9 \-()]+$/.test(v) || copy.value.validation.phoneInvalid
 ]
 
 const ibanRules = [
-  v => !v || (v && v.length >= 15) || 'IBAN jābūt vismaz 15 simbolu garam',
-  v => !v || (v && v.length <= 34) || 'IBAN nedrīkst būt garāks par 34 simboliem',
-  v => !v || ibanIsValid(v) || 'Ievadiet derīgu IBAN'
+  v => !v || (v && v.length >= 15) || copy.value.validation.ibanMin,
+  v => !v || (v && v.length <= 34) || copy.value.validation.ibanMax,
+  v => !v || ibanIsValid(v) || copy.value.validation.ibanInvalid
 ]
 
 const usernameRules = [
-  v => !!v || 'Lietotājvārds ir obligāts',
-  v => (v && v.length >= 3) || 'Lietotājvārdam jābūt vismaz 3 simbolu garam'
+  v => !!v || copy.value.validation.usernameRequired,
+  v => (v && v.length >= 3) || copy.value.validation.usernameMin
 ]
 
 const regNumRules = [
-  v => !v || (v && v.length >= 1) || 'Reģistrācijas numurs nedrīkst būt tukšs'
+  v => !v || (v && v.length >= 1) || copy.value.validation.regNumRequired
 ]
 
 const streetRules = [
-  v => !v || (v && v.length >= 1) || 'Iela nedrīkst būt tukša'
+  v => !v || (v && v.length >= 1) || copy.value.validation.streetRequired
 ]
 
 const houseNumberRules = [
-  v => !v || (v && v.length >= 1) || 'Mājas numurs nedrīkst būt tukšs'
+  v => !v || (v && v.length >= 1) || copy.value.validation.houseRequired
 ]
 
 const cityRules = [
-  v => !v || (v && v.length >= 1) || 'Pilsēta nedrīkst būt tukša'
+  v => !v || (v && v.length >= 1) || copy.value.validation.cityRequired
 ]
 
 const postalCodeRules = [
-  v => !v || (v && v.length >= 1) || 'Pasta indekss nedrīkst būt tukšs'
+  v => !v || (v && v.length >= 1) || copy.value.validation.postalRequired
 ]
 
 const passwordRules = [
-  v => !v || (v && v.length >= 8) || 'Parolei jābūt vismaz 8 simbolu garai'
+  v => !v || (v && v.length >= 8) || copy.value.validation.passwordMin
 ]
 
 const unpaidReservations = computed(() =>
@@ -613,7 +612,7 @@ async function initializeProfile() {
   const token = getStoredToken()
 
   if (!token) {
-    errorText.value = 'Jums jāpiesakās, lai apskatītu profilu'
+    errorText.value = copy.value.validation.loginRequired
     setTimeout(() => router.push(HOME_ROUTE), 2000)
     return
   }
@@ -621,7 +620,7 @@ async function initializeProfile() {
   const userData = await syncCurrentUser()
 
   if (!userData) {
-    errorText.value = 'Jums jāpiesakās, lai apskatītu profilu'
+    errorText.value = copy.value.validation.loginRequired
     setTimeout(() => router.push(HOME_ROUTE), 2000)
     return
   }
@@ -675,12 +674,12 @@ async function loadReservations(klientsId) {
     })
     const data = await response.json()
     if (!response.ok) {
-      reservationsError.value = data?.message || 'Neizdevās ielādēt rezervācijas.'
+      reservationsError.value = data?.message || copy.value.messages.loadReservationsFailed
       return
     }
     reservations.value = data
   } catch (error) {
-    reservationsError.value = 'Kļūda: Neizdevās ielādēt rezervācijas.'
+    reservationsError.value = copy.value.messages.loadReservationsError
   } finally {
     reservationsLoading.value = false
   }
@@ -700,13 +699,13 @@ async function payReservation(rezervacijaId) {
     })
     const data = await response.json()
     if (!response.ok) {
-      reservationsError.value = data?.message || 'Neizdevās apmaksāt rezervāciju.'
+      reservationsError.value = data?.message || copy.value.validation.payReservationFailed
       return
     }
-    reservationsSuccess.value = 'Rezervācija apmaksāta veiksmīgi.'
+    reservationsSuccess.value = copy.value.messages.reservationPaid
     await loadReservations(currentClientId.value)
   } catch {
-    reservationsError.value = 'Kļūda: Neizdevās apmaksāt rezervāciju.'
+    reservationsError.value = copy.value.validation.payReservationError
   } finally {
     payingReservationId.value = null
   }
@@ -731,14 +730,14 @@ async function cancelReservation() {
     })
     const data = await response.json()
     if (!response.ok) {
-      reservationsError.value = data?.message || 'Neizdevās atcelt rezervāciju.'
+      reservationsError.value = data?.message || copy.value.messages.cancelReservationFailed
       return
     }
 
     reservations.value = reservations.value.filter(item => item.rezervacija_id !== rezervacijaId)
-    reservationsSuccess.value = 'Rezervācija atcelta. Transports atkal ir pieejams.'
+    reservationsSuccess.value = copy.value.messages.reservationCanceled
   } catch {
-    reservationsError.value = 'Kļūda: Neizdevās atcelt rezervāciju.'
+    reservationsError.value = copy.value.messages.cancelReservationError
   } finally {
     cancellingReservationId.value = null
     pendingCancelReservationId.value = null
@@ -748,7 +747,7 @@ async function cancelReservation() {
 function formatDateTime(value) {
   if (!value) return '—'
   const date = new Date(value)
-  return date.toLocaleString('lv-LV')
+  return date.toLocaleString(getIntlLocale())
 }
 
 function formatPrice(value) {
@@ -920,7 +919,7 @@ async function updateProfile() {
 
     setAuthSession({ token, persona: result.persona })
     
-    successText.value = 'Profils atjaunināts sekmīgi!'
+    successText.value = copy.value.messages.profileUpdated
     form.value.password = ''
     if (loma.value === 'pakalpojumu_sniedzejs') {
       initialProviderAddress.value = {

@@ -2,30 +2,22 @@
   <div class="bg">
     <v-container class="fill-height py-12">
       <div class="page-wrap">
-
-        <!-- HERO: ievads (teksts + foto) -->
         <v-row align="stretch" justify="center">
           <v-col cols="12">
             <v-card class="surface hero-surface" elevation="12">
               <v-card-text class="pa-6 pa-md-8">
                 <v-row align="stretch" class="hero-row">
                   <v-col cols="12" md="7" class="text-center text-md-left hero-copy-col">
-
                     <div class="hero-title mb-2">EasyRent</div>
-
-                    <div class="hero-slogan mb-4">
-                      Atrast un iznomāt transportu — vienkārši un ātri
-                    </div>
-
+                    <div class="hero-slogan mb-4">{{ content.hero.slogan }}</div>
                     <div class="text-body-1 text-md-h6 opacity-90 mb-5 hero-desc">
-                      EasyRent ir platforma, kur vienuviet varēsi apskatīt pieejamos transportlīdzekļus,
-                      salīdzināt cenas un rezervēt izvēlēto variantu.
+                      {{ content.hero.description }}
                     </div>
 
                     <div class="d-flex flex-column flex-sm-row justify-center justify-md-start ga-3">
                       <v-btn size="x-large" rounded="xl" elevation="6" @click="goMap">
                         <v-icon start>mdi-map</v-icon>
-                        Pāriet uz karti
+                        {{ content.hero.ctaMap }}
                       </v-btn>
                     </div>
                   </v-col>
@@ -33,7 +25,7 @@
                   <v-col cols="12" md="5" class="mt-4 mt-md-0">
                     <div class="hero-aside">
                       <div class="hero-media">
-                        <v-img src="@/assets/hero.jpg" alt="EasyRent galvenais attēls ar transporta nomas vizuālo noformējumu" class="hero-img" aspect-ratio="16/9" contain/>
+                        <v-img src="@/assets/hero.jpg" :alt="content.hero.imageAlt" class="hero-img" aspect-ratio="16/9" contain />
                       </div>
                     </div>
                   </v-col>
@@ -44,349 +36,128 @@
         </v-row>
 
         <v-row class="mt-6 metrics-row" dense>
-          <v-col cols="12" sm="6" lg="3" class="metric-col">
+          <v-col v-for="(item, index) in content.metrics" :key="`metric-${index}`" cols="12" sm="6" lg="3" class="metric-col">
             <div class="metric-pill">
-              <strong>24/7</strong>
-              <span>Piekļuve kartei un pieejamībai jebkurā laikā</span>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" lg="3" class="metric-col">
-            <div class="metric-pill">
-              <strong>Viss vienuviet</strong>
-              <span>Piedāvājumu salīdzināšana bez pārlēkšanas starp lapām</span>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" lg="3" class="metric-col">
-            <div class="metric-pill">
-              <strong>Dažādi veidi</strong>
-              <span>Auto, motocikli, laivas un cits transports</span>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" lg="3" class="metric-col">
-            <div class="metric-pill">
-              <strong>Vienots profils</strong>
-              <span>Rezervācijas, maksājumi un konta dati vienā skata līmenī</span>
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.text }}</span>
             </div>
           </v-col>
         </v-row>
 
-        <!-- TRANSPORTA KATEGORIJAS -->
         <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-4">
-                <div class="text-h5 font-weight-bold">Kādi transportlīdzekļi būs pieejami</div>
-                <div class="text-body-2 opacity-80">
-                  Piemēri kategorijām, ko vēlāk rādīsim kartē un sarakstā.
-                </div>
+                <div class="text-h5 font-weight-bold">{{ content.categories.title }}</div>
+                <div class="text-body-2 opacity-80">{{ content.categories.subtitle }}</div>
               </div>
 
-              <div class="section-note">
-                Platforma paredzēta ne tikai klasiskajiem auto, bet arī ģimenes, darba un specifiskiem transporta scenārijiem.
-              </div>
+              <div class="section-note">{{ content.categories.note }}</div>
             </div>
           </v-col>
 
           <v-col cols="12" md="8" lg="9">
             <v-row dense align="stretch">
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
+              <v-col v-for="(item, index) in content.categories.items" :key="`category-${index}`" cols="12" sm="6" lg="4" class="feature-col">
                 <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-car</v-icon>
-                  <div class="text-h6 mb-1">Vieglās automašīnas</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Ikdienai un braucieniem pa Latviju (sedans, hečbeks, universāls).
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-car-estate</v-icon>
-                  <div class="text-h6 mb-1">SUV / Apvidus</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Komfortam, ģimenei un garākiem maršrutiem.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-van-utility</v-icon>
-                  <div class="text-h6 mb-1">Mikroautobusi</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Pārvākšanās, kravas un komandas braucieniem.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-motorbike</v-icon>
-                  <div class="text-h6 mb-1">Motocikli</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Sezonas braucieniem un hobijam.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-bicycle</v-icon>
-                  <div class="text-h6 mb-1">E-skrejriteņi / velo</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Ātrai pārvietošanai pilsētā.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <v-icon size="28" class="mb-2">mdi-car-wrench</v-icon>
-                  <div class="text-h6 mb-1">Speciālie piedāvājumi</div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Īpaši auto, akcijas, ilgtermiņa noma (drīzumā).
-                  </div>
+                  <v-icon size="28" class="mb-2">{{ item.icon }}</v-icon>
+                  <div class="text-h6 mb-1">{{ item.title }}</div>
+                  <div class="text-body-2 opacity-80 card-desc">{{ item.text }}</div>
                 </v-card>
               </v-col>
             </v-row>
           </v-col>
         </v-row>
 
-        <!-- KĀPĒC EASYRENT? -->
         <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-6 text-center text-md-left">
-                <div class="text-h5 font-weight-bold">Kāpēc EasyRent?</div>
-                <div class="text-body-2 opacity-80">
-                  Vienkārša platforma, lai atrastu, salīdzinātu un rezervētu transportu Latvijā.
-                </div>
+                <div class="text-h5 font-weight-bold">{{ content.why.title }}</div>
+                <div class="text-body-2 opacity-80">{{ content.why.subtitle }}</div>
               </div>
 
-              <div class="section-note">
-                Mērķis ir nevis tikai glīts saraksts, bet reāli noderīga plūsma, kur lietotājs ātri atrod sev piemērotāko variantu.
-              </div>
+              <div class="section-note">{{ content.why.note }}</div>
             </div>
           </v-col>
 
           <v-col cols="12" md="8" lg="9">
             <v-row dense align="stretch">
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
+              <v-col v-for="(item, index) in content.why.items" :key="`why-${index}`" cols="12" sm="6" lg="4" class="feature-col">
                 <v-card class="surface pa-5 feature-card" elevation="10">
                   <div class="d-flex align-center mb-3">
                     <v-avatar size="38" variant="tonal" class="me-3">
-                      <v-icon>mdi-map-search</v-icon>
+                      <v-icon>{{ item.icon }}</v-icon>
                     </v-avatar>
-                    <div class="text-h6 mb-0">Meklēšana kartē</div>
+                    <div class="text-h6 mb-0">{{ item.title }}</div>
                   </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Redzēsi transportu kartē, izvēlēsies tuvāko un ātri salīdzināsi piedāvājumus.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-5 feature-card" elevation="10">
-                  <div class="d-flex align-center mb-3">
-                    <v-avatar size="38" variant="tonal" class="me-3">
-                      <v-icon>mdi-filter-check</v-icon>
-                    </v-avatar>
-                    <div class="text-h6 mb-0">Filtri</div>
-                  </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Cena, veids, ātrumkārba, degviela, statuss un citi filtri — viss vienuviet.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="12" lg="4" class="feature-col">
-                <v-card class="surface pa-5 feature-card" elevation="10">
-                  <div class="d-flex align-center mb-3">
-                    <v-avatar size="38" variant="tonal" class="me-3">
-                      <v-icon>mdi-shield-check</v-icon>
-                    </v-avatar>
-                    <div class="text-h6 mb-0">Drošība</div>
-                  </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Pārskatāms statuss un rezervācijas.
-                  </div>
+                  <div class="text-body-2 opacity-80 card-desc">{{ item.text }}</div>
                 </v-card>
               </v-col>
             </v-row>
           </v-col>
         </v-row>
 
-        <!-- KĀ TAS STRĀDĀ -->
         <v-row class="section-shell content-section" align="start">
           <v-col cols="12" md="4" lg="3">
             <div class="section-lead sticky-section">
               <div class="section-title mb-4">
-                <div class="text-h5 font-weight-bold">Kā tas strādās</div>
-                <div class="text-body-2 opacity-80">
-                  Vienkāršs process no meklēšanas līdz rezervācijai.
-                </div>
+                <div class="text-h5 font-weight-bold">{{ content.steps.title }}</div>
+                <div class="text-body-2 opacity-80">{{ content.steps.subtitle }}</div>
               </div>
 
-              <div class="section-note">
-                Struktūra ir veidota, lai lietotājs saprastu secību jau pirmajās sekundēs un bez berzes nonāktu līdz rezervācijai.
-              </div>
+              <div class="section-note">{{ content.steps.note }}</div>
             </div>
           </v-col>
 
           <v-col cols="12" md="8" lg="9">
             <v-row dense align="stretch">
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
+              <v-col v-for="(item, index) in content.steps.items" :key="`step-${index}`" cols="12" sm="6" lg="4" class="feature-col">
                 <v-card class="surface pa-4 feature-card" elevation="10">
                   <div class="d-flex align-center mb-2">
-                    <v-avatar size="34" class="me-3" variant="tonal">1</v-avatar>
-                    <div class="text-h6">Atrodi kartē</div>
+                    <v-avatar size="34" class="me-3" variant="tonal">{{ item.step }}</v-avatar>
+                    <div class="text-h6">{{ item.title }}</div>
                   </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Izvēlies atrašanās vietu un apskati pieejamos transportlīdzekļus.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="6" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <div class="d-flex align-center mb-2">
-                    <v-avatar size="34" class="me-3" variant="tonal">2</v-avatar>
-                    <div class="text-h6">Filtrē un salīdzini</div>
-                  </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Marka, cena dienā, ātrumkārba, degviela, statuss u.c. filtri.
-                  </div>
-                </v-card>
-              </v-col>
-
-              <v-col cols="12" sm="12" lg="4" class="feature-col">
-                <v-card class="surface pa-4 feature-card" elevation="10">
-                  <div class="d-flex align-center mb-2">
-                    <v-avatar size="34" class="me-3" variant="tonal">3</v-avatar>
-                    <div class="text-h6">Rezervē un apmaksā</div>
-                  </div>
-                  <div class="text-body-2 opacity-80 card-desc">
-                    Izvēlies laiku, apstiprini rezervāciju un seko maksājuma statusam.
-                  </div>
+                  <div class="text-body-2 opacity-80 card-desc">{{ item.text }}</div>
                 </v-card>
               </v-col>
             </v-row>
           </v-col>
         </v-row>
 
-        <v-row class="faq-row" align="start" justify="center">
-          <v-col cols="12" lg="9" xl="8">
-            <div class="section-title mb-4">
-              <div class="text-h5 font-weight-bold">Biežākie jautājumi</div>
-              <div class="text-body-2 opacity-80">
-                Īsas atbildes, lai lietotājam uzreiz skaidrs, kas būs.
+        <v-row class="section-shell content-section faq-section" align="start">
+          <v-col cols="12" md="4" lg="3">
+            <div class="section-lead sticky-section">
+              <div class="section-title mb-4">
+                <div class="text-h5 font-weight-bold">{{ content.faq.title }}</div>
+                <div class="text-body-2 opacity-80">{{ content.faq.subtitle }}</div>
               </div>
             </div>
+          </v-col>
 
-            <v-expansion-panels variant="accordion" class="surface-panels">
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai es redzēšu pieejamību reālajā laikā?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Vēlāk statuss (pieejams/aizņemts) un rezervācijas laiki nāks no datubāzes,
-                  un kartē redzēsi tikai to, kas tiešām ir brīvs.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Kādi filtri būs?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Cena dienā, marka/modelis, degvielas veids, ātrumkārba, transporta veids,
-                  atrašanās vieta un citi.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai būs lietotāju profili?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Klienti un pakalpojumu sniedzēji būs atsevišķas lomas,
-                  ar autorizāciju un pārvaldību.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Kā notiks rezervācijas izveide?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Lietotājs izvēlēsies transportlīdzekli, norādīs nomas sākuma un beigu laiku,
-                  un sistēma automātiski pārbaudīs, vai tas konkrētajā periodā ir pieejams.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai rezervāciju varēs apmaksāt uzreiz?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Sistēmā ir paredzēta rezervācijas apmaksa uzreiz pēc izveides,
-                  kā arī iespēja atstāt to neapmaksātu un pabeigt vēlāk profilā.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai būs iespējams pievienot atsauksmes?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Autorizēti klienti varēs atstāt vērtējumu un komentāru par izmantoto transportlīdzekli,
-                  lai citi lietotāji redzētu reālu pieredzi un vidējo novērtējumu.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Ko varēs darīt pakalpojumu sniedzējs?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Pakalpojumu sniedzējs varēs pievienot jaunus transportlīdzekļus, pārvaldīt to datus,
-                  norādīt transporta veidus un sekot līdzi saviem piedāvājumiem kartē.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai kartē būs redzami visi nomas punkti?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Kartē būs redzami visi pievienotie pakalpojumu sniedzēju punkti,
-                  un lietotājs varēs atlasīt tikai sev atbilstošos pēc filtriem un pieejamības.
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-
-              <v-expansion-panel>
-                <v-expansion-panel-title>
-                  Vai es redzēšu transporta cenu pirms rezervācijas?
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="opacity-90">
-                  Jā. Pirms rezervācijas būs redzama dienas cena, izvēlētais periods,
-                  aprēķinātais dienu skaits un kopējā summa par visu nomu.
-                </v-expansion-panel-text>
+          <v-col cols="12" md="8" lg="9">
+            <v-expansion-panels variant="accordion" class="surface-panels faq-panels">
+              <v-expansion-panel v-for="(item, index) in content.faq.items" :key="`faq-${index}`">
+                <v-expansion-panel-title>{{ item.question }}</v-expansion-panel-title>
+                <v-expansion-panel-text class="opacity-90">{{ item.answer }}</v-expansion-panel-text>
               </v-expansion-panel>
             </v-expansion-panels>
           </v-col>
         </v-row>
-
       </div>
     </v-container>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/stores/locale'
 import { MAP_ROUTE } from '@/router/paths'
 
 const router = useRouter()
+const { t } = useLocale()
+const content = computed(() => t('home'))
 
 function goMap() {
   router.push(MAP_ROUTE)
@@ -403,6 +174,11 @@ function goMap() {
 .page-wrap { width: min(1380px, 100%); margin: 0 auto; }
 
 .surface-panels { width: 100%; }
+
+.faq-panels {
+  width: 100%;
+  max-width: 100%;
+}
 
 .surface {
   background: var(--er-surface);
@@ -577,7 +353,7 @@ function goMap() {
   margin-bottom: 40px;
 }
 
-.faq-row {
+.faq-section {
   margin-top: 84px;
   margin-bottom: 72px;
 }
@@ -593,7 +369,7 @@ function goMap() {
     margin-top: 56px;
   }
 
-  .faq-row {
+  .faq-section {
     margin-top: 64px;
     margin-bottom: 56px;
   }
@@ -616,7 +392,7 @@ function goMap() {
     margin-top: 44px;
   }
 
-  .faq-row {
+  .faq-section {
     margin-top: 52px;
     margin-bottom: 44px;
   }

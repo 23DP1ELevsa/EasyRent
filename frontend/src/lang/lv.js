@@ -1,0 +1,140 @@
+export default {
+  app: {
+    brandSubtitle: 'Transporta noma Latvijā',
+    language: {
+      select: 'Valoda',
+      selectAria: 'Mainīt valodu',
+    },
+    theme: {
+      light: 'Gaišais režīms',
+      dark: 'Tumšais režīms',
+    },
+    nav: {
+      openMenu: 'Atvērt izvēlni',
+      closeMenu: 'Aizvērt izvēlni',
+      home: 'Sākums',
+      map: 'Karte',
+      menu: 'Izvēlne',
+    },
+    auth: {
+      profile: 'Mans profils',
+      logout: 'Izlogoties',
+      loginRegister: 'Pieslēgties / Reģistrēties',
+    },
+    footer: {
+      summary: 'Vienota platforma, lai atrastu, salīdzinātu un rezervētu transportu.',
+      users: 'Lietotājiem',
+      providers: 'Pakalpojumu sniedzējiem',
+      addVehicle: 'Pievienot transportu',
+      manageAvailability: 'Pārvaldīt pieejamību',
+    },
+  },
+  home: {
+    hero: {
+      slogan: 'Atrast un iznomāt transportu - vienkārši un ātri',
+      description: 'EasyRent ir platforma, kur vienuviet varēsi apskatīt pieejamos transportlīdzekļus, salīdzināt cenas un rezervēt izvēlēto variantu.',
+      ctaMap: 'Pāriet uz karti',
+      imageAlt: 'EasyRent galvenais attēls ar transporta nomas vizuālo noformējumu',
+    },
+    metrics: [
+      { title: '24/7', text: 'Piekļuve kartei un pieejamībai jebkurā laikā' },
+      { title: 'Viss vienuviet', text: 'Piedāvājumu salīdzināšana bez pārlēkšanas starp lapām' },
+      { title: 'Dažādi veidi', text: 'Auto, motocikli, laivas un cits transports' },
+      { title: 'Vienots profils', text: 'Rezervācijas, maksājumi un konta dati vienā skata līmenī' },
+    ],
+    categories: {
+      title: 'Kādi transportlīdzekļi būs pieejami',
+      subtitle: 'Piemēri kategorijām, ko vēlāk rādīsim kartē un sarakstā.',
+      note: 'Platforma paredzēta ne tikai klasiskajiem auto, bet arī ģimenes, darba un specifiskiem transporta scenārijiem.',
+      items: [
+        { icon: 'mdi-car', title: 'Vieglās automašīnas', text: 'Ikdienai un braucieniem pa Latviju (sedans, hečbeks, universāls).' },
+        { icon: 'mdi-car-estate', title: 'SUV / Apvidus', text: 'Komfortam, ģimenei un garākiem maršrutiem.' },
+        { icon: 'mdi-van-utility', title: 'Mikroautobusi', text: 'Pārvākšanās, kravas un komandas braucieniem.' },
+        { icon: 'mdi-motorbike', title: 'Motocikli', text: 'Sezonas braucieniem un hobijam.' },
+        { icon: 'mdi-bicycle', title: 'E-skrejriteņi / velo', text: 'Ātrai pārvietošanai pilsētā.' },
+        { icon: 'mdi-car-wrench', title: 'Speciālie piedāvājumi', text: 'Īpaši auto, akcijas, ilgtermiņa noma (drīzumā).' },
+      ],
+    },
+    why: {
+      title: 'Kāpēc EasyRent?',
+      subtitle: 'Vienkārša platforma, lai atrastu, salīdzinātu un rezervētu transportu Latvijā.',
+      note: 'Mērķis ir nevis tikai glīts saraksts, bet reāli noderīga plūsma, kur lietotājs ātri atrod sev piemērotāko variantu.',
+      items: [
+        { icon: 'mdi-map-search', title: 'Meklēšana kartē', text: 'Redzēsi transportu kartē, izvēlēsies tuvāko un ātri salīdzināsi piedāvājumus.' },
+        { icon: 'mdi-filter-check', title: 'Filtri', text: 'Cena, veids, ātrumkārba, degviela, statuss un citi filtri - viss vienuviet.' },
+        { icon: 'mdi-shield-check', title: 'Drošība', text: 'Pārskatāms statuss un rezervācijas.' },
+      ],
+    },
+    steps: {
+      title: 'Kā tas strādās',
+      subtitle: 'Vienkāršs process no meklēšanas līdz rezervācijai.',
+      note: 'Struktūra ir veidota, lai lietotājs saprastu secību jau pirmajās sekundēs un bez berzes nonāktu līdz rezervācijai.',
+      items: [
+        { step: '1', title: 'Atrodi kartē', text: 'Izvēlies atrašanās vietu un apskati pieejamos transportlīdzekļus.' },
+        { step: '2', title: 'Filtrē un salīdzini', text: 'Marka, cena dienā, ātrumkārba, degviela, statuss u.c. filtri.' },
+        { step: '3', title: 'Rezervē un apmaksā', text: 'Izvēlies laiku, apstiprini rezervāciju un seko maksājuma statusam.' },
+      ],
+    },
+    faq: {
+      title: 'Biežākie jautājumi',
+      subtitle: 'Īsas atbildes, lai lietotājam uzreiz skaidrs, kas būs.',
+      items: [
+        { question: 'Vai es redzēšu pieejamību reālajā laikā?', answer: 'Jā. Vēlāk statuss un rezervācijas laiki nāks no datubāzes, un kartē redzēsi tikai to, kas tiešām ir brīvs.' },
+        { question: 'Kādi filtri būs?', answer: 'Cena dienā, marka/modelis, degvielas veids, ātrumkārba, transporta veids, atrašanās vieta un citi.' },
+        { question: 'Vai būs lietotāju profili?', answer: 'Jā. Klienti un pakalpojumu sniedzēji būs atsevišķas lomas, ar autorizāciju un pārvaldību.' },
+        { question: 'Kā notiks rezervācijas izveide?', answer: 'Lietotājs izvēlēsies transportlīdzekli, norādīs nomas sākuma un beigu laiku, un sistēma automātiski pārbaudīs, vai tas konkrētajā periodā ir pieejams.' },
+        { question: 'Vai rezervāciju varēs apmaksāt uzreiz?', answer: 'Jā. Sistēmā ir paredzēta rezervācijas apmaksa uzreiz pēc izveides, kā arī iespēja atstāt to neapmaksātu un pabeigt vēlāk profilā.' },
+        { question: 'Vai būs iespējams pievienot atsauksmes?', answer: 'Jā. Autorizēti klienti varēs atstāt vērtējumu un komentāru par izmantoto transportlīdzekli.' },
+        { question: 'Ko varēs darīt pakalpojumu sniedzējs?', answer: 'Pakalpojumu sniedzējs varēs pievienot jaunus transportlīdzekļus, pārvaldīt to datus, norādīt transporta veidus un sekot līdzi saviem piedāvājumiem kartē.' },
+        { question: 'Vai kartē būs redzami visi nomas punkti?', answer: 'Jā. Kartē būs redzami visi pievienotie pakalpojumu sniedzēju punkti, un lietotājs varēs atlasīt tikai sev atbilstošos pēc filtriem un pieejamības.' },
+        { question: 'Vai es redzēšu transporta cenu pirms rezervācijas?', answer: 'Jā. Pirms rezervācijas būs redzama dienas cena, izvēlētais periods, aprēķinātais dienu skaits un kopējā summa par visu nomu.' },
+      ],
+    },
+  },
+  auth: {
+    title: 'Autorizācija',
+    tabs: { login: 'Pieslēgties', register: 'Reģistrēties' },
+    fields: {
+      email: 'E-pasts', password: 'Parole', fullName: 'Vārds Uzvārds', phone: 'Tālrunis', role: 'Loma', username: 'Lietotājvārds', iban: 'Bankas konta numurs (IBAN)', registrationNumber: 'Reģistrācijas numurs', street: 'Iela', houseNumber: 'Mājas numurs', apartmentNumber: 'Dzīvokļa numurs (neobligāts)', city: 'Pilsēta', postalCode: 'Pasta indekss', passwordConfirmation: 'Parole vēlreiz',
+    },
+    actions: { login: 'Pieslēgties', register: 'Reģistrēties' },
+    roles: { client: 'Klients', provider: 'Pakalpojumu sniedzējs' },
+    placeholders: { phone: '+371 26123456', iban: 'LV00ABCD1234567890123' },
+    messages: {
+      registerFailed: 'Neizdevās reģistrēties', loginFailed: 'Neizdevās pieslēgties', serverConnection: 'Kļūda: Neizdevās savienot ar serveri', registered: 'Reģistrācija veiksmīga!', loggedIn: 'Pieslēgšanās veiksmīga!',
+      phoneRequired: 'Tālrunis ir obligāts', phoneMin: 'Tālrunim jābūt vismaz 6 simbolu garam', phoneMax: 'Tālruņa garums nedrīkst pārsniegt 20 simbolus', phoneInvalid: 'Ievadiet derīgu telefona numuru (piem., +371 26123456)',
+      ibanRequired: 'IBAN ir obligāts', ibanMin: 'IBAN jābūt vismaz 15 simbolu garam', ibanMax: 'IBAN nedrīkst būt garāks par 34 simboliem', ibanInvalid: 'Ievadiet derīgu IBAN',
+      nameRequired: 'Vārds un uzvārds ir obligāts', nameMin: 'Vārdam jābūt vismaz 2 simbolu garam', emailRequired: 'E-pasts ir obligāts', emailInvalid: 'Ievadiet derīgu e-pasta adresi',
+      passwordRequired: 'Parole ir obligāta', passwordMin: 'Parolei jābūt vismaz 8 simbolu garai', passwordConfirmRequired: 'Lūdzu, apstipriniet paroli', passwordMismatch: 'Paroles nesakrīt', usernameMin: 'Lietotājvārdam jābūt vismaz 3 simbolu garam', regNumRequired: 'Reģistrācijas numurs ir obligāts', streetRequired: 'Iela ir obligāta', houseRequired: 'Mājas numurs ir obligāts', cityRequired: 'Pilsēta ir obligāta', postalRequired: 'Pasta indekss ir obligāts',
+      manualName: 'Vārds un uzvārds ir obligāts (vismaz 2 simboli).', manualEmail: 'Ievadiet derīgu e-pasta adresi.', manualPassword: 'Parolei jābūt vismaz 8 simbolu garai.', manualPasswordConfirm: 'Paroles nesakrīt vai nav apstiprinātas.', manualPhone: 'Tālrunis ir obligāts (vismaz 6 simboli).', manualIban: 'IBAN ir obligāts.', manualUsername: 'Lietotājvārds ir obligāts (vismaz 3 simboli).', manualRegNum: 'Reģistrācijas numurs ir obligāts.', manualStreet: 'Iela ir obligāta.', manualHouse: 'Mājas numurs ir obligāts.', manualCity: 'Pilsēta ir obligāta.', manualPostal: 'Pasta indekss ir obligāts.',
+    },
+  },
+  company: {
+    backToMap: 'Atpakaļ uz karti', loadingCompany: 'Ielādē kompāniju...', vehiclesTitle: 'Transports', noVehicles: 'Šai kompānijai pašlaik nav pieejama transporta.', closeFilters: 'Aizvērt filtrus', filters: 'Filtri', closeSorting: 'Aizvērt kārtošanu', sort: 'Kārtot', clear: 'Notīrīt', sortBy: 'Kārtot pēc', resetSorting: 'Atiestatīt kārtošanu', noVehiclesByFilter: 'Pēc izvēlētajiem filtriem transports netika atrasts.', typeNotProvided: 'Transporta veids nav norādīts', available: 'Pieejams', notAvailable: 'Nav pieejams', reserve: 'Rezervēt', reservationTitle: 'Rezervācija', selectPeriod: 'Izvēlieties nomas periodu.', startDate: 'No datuma', startTime: 'No laika', endDate: 'Līdz datumam', endTime: 'Līdz laikam', timezone: 'Laika josla', period: 'Periods', billableDays: 'Apmaksas dienas', pricePerDay: 'Cena par dienu', total: 'Kopā', cancel: 'Atcelt', paymentTitle: 'Apmaksa', paymentPrompt: 'Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.', reservationAmount: 'Rezervācijas summa', payLater: 'Maksāšu vēlāk', payNow: 'Apmaksāt', loginToReserve: 'Lūdzu, pieslēdzieties, lai rezervētu.', clientOnly: 'Rezervācijas pieejamas tikai klientiem.', invalidReservationTime: 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.', perDay: 'dienā',
+    stats: { totalVehicles: 'Kopējais transports', availableNow: 'Pieejami šobrīd', startingPrice: 'Sākuma cena dienā' },
+    filterLabels: { search: 'Meklēt pēc markas vai modeļa', type: 'Transporta veids', minPrice: 'Cena no (€)', maxPrice: 'Cena līdz (€)', onlyAvailable: 'Tikai pieejamie' },
+    sortOptions: [{ title: 'Pieejamie vispirms', value: 'availability_desc' }, { title: 'Cena: no lētākā', value: 'price_asc' }, { title: 'Cena: no dārgākā', value: 'price_desc' }, { title: 'Marka A-Z', value: 'brand_asc' }, { title: 'Marka Z-A', value: 'brand_desc' }],
+  },
+  profile: {
+    roles: { client: 'Klients', provider: 'Pakalpojumu sniedzējs' },
+    stats: { activePaid: 'Apmaksātās aktīvās rezervācijas', accountStatus: 'Konta statuss', unpaid: 'Neapmaksātās rezervācijas', city: 'Pilsēta', primaryContact: 'Primārais kontakts' },
+    actions: { save: 'Saglabāt', logout: 'Izlogoties', back: 'Atpakaļ' },
+    page: { title: 'Rediģēt profilu', subtitle: 'Atjaunojiet kontaktus, bankas datus un profila informāciju.' },
+    sections: { basic: 'Pamatinformācija', bank: 'Bankas informācija', client: 'Klienta informācija', provider: 'Pakalpojumu sniedzēja informācija', password: 'Parole' },
+    fields: { firstName: 'Vārds', lastName: 'Uzvārds', email: 'E-pasts', phone: 'Kontakttālrunis', iban: 'IBAN', username: 'Lietotājvārds', registrationNumber: 'Reģistrācijas numurs', street: 'Iela', houseNumber: 'Mājas numurs', apartmentNumber: 'Dzīvokļa numurs (neobligāts)', city: 'Pilsēta', postalCode: 'Pasta indekss', latitude: 'Platums (latitude)', longitude: 'Garums (longitude)', newPassword: 'Jauna parole' },
+    hints: { emailLocked: 'E-pastu mainīt nevar', geocodeLoading: 'Meklējam koordinātes no adreses...', active: 'Aktīvs', none: 'Nav' },
+    reservations: { title: 'Rezervācijas', subtitle: 'Pārskatiet aktīvās un neapmaksātās rezervācijas.', unpaidAlert: 'Jums ir {count} neapmaksāta(s) rezervācija(s).', activeTitle: 'Aktīvās rezervācijas', unpaidTitle: 'Neapmaksātās rezervācijas', paid: 'Apmaksāts', unpaidStatus: 'Neapmaksāts', payNow: 'Apmaksāt tagad', cancelReservation: 'Atcelt rezervāciju', loading: 'Ielādē...', empty: 'Vēl nav rezervāciju.', noActive: 'Nav aktīvu rezervāciju.', noUnpaid: 'Nav neapmaksātu rezervāciju.' },
+    confirm: { title: 'Drošības apstiprinājums', cancelReservation: 'Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?', no: 'Nē', yesCancel: 'Jā, atcelt' },
+    validation: {
+      firstNameRequired: 'Vārds ir obligāts', firstNameMin: 'Vārdam jābūt vismaz 2 simbolu garam', phoneMin: 'Tālrunim jābūt vismaz 6 simbolu garam', phoneMax: 'Tālruņa garums nedrīkst pārsniegt 20 simbolus', phoneInvalid: 'Ievadiet derīgu telefona numuru', ibanMin: 'IBAN jābūt vismaz 15 simbolu garam', ibanMax: 'IBAN nedrīkst būt garāks par 34 simboliem', ibanInvalid: 'Ievadiet derīgu IBAN', usernameRequired: 'Lietotājvārds ir obligāts', usernameMin: 'Lietotājvārdam jābūt vismaz 3 simbolu garam', regNumRequired: 'Reģistrācijas numurs nedrīkst būt tukšs', streetRequired: 'Iela nedrīkst būt tukša', houseRequired: 'Mājas numurs nedrīkst būt tukšs', cityRequired: 'Pilsēta nedrīkst būt tukša', postalRequired: 'Pasta indekss nedrīkst būt tukšs', passwordMin: 'Parolei jābūt vismaz 8 simbolu garai', loginRequired: 'Jums jāpiesakās, lai apskatītu profilu', payReservationFailed: 'Neizdevās apmaksāt rezervāciju.', payReservationError: 'Kļūda: Neizdevās apmaksāt rezervāciju.'
+    },
+    messages: { loadReservationsFailed: 'Neizdevās ielādēt rezervācijas.', loadReservationsError: 'Kļūda: Neizdevās ielādēt rezervācijas.', reservationPaid: 'Rezervācija apmaksāta veiksmīgi.', cancelReservationFailed: 'Neizdevās atcelt rezervāciju.', reservationCanceled: 'Rezervācija atcelta. Transports atkal ir pieejams.', cancelReservationError: 'Kļūda: Neizdevās atcelt rezervāciju.', profileUpdated: 'Profils atjaunināts sekmīgi!' },
+  },
+  map: {
+    hudHide: 'Paslēpt kartes informāciju', hudShow: 'Parādīt kartes informāciju', hudEyebrow: 'EasyRent Live karte', hudTitle: 'Atrodi tuvāko un piemērotāko nomas punktu.', hudCopy: 'Filtrē pēc cenas, veida un pieejamības, pēc tam rezervē tieši no kartes.', nearMe: 'Man tuvumā', reset: 'Atiestatīt', drawerTitle: 'Karte un īres punkti', drawerSubtitle: 'Filtri, punkti un rezervācijas vienuviet.', close: 'Aizvērt', filters: 'Filtri', rentalPoints: 'Īres punkti', loading: 'Ielādē...', noResults: 'Nav rezultātu.', noMapCoords: 'Nav koordināšu kartē', noVehicles: 'Nav transporta.', perDay: 'dienā', available: 'Pieejams', busy: 'Aizņemts', reviews: 'Atsauksmes', reserve: 'Rezervēt', edit: 'Rediģēt', addVehicle: 'Pievienot transportu', addVehicleType: 'Pievienot transporta veidu', newVehicleType: 'Jaunais transporta veids', vehicleTypeHint: 'Piemēram, kvadracikls, laiva vai piekabe', saveNewType: 'Saglabāt jauno veidu', existingVehicleTypes: 'Esošie transporta veidi', selectVehicleType: 'Izvēlies transporta veidu', editSelectedType: 'Labot izvēlēto veidu', addVehicleItem: 'Pievienot transportlīdzekli', reservationTitle: 'Rezervācija', selectPeriod: 'Izvēlieties nomas periodu.', startDate: 'No datuma', startTime: 'No laika', endDate: 'Līdz datumam', endTime: 'Līdz laikam', timezone: 'Laika josla', period: 'Periods', billableDays: 'Apmaksas dienas', pricePerDay: 'Cena par dienu', total: 'Kopā', cancel: 'Atcelt', paymentTitle: 'Apmaksa', paymentPrompt: 'Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.', reservationAmount: 'Rezervācijas summa', cancelReservation: 'Atcelt rezervāciju', payLater: 'Maksāšu vēlāk', payNow: 'Apmaksāt', confirmTitle: 'Drošības apstiprinājums', confirmCancelReservation: 'Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?', no: 'Nē', yesCancel: 'Jā, atcelt', loginToReserve: 'Lūdzu, pieslēdzieties, lai rezervētu.', editVehicleTitle: 'Rediģēt transportu', delete: 'Dzēst', save: 'Saglabāt', deleteVehicleTitle: 'Dzēst transportlīdzekli', deleteVehicleConfirm: 'Vai tiešām vēlaties dzēst šo transportlīdzekli?', editVehicleTypeTitle: 'Labot transporta veidu', vehicleTypeName: 'Transporta veida nosaukums', reviewClientOnly: 'Atsauksmes var pievienot tikai autorizēti klienti.', reviewProviderBlocked: 'Pakalpojumu sniedzējs atsauksmes pievienot nevar.', reviewEditOwn: 'Rediģēt savu atsauksmi', reviewAdd: 'Pievienot atsauksmi', reviewComment: 'Komentārs', reviewSaveChanges: 'Saglabāt izmaiņas', reviewAll: 'Visas atsauksmes', reviewLoading: 'Ielādē atsauksmes...', reviewEmpty: 'Šim transportlīdzeklim vēl nav atsauksmju.', reviewNoComment: 'Komentārs nav pievienots.', login: 'Pieslēgties', viewProvider: 'Skatīt sniedzēju', popupVehicles: 'Transporti: {count} ({available} pieejami)',
+    stats: { points: 'Punkti', vehicles: 'Transporti', available: 'Pieejami' },
+    filterLabels: { search: 'Meklēt pēc nosaukuma vai pilsētas', provider: 'Pakalpojumu sniedzējs', type: 'Transporta veids', minPrice: 'Cena no (€)', maxPrice: 'Cena līdz (€)', onlyAvailable: 'Rādīt tikai pieejamo' },
+    vehicleFields: { type: 'Transporta veids', brand: 'Marka', model: 'Modelis', gearbox: 'Ātrumkārba', fuel: 'Degvielas veids', dailyPrice: 'Cena (€ / diena)', status: 'Statuss', registrationNumber: 'Reģistrācijas numurs' },
+    messages: { reviewLoadFailed: 'Neizdevās ielādēt atsauksmes.', reviewLoadError: 'Kļūda: Neizdevās ielādēt atsauksmes.', reviewOnlyClients: 'Atsauksmi drīkst pievienot tikai autorizēts klients.', reviewRatingRequired: 'Lūdzu, izvēlieties vērtējumu no 1 līdz 5 zvaigznēm.', reviewSaveFailed: 'Neizdevās saglabāt atsauksmi.', reviewSaved: 'Atsauksme saglabāta.', reviewSaveError: 'Kļūda: Neizdevās saglabāt atsauksmi.', reservationClientOnly: 'Rezervācijas pieejamas tikai klientiem.', clientDataMissing: 'Nav klienta datu.', invalidPeriod: 'Lūdzu, izvēlieties periodu nākotnē (beigu laiks pēc sākuma laika).', createReservationFailed: 'Neizdevās izveidot rezervāciju.', createReservationError: 'Kļūda: Neizdevās izveidot rezervāciju.', paymentFailed: 'Maksājums neizdevās.', paymentSuccess: 'Apmaksāts veiksmīgi!', paymentProcessingError: 'Kļūda: Neizdevās apstrādāt maksājumu.', reservationCreatedUnpaid: 'Rezervācija ir izveidota, bet neapmaksāta. To var apmaksāt Profilā.', cancelReservationFailed: 'Neizdevās atcelt rezervāciju.', cancelReservationError: 'Kļūda: Neizdevās atcelt rezervāciju.', reservationCanceledAvailable: 'Rezervācija atcelta. Transports atkal pieejams.', saveFailed: 'Neizdevās saglabāt.', saveError: 'Kļūda: Neizdevās saglabāt.', providerMissing: 'Nav pieejami pakalpojumu sniedzēja dati.', deleteVehicleFailed: 'Neizdevās dzēst transportlīdzekli.', vehicleDeleted: 'Transportlīdzeklis dzēsts.', deleteVehicleError: 'Kļūda: Neizdevās dzēst transportlīdzekli.', addVehicleFailed: 'Neizdevās pievienot transportu.', vehicleAdded: 'Transports pievienots!', addVehicleError: 'Kļūda: Neizdevās pievienot transportu.', vehicleTypeNameRequired: 'Ievadiet transporta veida nosaukumu.', addVehicleTypeFailed: 'Neizdevās pievienot transporta veidu.', vehicleTypeAdded: 'Transporta veids pievienots.', addVehicleTypeError: 'Kļūda: Neizdevās pievienot transporta veidu.', selectVehicleType: 'Izvēlieties transporta veidu.', updateVehicleTypeFailed: 'Neizdevās atjaunināt transporta veidu.', updateVehicleTypeSuccess: 'Transporta veids atjaunināts.', updateVehicleTypeError: 'Kļūda: Neizdevās atjaunināt transporta veidu.', loadTransportFailed: 'Neizdevās ielādēt transportu.', loadTransportError: 'Kļūda: Neizdevās ielādēt transportu.' },
+  },
+}

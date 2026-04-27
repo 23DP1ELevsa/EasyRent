@@ -8,25 +8,25 @@
               <v-card-text class="pa-6 pa-md-8">
                 <div class="d-flex align-center justify-space-between mb-5">
                   <div>
-                    <div class="auth-title">Autorizācija</div>
+                    <div class="auth-title">{{ copy.title }}</div>
                   </div>
                 </div>
 
                 <v-tabs v-model="tab" grow class="auth-tabs" color="primary">
-                  <v-tab value="login">Pieslēgties</v-tab>
-                  <v-tab value="register">Reģistrēties</v-tab>
+                  <v-tab value="login">{{ copy.tabs.login }}</v-tab>
+                  <v-tab value="register">{{ copy.tabs.register }}</v-tab>
                 </v-tabs>
 
                 <v-divider class="my-6" />
 
                 <div v-if="tab === 'login'">
                   <v-form ref="loginForm" @submit.prevent="submitLogin">
-                    <v-text-field v-model="login.email" label="E-pasts" variant="outlined" class="mb-3" prepend-inner-icon="mdi-email-outline" />
-                    <v-text-field v-model="login.password" label="Parole" variant="outlined" type="password" class="mb-4" prepend-inner-icon="mdi-lock-outline" />
+                    <v-text-field v-model="login.email" :label="copy.fields.email" variant="outlined" class="mb-3" prepend-inner-icon="mdi-email-outline" />
+                    <v-text-field v-model="login.password" :label="copy.fields.password" variant="outlined" type="password" class="mb-4" prepend-inner-icon="mdi-lock-outline" />
 
                     <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
                       <v-icon start>mdi-login</v-icon>
-                      Pieslēgties
+                      {{ copy.actions.login }}
                     </v-btn>
                   </v-form>
                 </div>
@@ -35,20 +35,20 @@
                   <v-form ref="regForm" @submit.prevent="submitRegister">
                     <v-row dense class="register-grid">
                       <v-col cols="12" md="6">
-                        <v-text-field v-model="reg.name" label="Vārds Uzvārds" variant="outlined" class="mb-3" :rules="nameRules" prepend-inner-icon="mdi-account-outline" />
+                        <v-text-field v-model="reg.name" :label="copy.fields.fullName" variant="outlined" class="mb-3" :rules="nameRules" prepend-inner-icon="mdi-account-outline" />
                       </v-col>
 
                       <v-col cols="12" md="6">
-                        <v-text-field v-model="reg.email" label="E-pasts" variant="outlined" class="mb-3" :rules="emailRules" prepend-inner-icon="mdi-email-outline" />
+                        <v-text-field v-model="reg.email" :label="copy.fields.email" variant="outlined" class="mb-3" :rules="emailRules" prepend-inner-icon="mdi-email-outline" />
                       </v-col>
 
                       <v-col cols="12" md="6">
                         <v-text-field
                           v-model="reg.kontakttalrunis"
-                          label="Tālrunis"
+                          :label="copy.fields.phone"
                           variant="outlined"
                           class="mb-3"
-                          placeholder="+371 26123456"
+                          :placeholder="copy.placeholders.phone"
                           :rules="phoneRules"
                           prepend-inner-icon="mdi-phone-outline"
                         />
@@ -60,7 +60,7 @@
                           :items="lomas"
                           item-title="title"
                           item-value="value"
-                          label="Loma"
+                          :label="copy.fields.role"
                           variant="outlined"
                           class="mb-3"
                           prepend-inner-icon="mdi-account-switch-outline"
@@ -71,7 +71,7 @@
                       <v-col v-if="reg.loma === 'klients'" cols="12" md="6">
                         <v-text-field
                           v-model="reg.lietotajvards"
-                          label="Lietotājvārds"
+                          :label="copy.fields.username"
                           variant="outlined"
                           class="mb-3"
                           :rules="usernameRules"
@@ -82,10 +82,10 @@
                       <v-col :cols="12" :md="reg.loma === 'klients' ? 6 : 12">
                         <v-text-field
                           v-model="reg.bankas_konts"
-                          label="Banka konta numurs (IBAN)"
+                          :label="copy.fields.iban"
                           variant="outlined"
                           class="mb-3"
-                          placeholder="LV00ABCD1234567890123"
+                          :placeholder="copy.placeholders.iban"
                           :rules="ibanRules"
                           prepend-inner-icon="mdi-bank-outline"
                         />
@@ -95,7 +95,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.registracijas_numurs"
-                            label="Reģistrācijas numurs"
+                            :label="copy.fields.registrationNumber"
                             variant="outlined"
                             class="mb-3"
                             :rules="regNumRules"
@@ -106,7 +106,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.iela"
-                            label="Iela"
+                            :label="copy.fields.street"
                             variant="outlined"
                             class="mb-3"
                             :rules="streetRules"
@@ -117,7 +117,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.majas_numurs"
-                            label="Mājas numurs"
+                            :label="copy.fields.houseNumber"
                             variant="outlined"
                             class="mb-3"
                             :rules="houseNumberRules"
@@ -128,7 +128,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.dzivokla_numurs"
-                            label="Dzīvokļa numurs (neobligāts)"
+                            :label="copy.fields.apartmentNumber"
                             variant="outlined"
                             class="mb-3"
                             prepend-inner-icon="mdi-door"
@@ -138,7 +138,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.pilseta"
-                            label="Pilsēta"
+                            :label="copy.fields.city"
                             variant="outlined"
                             class="mb-3"
                             :rules="cityRules"
@@ -149,7 +149,7 @@
                         <v-col cols="12" md="6">
                           <v-text-field
                             v-model="reg.pasta_indekss"
-                            label="Pasta indekss"
+                            :label="copy.fields.postalCode"
                             variant="outlined"
                             class="mb-3"
                             :rules="postalCodeRules"
@@ -159,13 +159,13 @@
                       </template>
 
                       <v-col cols="12" md="6">
-                        <v-text-field v-model="reg.password" label="Parole" variant="outlined" type="password" class="mb-3" :rules="passwordRules" prepend-inner-icon="mdi-lock-outline" />
+                        <v-text-field v-model="reg.password" :label="copy.fields.password" variant="outlined" type="password" class="mb-3" :rules="passwordRules" prepend-inner-icon="mdi-lock-outline" />
                       </v-col>
 
                       <v-col cols="12" md="6">
                         <v-text-field
                           v-model="reg.password_confirmation"
-                          label="Parole vēlreiz"
+                          :label="copy.fields.passwordConfirmation"
                           variant="outlined"
                           type="password"
                           class="mb-4"
@@ -177,7 +177,7 @@
                       <v-col cols="12">
                         <v-btn type="submit" block size="large" rounded="xl" elevation="4" :loading="loading" class="submit-btn">
                           <v-icon start>mdi-account-plus</v-icon>
-                          Reģistrēties
+                          {{ copy.actions.register }}
                         </v-btn>
                       </v-col>
                     </v-row>
@@ -195,11 +195,14 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useLocale } from '@/stores/locale'
 import { useNotifications } from '@/stores/notifications'
 import { getApiBase, setAuthSession } from '@/services/auth'
 
 const emit = defineEmits(['auth-success'])
 const { notifyError, notifySuccess } = useNotifications()
+const { t } = useLocale()
+const copy = computed(() => t('auth'))
 
 const tab = ref('login')
 const loading = ref(false)
@@ -236,10 +239,10 @@ const reg = ref({
   bankas_konts: '',
 })
 
-const lomas = [
-  { title: 'Klients', value: 'klients' },
-  { title: 'Pakalpojumu sniedzējs', value: 'pakalpojumu_sniedzejs' },
-]
+const lomas = computed(() => [
+  { title: copy.value.roles.client, value: 'klients' },
+  { title: copy.value.roles.provider, value: 'pakalpojumu_sniedzejs' },
+])
 
 function updateRegFields() {
   // Notīrīt laukus kad mainas lomu
@@ -304,62 +307,62 @@ function ibanIsValid(iban) {
 }
 
 const phoneRules = [
-  v => !!v || 'Tālrunis ir obligāts',
-  v => (v && v.length >= 6) || 'Tālrunim jābūt vismaz 6 simbolu garam',
-  v => (v && v.length <= 20) || 'Tālruņa garums nedrīkst pārsniegt 20 simbolus',
-  v => !v || /^\+?[0-9 \-()]+$/.test(v) || 'Ievadiet derīgu telefona numuru (piem., +371 26123456)'
+  v => !!v || copy.value.messages.phoneRequired,
+  v => (v && v.length >= 6) || copy.value.messages.phoneMin,
+  v => (v && v.length <= 20) || copy.value.messages.phoneMax,
+  v => !v || /^\+?[0-9 \-()]+$/.test(v) || copy.value.messages.phoneInvalid
 ]
 
 const ibanRules = [
-  v => !!v || 'IBAN ir obligāts',
-  v => (v && v.length >= 15) || 'IBAN jābūt vismaz 15 simbolu garam',
-  v => (v && v.length <= 34) || 'IBAN nedrīkst būt garāks par 34 simboliem',
-  v => !v || ibanIsValid(v) || 'Ievadiet derīgu IBAN'
+  v => !!v || copy.value.messages.ibanRequired,
+  v => (v && v.length >= 15) || copy.value.messages.ibanMin,
+  v => (v && v.length <= 34) || copy.value.messages.ibanMax,
+  v => !v || ibanIsValid(v) || copy.value.messages.ibanInvalid
 ]
 
 // Required / conditional rules
 const nameRules = [
-  v => !!v || 'Vārds un uzvārds ir obligāts',
-  v => (v && v.trim().split(' ')[0].length >= 2) || 'Vārdam jābūt vismaz 2 simbolu garam'
+  v => !!v || copy.value.messages.nameRequired,
+  v => (v && v.trim().split(' ')[0].length >= 2) || copy.value.messages.nameMin
 ]
 
 const emailRules = [
-  v => !!v || 'E-pasts ir obligāts',
-  v => /.+@.+\..+/.test(v) || 'Ievadiet derīgu e-pasta adresi'
+  v => !!v || copy.value.messages.emailRequired,
+  v => /.+@.+\..+/.test(v) || copy.value.messages.emailInvalid
 ]
 
 const passwordRules = [
-  v => !!v || 'Parole ir obligāta',
-  v => (v && v.length >= 8) || 'Parolei jābūt vismaz 8 simbolu garai'
+  v => !!v || copy.value.messages.passwordRequired,
+  v => (v && v.length >= 8) || copy.value.messages.passwordMin
 ]
 
 const passwordConfirmRules = [
-  v => !!v || 'Lūdzu, apstipriniet paroli',
-  v => v === reg.value.password || 'Paroles nesakrīt'
+  v => !!v || copy.value.messages.passwordConfirmRequired,
+  v => v === reg.value.password || copy.value.messages.passwordMismatch
 ]
 
 const usernameRules = [
-  v => (reg.value.loma !== 'klients') || (!!v && v.length >= 3) || 'Lietotājvārdam jābūt vismaz 3 simbolu garam'
+  v => (reg.value.loma !== 'klients') || (!!v && v.length >= 3) || copy.value.messages.usernameMin
 ]
 
 const regNumRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Reģistrācijas numurs ir obligāts'
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || copy.value.messages.regNumRequired
 ]
 
 const streetRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Iela ir obligāta'
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || copy.value.messages.streetRequired
 ]
 
 const houseNumberRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Mājas numurs ir obligāts'
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || copy.value.messages.houseRequired
 ]
 
 const cityRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Pilsēta ir obligāta'
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || copy.value.messages.cityRequired
 ]
 
 const postalCodeRules = [
-  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || 'Pasta indekss ir obligāts'
+  v => (reg.value.loma !== 'pakalpojumu_sniedzejs') || !!v || copy.value.messages.postalRequired
 ]
 
 async function submitRegister() {
@@ -368,19 +371,19 @@ async function submitRegister() {
   loading.value = true
   // Manuāla validācija tikai obligātajiem laukiem
   const errors = []
-  if (!reg.value.name || reg.value.name.trim().length < 2) errors.push('Vārds un uzvārds ir obligāts (vismaz 2 simboli).')
-  if (!reg.value.email || !/.+@.+\..+/.test(reg.value.email)) errors.push('Ievadiet derīgu e-pasta adresi.')
-  if (!reg.value.password || reg.value.password.length < 8) errors.push('Parolei jābūt vismaz 8 simbolu garai.')
-  if (!reg.value.password_confirmation || reg.value.password !== reg.value.password_confirmation) errors.push('Paroles nesakrīt vai nav apstiprinātas.')
-  if (!reg.value.kontakttalrunis || reg.value.kontakttalrunis.length < 6) errors.push('Tālrunis ir obligāts (vismaz 6 simboli).')
-  if (!reg.value.bankas_konts || reg.value.bankas_konts.length < 15) errors.push('IBAN ir obligāts.')
-  if (reg.value.loma === 'klients' && (!reg.value.lietotajvards || reg.value.lietotajvards.length < 3)) errors.push('Lietotājvārds ir obligāts (vismaz 3 simboli).')
+  if (!reg.value.name || reg.value.name.trim().length < 2) errors.push(copy.value.messages.manualName)
+  if (!reg.value.email || !/.+@.+\..+/.test(reg.value.email)) errors.push(copy.value.messages.manualEmail)
+  if (!reg.value.password || reg.value.password.length < 8) errors.push(copy.value.messages.manualPassword)
+  if (!reg.value.password_confirmation || reg.value.password !== reg.value.password_confirmation) errors.push(copy.value.messages.manualPasswordConfirm)
+  if (!reg.value.kontakttalrunis || reg.value.kontakttalrunis.length < 6) errors.push(copy.value.messages.manualPhone)
+  if (!reg.value.bankas_konts || reg.value.bankas_konts.length < 15) errors.push(copy.value.messages.manualIban)
+  if (reg.value.loma === 'klients' && (!reg.value.lietotajvards || reg.value.lietotajvards.length < 3)) errors.push(copy.value.messages.manualUsername)
   if (reg.value.loma === 'pakalpojumu_sniedzejs') {
-    if (!reg.value.registracijas_numurs) errors.push('Reģistrācijas numurs ir obligāts.')
-    if (!reg.value.iela) errors.push('Iela ir obligāta.')
-    if (!reg.value.majas_numurs) errors.push('Mājas numurs ir obligāts.')
-    if (!reg.value.pilseta) errors.push('Pilsēta ir obligāta.')
-    if (!reg.value.pasta_indekss) errors.push('Pasta indekss ir obligāts.')
+    if (!reg.value.registracijas_numurs) errors.push(copy.value.messages.manualRegNum)
+    if (!reg.value.iela) errors.push(copy.value.messages.manualStreet)
+    if (!reg.value.majas_numurs) errors.push(copy.value.messages.manualHouse)
+    if (!reg.value.pilseta) errors.push(copy.value.messages.manualCity)
+    if (!reg.value.pasta_indekss) errors.push(copy.value.messages.manualPostal)
   }
   if (errors.length) {
     errorText.value = errors.join(' ')
@@ -434,12 +437,12 @@ async function submitRegister() {
         const allErrors = Object.values(data.errors).flat().filter(e => e)
         throw new Error(allErrors.join('. '))
       }
-      throw new Error(data?.message || 'Neizdevās reģistrēties')
+      throw new Error(data?.message || copy.value.messages.registerFailed)
     }
 
     setAuthSession({ token: data.token, persona: data.persona })
     
-    okText.value = 'Reģistrācija veiksmīga!'
+    okText.value = copy.value.messages.registered
     
     // Notīrīt formu
     reg.value = {
@@ -464,7 +467,7 @@ async function submitRegister() {
       emit('auth-success')
     }, 1500)
   } catch (e) {
-    errorText.value = e?.message || 'Kļūda: Neizdevās savienot ar serveri'
+    errorText.value = e?.message || copy.value.messages.serverConnection
   } finally {
     loading.value = false
   }
@@ -489,13 +492,13 @@ async function submitLogin() {
     const data = await r.json().catch(() => ({}))
 
     if (!r.ok) {
-      const msg = data?.message || 'Neizdevās pieslēgties'
+      const msg = data?.message || copy.value.messages.loginFailed
       throw new Error(msg)
     }
 
     setAuthSession({ token: data.token, persona: data.persona })
     
-    okText.value = 'Pieslēgšanās veiksmīga!'
+    okText.value = copy.value.messages.loggedIn
 
     // Notīrīt formu
     login.value = { email: '', password: '' }
@@ -505,7 +508,7 @@ async function submitLogin() {
       emit('auth-success')
     }, 1500)
   } catch (e) {
-    errorText.value = e?.message || 'Kļūda: Neizdevās savienot ar serveri'
+    errorText.value = e?.message || copy.value.messages.serverConnection
   } finally {
     loading.value = false
   }
