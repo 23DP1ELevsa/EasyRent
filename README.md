@@ -125,7 +125,11 @@ Ja backend darbojas uz cita hosta/porta, atjauno šo vērtību un pārstartē `n
 - `php artisan serve` — startē API serveri
 - `php artisan migrate` — palaiž migrācijas
 - `php artisan migrate:fresh --seed` — pārbūvē DB un aizpilda datus (ja ir seederi)
-- `php artisan test` — palaiž testus
+- `php artisan test` — palaiž visus backend testus
+- `php artisan test tests/Feature` — palaiž tikai feature testus
+- `php artisan test tests/Feature/AuthContactAndReviewTest.php` — palaiž jaunos auth, kontaktformas un atsauksmju feature testus
+- `php artisan test --filter review` — palaiž testus pēc nosaukuma filtra
+- `composer test` — notīra konfigurācijas kešu un palaiž backend testus
 - `composer run dev` — vienā komandā palaiž Laravel serveri, queue listeneri, logus un Vite (backend pusei)
 - `composer run setup` — sagatavo backend vidi; ja `easyrent` datubāze vēl nav izveidota XAMPP pusē, migrācijas tiek izlaistas bez fatālas kļūdas
 
@@ -159,14 +163,58 @@ Pēc tam atver `http://localhost:4173` un pārbaudi pārlūkā instalēšanas ie
 
 ## Testēšana
 
-Projektā ir iekļauti vismaz 5 feature test case, kas pārbauda API veselības punktu, autentifikāciju, autorizāciju, rezervācijas plūsmu un transporta pārvaldību.
+Backend pusē ir feature testi, kas pārbauda:
+- API health endpoint
+- autentifikāciju un autorizāciju
+- klienta un pakalpojumu sniedzēja reģistrāciju
+- logout plūsmu
+- rezervāciju izveidi un apmaksu
+- transporta izveides piekļuves kontroli
+- kontaktformas e-pasta nosūtīšanu
+- atsauksmju statistiku un rediģēšanas piekļuves kontroli
 
-Palaist testus:
+Palaist visus backend testus:
 
 ```bash
 cd backend
 php artisan test
 ```
+
+Palaist tikai feature testus:
+
+```bash
+cd backend
+php artisan test tests/Feature
+```
+
+Palaist tikai vienu konkrētu testu failu:
+
+```bash
+cd backend
+php artisan test tests/Feature/AuthContactAndReviewTest.php
+```
+
+Palaist testus pēc nosaukuma vai konkrētas metodes:
+
+```bash
+cd backend
+php artisan test --filter review
+php artisan test --filter test_client_can_update_only_their_own_review
+```
+
+Alternatīvi vari izmantot Composer skriptu:
+
+```bash
+cd backend
+composer test
+```
+
+Kā pārbaudīt rezultātu:
+- `PASS` nozīmē, ka tests izturēts.
+- `FAIL` nozīmē, ka zemāk būs redzams testa nosaukums, kļūda un rinda, kur pārbaude neizgāja.
+- Kopsavilkumā skaties `Tests:` un `Assertions:`, lai redzētu, cik testi un pārbaudes izpildījās.
+
+Pašreiz pārbaudītais jaunais tests iziet veiksmīgi ar rezultātu `6 passed` un `41 assertions`.
 
 ## Biežākās problēmas
 
