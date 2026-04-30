@@ -354,7 +354,11 @@
                           <div class="reservation-card-title font-weight-bold">
                             {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
                           </div>
+<<<<<<< HEAD
                           <div class="reservation-card-meta text-caption opacity-70">
+=======
+                          <div class="text-caption opacity-70">
+>>>>>>> f2843ca14a38754e9414f63cb9aa9148f8f79726
                             {{ reservationCounterpartyName(item) }}
                           </div>
                           <div class="reservation-card-meta text-caption opacity-70">
@@ -387,7 +391,11 @@
                           <div class="reservation-card-title font-weight-bold">
                             {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
                           </div>
+<<<<<<< HEAD
                           <div class="reservation-card-meta text-caption opacity-70">
+=======
+                          <div class="text-caption opacity-70">
+>>>>>>> f2843ca14a38754e9414f63cb9aa9148f8f79726
                             {{ reservationCounterpartyName(item) }}
                           </div>
                           <div class="reservation-card-meta text-caption opacity-70">
@@ -401,6 +409,7 @@
                       </div>
 
                       <template v-if="isClient">
+<<<<<<< HEAD
                         <div class="reservation-card-actions">
                           <v-btn
                             color="primary"
@@ -421,6 +430,27 @@
                             {{ copy.reservations.cancelReservation }}
                           </v-btn>
                         </div>
+=======
+                        <v-btn
+                          color="primary"
+                          variant="outlined"
+                          size="small"
+                          :loading="payingReservationId === item.rezervacija_id"
+                          @click="payReservation(item.rezervacija_id)"
+                        >
+                          {{ copy.reservations.payNow }}
+                        </v-btn>
+                        <v-btn
+                          color="error"
+                          variant="text"
+                          size="small"
+                          class="ms-2"
+                          :loading="cancellingReservationId === item.rezervacija_id"
+                          @click="openCancelDialog(item.rezervacija_id)"
+                        >
+                          {{ copy.reservations.cancelReservation }}
+                        </v-btn>
+>>>>>>> f2843ca14a38754e9414f63cb9aa9148f8f79726
                       </template>
                     </v-card-text>
                   </v-card>
