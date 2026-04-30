@@ -120,15 +120,21 @@
       <v-list nav density="comfortable">
         <v-list-item :title="t('app.nav.home')" prepend-icon="mdi-home" @click="goHomeFromDrawer" />
         <v-list-item :title="t('app.nav.map')" prepend-icon="mdi-map" @click="goMapFromDrawer" />
-        <v-list-subheader>{{ t('app.language.select') }}</v-list-subheader>
-        <v-list-item
-          v-for="language in supportedLanguages"
-          :key="`drawer-${language.code}`"
-          :active="language.code === locale"
-          @click="setLocale(language.code)"
-        >
-          <v-list-item-title>{{ language.nativeName }}</v-list-item-title>
-        </v-list-item>
+        <div class="drawer-language px-4 py-3">
+          <div class="text-caption drawer-language__label">{{ t('app.language.select') }}</div>
+          <v-select
+            v-model="mobileLocale"
+            :items="supportedLanguages"
+            item-title="nativeName"
+            item-value="code"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            rounded="xl"
+            class="drawer-language__select mt-2"
+            :aria-label="t('app.language.selectAria')"
+          />
+        </div>
         <v-list-item :title="themeToggleLabel" :prepend-icon="themeIcon" @click="toggleTheme" />
         <v-divider />
         <template v-if="user">
@@ -226,6 +232,10 @@ const { locale, currentLanguage, supportedLanguages, setLocale, t } = useLocale(
 const drawer = ref(false)
 const user = ref(null)
 const themeMode = ref('light')
+const mobileLocale = computed({
+  get: () => locale.value,
+  set: value => setLocale(value),
+})
 const year = computed(() => new Date().getFullYear())
 const themeIcon = computed(() => themeMode.value === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night')
 const themeToggleLabel = computed(() => themeMode.value === 'dark' ? t('app.theme.light') : t('app.theme.dark'))
@@ -499,6 +509,18 @@ function getUserDisplayName() {
 .is-disabled { opacity: 0.55; cursor: default; }
 .drawer {
   background: var(--er-drawer-bg);
+}
+
+.drawer-language__label {
+  color: var(--er-text-muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.drawer-language__select :deep(.v-field) {
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--er-surface) 92%, transparent);
 }
 
 .brand__title { font-weight: 800; line-height: 1.05; color: var(--er-text); }
