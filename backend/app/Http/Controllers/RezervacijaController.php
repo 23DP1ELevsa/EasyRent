@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Maksajums;
 use App\Models\Klients;
+use App\Models\PakalpojumuSniedzejs;
 use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
@@ -76,15 +77,39 @@ class RezervacijaController extends Controller
     {
         $this->cleanupExpiredUnpaidReservations();
 
-        $klients = $this->resolveAuthorizedClient($request);
-        if ($klients instanceof \Illuminate\Http\JsonResponse) {
-            return $klients;
+        $persona = $request->user();
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
         }
 
-        $rezervacijas = Rezervacija::with(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona'])
-            ->where('klients_id', $klients->klients_id)
-            ->orderByDesc('izveides_datums')
-            ->get();
+        $query = Rezervacija::with([
+            'klients.persona',
+            'transportlidzeklis.veids',
+            'transportlidzeklis.sniedzejs.persona',
+        ])->orderByDesc('izveides_datums');
+
+        if ($persona->loma === 'klients') {
+            $klients = $this->resolveAuthorizedClient($request);
+            if ($klients instanceof \Illuminate\Http\JsonResponse) {
+                return $klients;
+            }
+
+            $query->where('klients_id', $klients->klients_id);
+        } elseif ($persona->loma === 'pakalpojumu_sniedzejs') {
+            $sniedzejs = $this->resolveAuthorizedProvider($request);
+            if ($sniedzejs instanceof \Illuminate\Http\JsonResponse) {
+                return $sniedzejs;
+            }
+
+            $query->whereHas('transportlidzeklis', function ($transportQuery) use ($sniedzejs) {
+                $transportQuery->where('sniedzejs_id', $sniedzejs->sniedzejs_id);
+            });
+        } else {
+            return response()->json(['message' => 'Šī darbība nav pieejama šai lomai.'], 403);
+        }
+
+        $rezervacijas = $query->get();
 
         return response()->json($rezervacijas);
     }
@@ -236,5 +261,25 @@ class RezervacijaController extends Controller
         }
 
         return $klients;
+    }
+
+    private function resolveAuthorizedProvider(Request $request): PakalpojumuSniedzejs|\Illuminate\Http\JsonResponse
+    {
+        $persona = $request->user();
+
+        if (!$persona) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        if ($persona->loma !== 'pakalpojumu_sniedzejs') {
+            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+        }
+
+        $sniedzejs = $persona->pakalpojumuSniedzejs ?? $persona->pakalpojumu_sniedzejs;
+        if (!$sniedzejs) {
+            return response()->json(['message' => 'Pakalpojumu sniedzēja profils nav atrasts.'], 403);
+        }
+
+        return $sniedzejs;
     }
 }
