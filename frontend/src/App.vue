@@ -70,7 +70,7 @@
           <template v-if="user">
             <v-menu>
               <template #activator="{ props }">
-                <v-btn class="auth-btn" rounded="xl" elevation="6" v-bind="props">
+                <v-btn variant="text" class="profile-menu-btn" rounded="xl" v-bind="props">
                   <v-icon start>mdi-account</v-icon>
                   {{ getUserDisplayName() }}
                 </v-btn>
@@ -442,6 +442,16 @@ function getUserDisplayName() {
   border: 1px solid var(--er-auth-btn-border);
   color: var(--er-auth-btn-text);
   box-shadow: var(--er-auth-btn-shadow);
+}
+
+.profile-menu-btn {
+  color: var(--er-text) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+.profile-menu-btn:hover {
+  background: rgba(15, 118, 110, 0.08) !important;
 }
 
 .footer {

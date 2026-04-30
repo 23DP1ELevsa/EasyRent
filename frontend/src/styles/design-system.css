@@ -17,9 +17,9 @@
   --er-secondary-soft: rgba(201, 107, 59, 0.14);
   --er-success-soft: rgba(22, 163, 74, 0.14);
   --er-warning-soft: rgba(217, 119, 6, 0.14);
-  --er-shadow-sm: 0 12px 30px rgba(34, 51, 68, 0.08);
-  --er-shadow-md: 0 24px 60px rgba(34, 51, 68, 0.12);
-  --er-shadow-lg: 0 36px 100px rgba(25, 41, 55, 0.16);
+  --er-shadow-sm: 0 8px 20px rgba(34, 51, 68, 0.06);
+  --er-shadow-md: 0 16px 38px rgba(34, 51, 68, 0.09);
+  --er-shadow-lg: 0 24px 64px rgba(25, 41, 55, 0.12);
   --er-html-bg:
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 30%),
     radial-gradient(circle at 85% 10%, rgba(201, 107, 59, 0.16), transparent 28%),
@@ -36,7 +36,7 @@
   --er-auth-btn-bg: linear-gradient(135deg, rgba(15, 118, 110, 0.96), rgba(10, 88, 82, 0.96));
   --er-auth-btn-border: rgba(15, 118, 110, 0.48);
   --er-auth-btn-text: #f8fffd;
-  --er-auth-btn-shadow: 0 14px 28px rgba(15, 118, 110, 0.22);
+  --er-auth-btn-shadow: 0 10px 22px rgba(15, 118, 110, 0.16);
   --er-page-bg:
     radial-gradient(900px circle at 8% 12%, rgba(15, 118, 110, 0.12), transparent 42%),
     radial-gradient(700px circle at 90% 18%, rgba(201, 107, 59, 0.12), transparent 34%),
@@ -74,9 +74,9 @@
   --er-secondary-soft: rgba(240, 154, 109, 0.14);
   --er-success-soft: rgba(74, 222, 128, 0.16);
   --er-warning-soft: rgba(245, 158, 11, 0.16);
-  --er-shadow-sm: 0 12px 30px rgba(3, 7, 18, 0.28);
-  --er-shadow-md: 0 24px 60px rgba(3, 7, 18, 0.36);
-  --er-shadow-lg: 0 36px 100px rgba(3, 7, 18, 0.44);
+  --er-shadow-sm: 0 8px 20px rgba(3, 7, 18, 0.22);
+  --er-shadow-md: 0 16px 38px rgba(3, 7, 18, 0.28);
+  --er-shadow-lg: 0 24px 64px rgba(3, 7, 18, 0.34);
   --er-html-bg:
     radial-gradient(circle at top left, rgba(88, 199, 188, 0.12), transparent 28%),
     radial-gradient(circle at 85% 10%, rgba(240, 154, 109, 0.12), transparent 24%),
@@ -93,7 +93,7 @@
   --er-auth-btn-bg: linear-gradient(135deg, rgba(88, 199, 188, 0.96), rgba(50, 176, 163, 0.96));
   --er-auth-btn-border: rgba(88, 199, 188, 0.4);
   --er-auth-btn-text: #092127;
-  --er-auth-btn-shadow: 0 16px 30px rgba(3, 7, 18, 0.32);
+  --er-auth-btn-shadow: 0 12px 24px rgba(3, 7, 18, 0.24);
   --er-page-bg:
     radial-gradient(900px circle at 8% 12%, rgba(88, 199, 188, 0.1), transparent 42%),
     radial-gradient(700px circle at 90% 18%, rgba(240, 154, 109, 0.1), transparent 34%),

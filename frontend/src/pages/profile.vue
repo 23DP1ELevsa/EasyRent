@@ -22,12 +22,12 @@
 
               <div class="profile-stat-grid mt-6">
                 <div class="metric-pill">
-                  <strong>{{ loma === 'klients' ? activeReservations.length : copy.hints.active }}</strong>
-                  <span>{{ loma === 'klients' ? copy.stats.activePaid : copy.stats.accountStatus }}</span>
+                  <strong>{{ loma === 'klients' ? activeReservations.length : providerActiveReservations.length }}</strong>
+                  <span>{{ loma === 'klients' ? copy.stats.activePaid : copy.stats.bookedNow }}</span>
                 </div>
                 <div class="metric-pill">
-                  <strong>{{ loma === 'klients' ? unpaidReservations.length : (form.pilseta || copy.hints.none) }}</strong>
-                  <span>{{ loma === 'klients' ? copy.stats.unpaid : copy.stats.city }}</span>
+                  <strong>{{ loma === 'klients' ? unpaidReservations.length : providerPendingReservations.length }}</strong>
+                  <span>{{ loma === 'klients' ? copy.stats.unpaid : copy.stats.awaitingPayment }}</span>
                 </div>
                 <div class="metric-pill">
                   <strong>{{ form.kontakttalrunis || '—' }}</strong>
@@ -313,18 +313,17 @@
             </v-card-text>
           </v-card>
 
-          <!-- Reservations Card (Clients only) -->
-          <v-card v-if="loma === 'klients'" class="surface mt-6 profile-reservations" elevation="12">
+          <v-card v-if="showReservationsSection" class="surface mt-6 profile-reservations" elevation="12">
             <v-card-title class="pa-6 pa-sm-8">
               <div>
                 <div class="text-h5 font-weight-bold">{{ copy.reservations.title }}</div>
-                <div class="text-caption opacity-70 mt-1">{{ copy.reservations.subtitle }}</div>
+                <div class="text-caption opacity-70 mt-1">{{ reservationsSubtitle }}</div>
               </div>
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-6 pa-sm-8">
               <v-alert
-                v-if="unpaidReservations.length"
+                v-if="isClient && unpaidReservations.length"
                 type="warning"
                 variant="tonal"
                 class="mb-4"
@@ -338,13 +337,13 @@
               </div>
 
               <template v-else>
-                <div class="section-title mb-3">{{ copy.reservations.activeTitle }}</div>
+                <div class="section-title mb-3">{{ activeReservationsTitle }}</div>
 
-                <div v-if="!activeReservations.length" class="text-body-2 opacity-70 mb-4">{{ copy.reservations.noActive }}</div>
+                <div v-if="!visibleActiveReservations.length" class="text-body-2 opacity-70 mb-4">{{ activeReservationsEmptyText }}</div>
 
                 <div v-else class="d-flex flex-column ga-3 mb-6">
                   <v-card
-                    v-for="item in activeReservations"
+                    v-for="item in visibleActiveReservations"
                     :key="`active-${item.rezervacija_id}`"
                     class="reservation-card"
                     elevation="4"
@@ -356,7 +355,7 @@
                             {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
                           </div>
                           <div class="text-caption opacity-70">
-                            {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
+                            {{ reservationCounterpartyName(item) }}
                           </div>
                           <div class="text-caption opacity-70">
                             {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
@@ -371,13 +370,13 @@
                   </v-card>
                 </div>
 
-                <div class="section-title mb-3">{{ copy.reservations.unpaidTitle }}</div>
+                <div class="section-title mb-3">{{ pendingReservationsTitle }}</div>
 
-                <div v-if="!unpaidReservations.length" class="text-body-2 opacity-70">{{ copy.reservations.noUnpaid }}</div>
+                <div v-if="!visiblePendingReservations.length" class="text-body-2 opacity-70">{{ pendingReservationsEmptyText }}</div>
 
                 <div v-else class="d-flex flex-column ga-3">
                   <v-card
-                    v-for="item in unpaidReservations"
+                    v-for="item in visiblePendingReservations"
                     :key="`unpaid-${item.rezervacija_id}`"
                     class="reservation-card reservation-card-unpaid"
                     elevation="4"
@@ -389,7 +388,7 @@
                             {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
                           </div>
                           <div class="text-caption opacity-70">
-                            {{ item.transportlidzeklis?.sniedzejs?.persona?.vards }} {{ item.transportlidzeklis?.sniedzejs?.persona?.uzvards }}
+                            {{ reservationCounterpartyName(item) }}
                           </div>
                           <div class="text-caption opacity-70">
                             {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
@@ -401,25 +400,27 @@
                         </div>
                       </div>
 
-                      <v-btn
-                        color="primary"
-                        variant="outlined"
-                        size="small"
-                        :loading="payingReservationId === item.rezervacija_id"
-                        @click="payReservation(item.rezervacija_id)"
-                      >
-                        {{ copy.reservations.payNow }}
-                      </v-btn>
-                      <v-btn
-                        color="error"
-                        variant="text"
-                        size="small"
-                        class="ms-2"
-                        :loading="cancellingReservationId === item.rezervacija_id"
-                        @click="openCancelDialog(item.rezervacija_id)"
-                      >
-                        {{ copy.reservations.cancelReservation }}
-                      </v-btn>
+                      <template v-if="isClient">
+                        <v-btn
+                          color="primary"
+                          variant="outlined"
+                          size="small"
+                          :loading="payingReservationId === item.rezervacija_id"
+                          @click="payReservation(item.rezervacija_id)"
+                        >
+                          {{ copy.reservations.payNow }}
+                        </v-btn>
+                        <v-btn
+                          color="error"
+                          variant="text"
+                          size="small"
+                          class="ms-2"
+                          :loading="cancellingReservationId === item.rezervacija_id"
+                          @click="openCancelDialog(item.rezervacija_id)"
+                        >
+                          {{ copy.reservations.cancelReservation }}
+                        </v-btn>
+                      </template>
                     </v-card-text>
                   </v-card>
                 </div>
@@ -460,6 +461,8 @@ const router = useRouter()
 const { t, getIntlLocale } = useLocale()
 const { notifyError, notifySuccess } = useNotifications()
 const copy = computed(() => t('profile'))
+const isClient = computed(() => loma.value === 'klients')
+const isProvider = computed(() => loma.value === 'pakalpojumu_sniedzejs')
 // Profila lapas pamatstāvoklis un UI darbību statusi.
 const formRef = ref(null)
 const loading = ref(false)
@@ -594,6 +597,14 @@ const unpaidReservations = computed(() =>
   reservations.value.filter(item => item.apmaksas_statuss !== 'apmaksata')
 )
 
+const providerPendingReservations = computed(() => {
+  const now = new Date()
+  return reservations.value.filter(item => {
+    const end = new Date(item.beigu_laiks)
+    return item.apmaksas_statuss !== 'apmaksata' && !Number.isNaN(end.getTime()) && end >= now
+  })
+})
+
 const activeReservations = computed(() => {
   const now = new Date()
   return reservations.value.filter(item => {
@@ -602,6 +613,24 @@ const activeReservations = computed(() => {
     return !Number.isNaN(end.getTime()) && end >= now
   })
 })
+
+const providerActiveReservations = computed(() => {
+  const now = new Date()
+  return reservations.value.filter(item => {
+    if (item.apmaksas_statuss !== 'apmaksata') return false
+    const end = new Date(item.beigu_laiks)
+    return !Number.isNaN(end.getTime()) && end >= now
+  })
+})
+
+const showReservationsSection = computed(() => isClient.value || isProvider.value)
+const visibleActiveReservations = computed(() => isProvider.value ? providerActiveReservations.value : activeReservations.value)
+const visiblePendingReservations = computed(() => isProvider.value ? providerPendingReservations.value : unpaidReservations.value)
+const reservationsSubtitle = computed(() => isProvider.value ? copy.value.reservations.providerSubtitle : copy.value.reservations.subtitle)
+const activeReservationsTitle = computed(() => isProvider.value ? copy.value.reservations.providerActiveTitle : copy.value.reservations.activeTitle)
+const pendingReservationsTitle = computed(() => isProvider.value ? copy.value.reservations.providerPendingTitle : copy.value.reservations.unpaidTitle)
+const activeReservationsEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderActive : copy.value.reservations.noActive)
+const pendingReservationsEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderPending : copy.value.reservations.noUnpaid)
 
 // Ielādē lietotāja datus no sesijas un aizpilda formu.
 onMounted(() => {
@@ -660,12 +689,13 @@ async function initializeProfile() {
         longitude: form.value.longitude,
       }
     }
+    loadReservations()
   }
 }
 
 // Ielādē klienta rezervācijas no API.
 async function loadReservations(klientsId) {
-  if (!klientsId) return
+  if (isClient.value && !klientsId) return
   reservationsLoading.value = true
   reservationsError.value = ''
   try {
@@ -753,6 +783,18 @@ function formatDateTime(value) {
 function formatPrice(value) {
   const num = Number(value || 0)
   return `${num.toFixed(2)} €`
+}
+
+function reservationCounterpartyName(item) {
+  if (isProvider.value) {
+    const clientPersona = item?.klients?.persona
+    const fullName = `${clientPersona?.vards || ''} ${clientPersona?.uzvards || ''}`.trim()
+    return fullName || copy.value.roles.client
+  }
+
+  const providerPersona = item?.transportlidzeklis?.sniedzejs?.persona
+  const fullName = `${providerPersona?.vards || ''} ${providerPersona?.uzvards || ''}`.trim()
+  return fullName || copy.value.roles.provider
 }
 
 function buildFullAddress() {
@@ -969,7 +1011,7 @@ function logout() {
 }
 
 .surface:hover {
-  box-shadow: 0 24px 54px rgba(25, 41, 55, 0.12);
+  box-shadow: 0 18px 40px rgba(25, 41, 55, 0.08);
 }
 
 .profile-header {

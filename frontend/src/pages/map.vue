@@ -202,7 +202,7 @@
 									<div v-if="!selectedPoint.vehicles.length" class="text-body-2 opacity-70">{{ copy.noVehicles }}</div>
 									<div v-else class="d-flex flex-column ga-3">
 										<div
-											v-for="vehicle in selectedPoint.vehicles"
+											v-for="vehicle in pagedSelectedPointVehicles"
 											:key="vehicle.transportlidzeklis_id"
 											class="vehicle-row"
 											:class="{
@@ -268,6 +268,25 @@
 													{{ copy.edit }}
 												</v-btn>
 											</div>
+										</div>
+										<div v-if="selectedPointVehiclePageCount > 1" class="vehicle-pagination">
+											<v-btn
+												icon="mdi-chevron-left"
+												variant="text"
+												size="small"
+												:disabled="selectedPointVehiclePage <= 1"
+												:aria-label="copy.previousPage"
+												@click="selectedPointVehiclePage -= 1"
+											/>
+											<span class="vehicle-pagination__info">{{ selectedPointVehiclePage }} / {{ selectedPointVehiclePageCount }}</span>
+											<v-btn
+												icon="mdi-chevron-right"
+												variant="text"
+												size="small"
+												:disabled="selectedPointVehiclePage >= selectedPointVehiclePageCount"
+												:aria-label="copy.nextPage"
+												@click="selectedPointVehiclePage += 1"
+											/>
 										</div>
 									</div>
 								</v-card-text>
@@ -1174,7 +1193,19 @@ const filteredPoints = computed(() => {
 
 const selectedPointId = ref(null)
 const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
+const selectedPointVehiclePage = ref(1)
 const pointCoordsOverride = ref({})
+
+const selectedPointVehiclePageCount = computed(() => {
+	const total = selectedPoint.value?.vehicles?.length || 0
+	return Math.max(1, Math.ceil(total / 5))
+})
+
+const pagedSelectedPointVehicles = computed(() => {
+	const vehicles = selectedPoint.value?.vehicles || []
+	const start = (selectedPointVehiclePage.value - 1) * 5
+	return vehicles.slice(start, start + 5)
+})
 
 // Punktiem bez koordinātēm izmanto geokodētas vai sintētiskas rezerves koordinātas.
 const mappablePoints = computed(() => {
@@ -1359,6 +1390,7 @@ function passesVehicleFilters(vehicle) {
 
 function selectPoint(id) {
 	selectedPointId.value = id
+	selectedPointVehiclePage.value = 1
 }
 
 function openCompany(companyId) {
@@ -2044,6 +2076,16 @@ watch(filteredPoints, () => {
 	nextTick().then(renderMarkers)
 })
 
+watch(() => selectedPoint.value?.id, () => {
+	selectedPointVehiclePage.value = 1
+})
+
+watch(selectedPointVehiclePageCount, pageCount => {
+	if (selectedPointVehiclePage.value > pageCount) {
+		selectedPointVehiclePage.value = pageCount
+	}
+})
+
 watch(availableStartTimeOptions, options => {
 	if (!options.length) return
 	if (!options.includes(reservationStartTime.value)) {
@@ -2068,8 +2110,11 @@ watch(drawer, async () => {
 .map-page {
 	position: relative;
 	height: calc(100vh - 72px);
+	height: calc(100svh - 72px);
+	height: calc(100dvh - 72px);
 	width: 100%;
 	background: var(--er-page-bg);
+	overflow: hidden;
 }
 
 .surface {
@@ -2092,7 +2137,7 @@ watch(drawer, async () => {
 	top: 24px;
 	left: 16px;
 	z-index: 500;
-	box-shadow: 0 16px 34px rgba(25, 41, 55, 0.16);
+	box-shadow: var(--er-shadow-sm);
 }
 
 .map-hud-toggle {
@@ -2178,7 +2223,7 @@ watch(drawer, async () => {
 
 .floating-actions {
 	position: absolute;
-	bottom: 32px;
+	bottom: calc(20px + env(safe-area-inset-bottom));
 	right: 16px;
 	display: flex;
 	gap: 8px;
@@ -2200,14 +2245,14 @@ watch(drawer, async () => {
 
 :deep(.leaflet-control-zoom) {
 	top: auto;
-	bottom: 46px;
+	bottom: calc(38px + env(safe-area-inset-bottom));
 	right: 16px;
 	left: auto;
 }
 
 :deep(.leaflet-top.leaflet-right) {
 	top: auto;
-	bottom: 46px;
+	bottom: calc(38px + env(safe-area-inset-bottom));
 }
 
 .map-drawer {
@@ -2249,6 +2294,8 @@ watch(drawer, async () => {
 	padding: 16px;
 	overflow-y: auto;
 	max-height: calc(100vh - 72px - 120px);
+	max-height: calc(100svh - 72px - 120px);
+	max-height: calc(100dvh - 72px - 120px);
 }
 
 .drawer-panels,
@@ -2357,6 +2404,21 @@ watch(drawer, async () => {
 	flex-wrap: wrap;
 }
 
+.vehicle-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding-top: 4px;
+}
+
+.vehicle-pagination__info {
+	min-width: 52px;
+	text-align: center;
+	font-size: 0.88rem;
+	color: var(--er-text-muted);
+}
+
 .status-chip-unavailable {
 	border: 1px solid #dc2626 !important;
 	background: #fee2e2 !important;
@@ -2436,12 +2498,14 @@ watch(drawer, async () => {
 @media (max-width: 640px) {
 	.map-page {
 		height: calc(100vh - 72px);
+		height: calc(100svh - 72px);
+		height: calc(100dvh - 72px);
 	}
 
 	.floating-actions {
 		left: 16px;
 		right: 16px;
-		bottom: 20px;
+		bottom: calc(14px + env(safe-area-inset-bottom));
 		justify-content: stretch;
 	}
 
