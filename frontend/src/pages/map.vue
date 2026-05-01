@@ -146,14 +146,6 @@
 								<div class="text-subtitle-1 font-weight-bold">{{ copy.rentalPoints }}</div>
 								<div class="d-flex align-center ga-2">
 									<v-chip size="small" color="primary" variant="tonal">{{ filteredPoints.length }}</v-chip>
-									<v-chip
-										size="small"
-										color="amber"
-										variant="tonal"
-										v-if="overallReviewCount > 0"
-									>
-										★ {{ overallReviewAverage.toFixed(1) }} ({{ overallReviewCount }})
-									</v-chip>
 								</div>
 							</div>
 						</v-expansion-panel-title>
@@ -177,9 +169,20 @@
 													<div class="point-card-address text-caption opacity-70">{{ point.address }}</div>
 													<div class="point-card-city text-caption opacity-70">{{ point.city }}</div>
 												</div>
-												<v-chip class="point-card-chip" size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
-													{{ point.availableCount }}/{{ point.vehicles.length }}
-												</v-chip>
+												<div class="d-flex align-center ga-2">
+													<v-chip
+														v-if="point.reviewCount > 0"
+														class="point-card-chip"
+														size="small"
+														color="amber"
+														variant="tonal"
+													>
+														★ {{ point.reviewAverage.toFixed(1) }} ({{ point.reviewCount }})
+													</v-chip>
+													<v-chip class="point-card-chip" size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
+														{{ point.availableCount }}/{{ point.vehicles.length }}
+													</v-chip>
+												</div>
 											</div>
 											<div class="text-caption mt-2" v-if="!point.hasCoords">{{ copy.noMapCoords }}</div>
 										</v-card-text>
@@ -1140,6 +1143,27 @@ function formatProviderAddress(provider) {
 	return [street, houseWithApartment].filter(Boolean).join(' ')
 }
 
+function buildVehicleReviewStats(vehicles) {
+	const reviewCount = vehicles.reduce((total, vehicle) => total + Number(vehicle.atsauksmju_skaits || 0), 0)
+	if (!reviewCount) {
+		return {
+			reviewCount: 0,
+			reviewAverage: 0,
+		}
+	}
+
+	const weightedTotal = vehicles.reduce((total, vehicle) => {
+		const count = Number(vehicle.atsauksmju_skaits || 0)
+		const average = Number(vehicle.videjais_vertejums || 0)
+		return total + (average * count)
+	}, 0)
+
+	return {
+		reviewCount,
+		reviewAverage: weightedTotal / reviewCount,
+	}
+}
+
 const points = computed(() => {
 	const map = new Map()
 	transportItems.value.forEach(item => {
@@ -1168,6 +1192,7 @@ const points = computed(() => {
 
 	return Array.from(map.values()).map(point => ({
 		...point,
+		...buildVehicleReviewStats(point.vehicles),
 		availableCount: point.vehicles.filter(v => isVehicleAvailable(v)).length,
 	}))
 })
@@ -1187,6 +1212,7 @@ const filteredPoints = computed(() => {
 	}).map(point => ({
 		...point,
 		vehicles: point.vehicles.filter(vehicle => passesVehicleFilters(vehicle)),
+		...buildVehicleReviewStats(point.vehicles.filter(vehicle => passesVehicleFilters(vehicle))),
 		availableCount: point.vehicles.filter(vehicle => isVehicleAvailable(vehicle) && passesVehicleFilters(vehicle)).length,
 	}))
 })
@@ -1259,21 +1285,6 @@ const reservationPeriodText = computed(() => {
 		return 'Beigu laikam jābūt pēc sākuma laika.'
 	}
 	return `${formatDateTime(start)} → ${formatDateTime(end)}`
-})
-
-const overallReviewCount = computed(() => {
-	return transportItems.value.reduce((total, vehicle) => total + Number(vehicle.atsauksmju_skaits || 0), 0)
-})
-
-const overallReviewAverage = computed(() => {
-	const weightedTotal = transportItems.value.reduce((total, vehicle) => {
-		const count = Number(vehicle.atsauksmju_skaits || 0)
-		const avg = Number(vehicle.videjais_vertejums || 0)
-		return total + (avg * count)
-	}, 0)
-
-	if (!overallReviewCount.value) return 0
-	return weightedTotal / overallReviewCount.value
 })
 
 const ownReview = computed(() => {
