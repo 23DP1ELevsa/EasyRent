@@ -171,13 +171,13 @@
 										@click="selectPoint(point.id)"
 									>
 										<v-card-text class="pa-4">
-											<div class="point-card-header d-flex align-center justify-space-between">
-												<div>
-													<div class="text-subtitle-1 font-weight-bold">{{ point.name }}</div>
-													<div class="text-caption opacity-70">{{ point.address }}</div>
-													<div class="text-caption opacity-70">{{ point.city }}</div>
+											<div class="point-card-header">
+												<div class="point-card-copy">
+													<div class="point-card-name text-subtitle-1 font-weight-bold">{{ point.name }}</div>
+													<div class="point-card-address text-caption opacity-70">{{ point.address }}</div>
+													<div class="point-card-city text-caption opacity-70">{{ point.city }}</div>
 												</div>
-												<v-chip size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
+												<v-chip class="point-card-chip" size="small" :color="point.availableCount ? 'success' : 'grey'" variant="tonal">
 													{{ point.availableCount }}/{{ point.vehicles.length }}
 												</v-chip>
 											</div>
@@ -2337,10 +2337,28 @@ watch(drawer, async () => {
 }
 
 .point-card-header {
-	justify-content: center;
-	text-align: center;
-	gap: 10px;
-	flex-wrap: wrap;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+}
+
+.point-card-copy {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.point-card-name,
+.point-card-address,
+.point-card-city {
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.point-card-chip {
+	flex: 0 0 auto;
+	align-self: flex-start;
 }
 
 .selected-point-title {
