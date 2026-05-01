@@ -6,6 +6,8 @@ EasyRent ir pilna steka tīmekļa projekts ar:
 
 Šis README apraksta, kā no nulles palaist projektu lokāli.
 
+Programmu var izmantot arī tiešsaistē: `https://easy-rent-gamma.vercel.app`
+
 ## Prasības
 
 - PHP `8.2+`
