@@ -52,10 +52,22 @@
 		</v-expand-transition>
 
 		<div class="floating-actions">
-			<v-btn size="small" class="action-btn" @click="locateUser">
+			<v-btn
+				size="small"
+				class="action-btn"
+				@click.stop="locateUser"
+				@pointerdown.stop
+				@touchstart.stop
+			>
 				{{ copy.nearMe }}
 			</v-btn>
-			<v-btn size="small" class="action-btn" @click="resetMap">
+			<v-btn
+				size="small"
+				class="action-btn"
+				@click.stop="resetMap"
+				@pointerdown.stop
+				@touchstart.stop
+			>
 				{{ copy.reset }}
 			</v-btn>
 		</div>
@@ -2248,7 +2260,8 @@ watch(drawer, async () => {
 	right: 16px;
 	display: flex;
 	gap: 8px;
-	z-index: 400;
+	z-index: 1001;
+	pointer-events: none;
 }
 
 .action-btn {
@@ -2257,6 +2270,8 @@ watch(drawer, async () => {
 	border: 1px solid var(--er-stroke);
 	backdrop-filter: blur(8px);
 	box-shadow: var(--er-shadow-sm);
+	pointer-events: auto;
+	touch-action: manipulation;
 }
 
 .action-btn:hover {
