@@ -1391,10 +1391,20 @@ function upsertReservationInTransportState(reservationItem) {
 }
 
 // Vienota transporta filtrēšanas loģika sarakstam un kartes punktiem.
+function normalizePriceFilter(value) {
+	if (value === '' || value === null || value === undefined) return null
+	const parsed = Number(value)
+	return Number.isFinite(parsed) ? parsed : null
+}
+
 function passesVehicleFilters(vehicle) {
+	const minPrice = normalizePriceFilter(filters.value.minPrice)
+	const maxPrice = normalizePriceFilter(filters.value.maxPrice)
+	const vehiclePrice = Number(vehicle.dienas_nomas_cena)
+
 	if (filters.value.typeId && vehicle.veids_id !== filters.value.typeId) return false
-	if (filters.value.minPrice !== null && Number(vehicle.dienas_nomas_cena) < Number(filters.value.minPrice)) return false
-	if (filters.value.maxPrice !== null && Number(vehicle.dienas_nomas_cena) > Number(filters.value.maxPrice)) return false
+	if (minPrice !== null && vehiclePrice < minPrice) return false
+	if (maxPrice !== null && vehiclePrice > maxPrice) return false
 	if (filters.value.onlyAvailable && !isVehicleAvailable(vehicle)) return false
 	return true
 }

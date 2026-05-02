@@ -16,6 +16,11 @@
                 <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
                 <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
                 <div class="text-body-2 opacity-80">{{ company.city }}</div>
+                <div v-if="company.phone" class="text-body-2 mt-2">
+                  <a :href="`tel:${company.phone}`" class="company-phone-link">
+                    {{ copy.phoneLabel }}: {{ company.phone }}
+                  </a>
+                </div>
               </div>
               <div class="company-hero__stats">
                 <div class="metric-pill">
@@ -714,6 +719,7 @@ const company = computed(() => {
 
   const sniedzejs = firstVehicle.sniedzejs
   const persona = sniedzejs.persona
+  const phone = typeof persona?.kontakttalrunis === 'string' ? persona.kontakttalrunis.trim() : ''
   const name = persona
     ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
     : `Pakalpojumu sniedzējs #${sniedzejs.sniedzejs_id}`
@@ -723,6 +729,7 @@ const company = computed(() => {
     name,
     address: address || 'Nav norādīta adrese',
     city: sniedzejs.pilseta || 'Nav norādīta pilsēta',
+    phone,
   }
 })
 
@@ -1041,6 +1048,16 @@ watch(availableEndTimeOptions, options => {
 .company-hero__stats {
   display: grid;
   gap: 12px;
+}
+
+.company-phone-link {
+  color: var(--er-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.company-phone-link:hover {
+  text-decoration: underline;
 }
 
 .company-toolbar {
