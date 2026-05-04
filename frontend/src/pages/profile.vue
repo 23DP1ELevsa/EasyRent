@@ -357,6 +357,9 @@
                           <div class="reservation-card-meta text-caption opacity-70">
                             {{ reservationCounterpartyName(item) }}
                           </div>
+                          <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
+                            {{ reservationVehicleDetails(item) }}
+                          </div>
                           <div class="reservation-card-meta text-caption opacity-70">
                             {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
                           </div>
@@ -390,6 +393,9 @@
                           <div class="reservation-card-meta text-caption opacity-70">
                             {{ reservationCounterpartyName(item) }}
                           </div>
+                          <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
+                            {{ reservationVehicleDetails(item) }}
+                          </div>
                           <div class="reservation-card-meta text-caption opacity-70">
                             {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
                           </div>
@@ -422,6 +428,45 @@
                           </v-btn>
                         </div>
                       </template>
+                    </v-card-text>
+                  </v-card>
+                </div>
+
+                <div class="section-title mt-6 mb-3">{{ reservationHistoryTitle }}</div>
+
+                <div v-if="!reservationHistory.length" class="text-body-2 opacity-70">{{ reservationHistoryEmptyText }}</div>
+
+                <div v-else class="d-flex flex-column ga-3">
+                  <v-card
+                    v-for="item in reservationHistory"
+                    :key="`history-${item.rezervacija_id}`"
+                    class="reservation-card reservation-card-history"
+                    elevation="4"
+                  >
+                    <v-card-text class="pa-4">
+                      <div class="reservation-card-layout">
+                        <div class="reservation-card-main">
+                          <div class="reservation-card-title font-weight-bold">
+                            {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          </div>
+                          <div class="reservation-card-meta text-caption opacity-70">
+                            {{ reservationCounterpartyName(item) }}
+                          </div>
+                          <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
+                            {{ reservationVehicleDetails(item) }}
+                          </div>
+                          <div class="reservation-card-meta text-caption opacity-70">
+                            {{ copy.reservations.bookedAt }}: {{ reservationBookedAt(item) }}
+                          </div>
+                          <div class="reservation-card-meta text-caption opacity-70">
+                            {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
+                          </div>
+                        </div>
+                        <div class="reservation-card-price">
+                          <div class="reservation-card-amount font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
+                          <v-chip size="small" color="info" variant="tonal">{{ copy.reservations.historyDone }}</v-chip>
+                        </div>
+                      </div>
                     </v-card-text>
                   </v-card>
                 </div>
@@ -624,6 +669,14 @@ const providerActiveReservations = computed(() => {
   })
 })
 
+const reservationHistory = computed(() => {
+  const now = new Date()
+  return reservations.value.filter(item => {
+    const end = new Date(item.beigu_laiks)
+    return !Number.isNaN(end.getTime()) && end < now
+  })
+})
+
 const showReservationsSection = computed(() => isClient.value || isProvider.value)
 const visibleActiveReservations = computed(() => isProvider.value ? providerActiveReservations.value : activeReservations.value)
 const visiblePendingReservations = computed(() => isProvider.value ? providerPendingReservations.value : unpaidReservations.value)
@@ -632,6 +685,8 @@ const activeReservationsTitle = computed(() => isProvider.value ? copy.value.res
 const pendingReservationsTitle = computed(() => isProvider.value ? copy.value.reservations.providerPendingTitle : copy.value.reservations.unpaidTitle)
 const activeReservationsEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderActive : copy.value.reservations.noActive)
 const pendingReservationsEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderPending : copy.value.reservations.noUnpaid)
+const reservationHistoryTitle = computed(() => isProvider.value ? copy.value.reservations.providerHistoryTitle : copy.value.reservations.historyTitle)
+const reservationHistoryEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderHistory : copy.value.reservations.noHistory)
 
 // Ielādē lietotāja datus no sesijas un aizpilda formu.
 onMounted(() => {
@@ -784,6 +839,28 @@ function formatDateTime(value) {
 function formatPrice(value) {
   const num = Number(value || 0)
   return `${num.toFixed(2)} €`
+}
+
+function normalizeVehicleField(value) {
+  if (value === null || value === undefined) return ''
+  const normalized = String(value).trim()
+  return normalized && normalized !== '-' ? normalized : ''
+}
+
+function reservationVehicleDetails(item) {
+  const vehicle = item?.transportlidzeklis
+  if (!vehicle) return ''
+
+  return [
+    [copy.value.vehicleFields.type, vehicle.veids?.nosaukums],
+    [copy.value.vehicleFields.gearbox, normalizeVehicleField(vehicle.atrumkarba)],
+    [copy.value.vehicleFields.fuel, normalizeVehicleField(vehicle.degvielas_veids)],
+    [copy.value.vehicleFields.registrationNumber, normalizeVehicleField(vehicle.registracijas_numurs)],
+  ].filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`).join(' • ')
+}
+
+function reservationBookedAt(item) {
+  return formatDateTime(item?.izveides_datums || item?.rezervacijas_datums || item?.sakuma_laiks)
 }
 
 function reservationCounterpartyName(item) {
@@ -1106,9 +1183,18 @@ function logout() {
   color: var(--er-text);
 }
 
+.reservation-card-history {
+  border-color: rgba(14, 116, 144, 0.26);
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(232, 244, 255, 0.88));
+  color: var(--er-text);
+}
+
 .reservation-card-unpaid :deep(.v-card-text),
+.reservation-card-history :deep(.v-card-text),
 .reservation-card-unpaid .font-weight-bold,
+.reservation-card-history .font-weight-bold,
 .reservation-card-unpaid .text-caption,
+.reservation-card-history .text-caption,
 .reservation-card-unpaid .text-body-2 {
   color: inherit !important;
 }
@@ -1119,9 +1205,18 @@ function logout() {
   color: var(--er-text);
 }
 
+:root[data-theme='dark'] .reservation-card-history {
+  border-color: rgba(56, 189, 248, 0.24);
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.9), rgba(12, 34, 56, 0.96));
+  color: var(--er-text);
+}
+
 :root[data-theme='dark'] .reservation-card-unpaid :deep(.v-card-text),
+:root[data-theme='dark'] .reservation-card-history :deep(.v-card-text),
 :root[data-theme='dark'] .reservation-card-unpaid .font-weight-bold,
+:root[data-theme='dark'] .reservation-card-history .font-weight-bold,
 :root[data-theme='dark'] .reservation-card-unpaid .text-caption,
+:root[data-theme='dark'] .reservation-card-history .text-caption,
 :root[data-theme='dark'] .reservation-card-unpaid .text-body-2 {
   color: var(--er-text) !important;
 }

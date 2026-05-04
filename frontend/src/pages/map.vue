@@ -121,6 +121,26 @@
 								density="compact"
 								clearable
 							/>
+							<v-select
+								v-model="filters.gearbox"
+								:items="publicGearboxOptions"
+								item-title="title"
+								item-value="value"
+								:label="copy.filterLabels.gearbox"
+								variant="outlined"
+								density="compact"
+								clearable
+							/>
+							<v-select
+								v-model="filters.fuel"
+								:items="publicFuelOptions"
+								item-title="title"
+								item-value="value"
+								:label="copy.filterLabels.fuel"
+								variant="outlined"
+								density="compact"
+								clearable
+							/>
 							<v-row dense>
 								<v-col cols="6">
 									<v-text-field
@@ -232,6 +252,12 @@
 												</div>
 												<div class="text-caption opacity-70">
 													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
+												</div>
+												<div class="vehicle-detail-list mt-2">
+													<div v-for="detail in buildVehicleDetails(vehicle)" :key="detail.label" class="vehicle-detail-chip">
+														<span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
+														<span>{{ detail.value }}</span>
+													</div>
 												</div>
 												<div class="vehicle-rating mt-1">
 													<v-rating
@@ -751,6 +777,8 @@ const filters = ref({
 	q: '',
 	typeId: null,
 	companyId: null,
+	gearbox: null,
+	fuel: null,
 	minPrice: null,
 	maxPrice: null,
 	onlyAvailable: false,
@@ -1110,6 +1138,8 @@ const providerId = computed(() =>
 const typeOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
 const vehicleTypeSelectOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
 const selectedVehicleTypeToEdit = computed(() => transportTypes.value.find(type => type.veids_id === editingVehicleTypeId.value) || null)
+const publicGearboxOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'atrumkarba'))
+const publicFuelOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'degvielas_veids'))
 
 function toValidCoordinate(value, type) {
 	if (value === null || value === undefined || value === '') return null
@@ -1129,6 +1159,30 @@ function getPointFallbackCoords(pointId) {
 		lat: baseLat + offset,
 		lng: baseLng - offset,
 	}
+}
+
+function normalizeVehicleField(value) {
+	if (value === null || value === undefined) return ''
+	const normalized = String(value).trim()
+	return normalized && normalized !== '-' ? normalized : ''
+}
+
+function buildVehicleAttributeOptions(vehicles, fieldName) {
+	const map = new Map()
+	vehicles.forEach(vehicle => {
+		const value = normalizeVehicleField(vehicle?.[fieldName])
+		if (!value || map.has(value)) return
+		map.set(value, { title: value, value })
+	})
+	return Array.from(map.values())
+}
+
+function buildVehicleDetails(vehicle) {
+	return [
+		{ label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
+		{ label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
+		{ label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
+	].filter(detail => detail.value)
 }
 
 // Pārvērš API transporta sarakstu kompāniju punktos kartei/sarakstam.
@@ -1415,6 +1469,8 @@ function passesVehicleFilters(vehicle) {
 	const vehiclePrice = Number(vehicle.dienas_nomas_cena)
 
 	if (filters.value.typeId && vehicle.veids_id !== filters.value.typeId) return false
+	if (filters.value.gearbox && normalizeVehicleField(vehicle.atrumkarba) !== filters.value.gearbox) return false
+	if (filters.value.fuel && normalizeVehicleField(vehicle.degvielas_veids) !== filters.value.fuel) return false
 	if (minPrice !== null && vehiclePrice < minPrice) return false
 	if (maxPrice !== null && vehiclePrice > maxPrice) return false
 	if (filters.value.onlyAvailable && !isVehicleAvailable(vehicle)) return false
@@ -2448,6 +2504,31 @@ watch(drawer, async () => {
 	width: 100%;
 	justify-content: center;
 	flex-wrap: wrap;
+}
+
+.vehicle-detail-list {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.vehicle-detail-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: var(--er-panel-soft);
+	border: 1px solid var(--er-stroke);
+	font-size: 0.78rem;
+	line-height: 1.1;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.vehicle-detail-chip__label {
+	font-weight: 700;
 }
 
 .vehicle-rating {

@@ -60,7 +60,7 @@
               </div>
 
               <v-expand-transition>
-                <v-card v-if="showFilters" class="mb-4" variant="outlined">
+                <v-card v-if="showFilters" class="mb-4 company-panel-card">
                   <v-card-text class="pb-2">
                     <v-row dense>
                       <v-col cols="12" md="6">
@@ -79,6 +79,30 @@
                           item-title="title"
                           item-value="value"
                           :label="copy.filterLabels.type"
+                          variant="outlined"
+                          density="compact"
+                          clearable
+                        />
+                      </v-col>
+                      <v-col cols="12" sm="6" md="3">
+                        <v-select
+                          v-model="vehicleFilters.gearbox"
+                          :items="gearboxOptions"
+                          item-title="title"
+                          item-value="value"
+                          :label="copy.filterLabels.gearbox"
+                          variant="outlined"
+                          density="compact"
+                          clearable
+                        />
+                      </v-col>
+                      <v-col cols="12" sm="6" md="3">
+                        <v-select
+                          v-model="vehicleFilters.fuel"
+                          :items="fuelOptions"
+                          item-title="title"
+                          item-value="value"
+                          :label="copy.filterLabels.fuel"
                           variant="outlined"
                           density="compact"
                           clearable
@@ -122,7 +146,7 @@
               </v-expand-transition>
 
               <v-expand-transition>
-                <v-card v-if="showSorting" class="mb-4" variant="outlined">
+                <v-card v-if="showSorting" class="mb-4 company-panel-card">
                   <v-card-text class="pb-2">
                     <v-row dense>
                       <v-col cols="12" md="6">
@@ -162,6 +186,12 @@
                   </div>
                   <div class="text-body-2 opacity-80 mb-1">
                     {{ vehicle.veids?.nosaukums || copy.typeNotProvided }}
+                  </div>
+                  <div class="vehicle-card__details mb-2">
+                    <div v-for="detail in buildVehicleDetails(vehicle)" :key="detail.label" class="vehicle-detail-chip">
+                      <span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
+                      <span>{{ detail.value }}</span>
+                    </div>
                   </div>
                   <div class="text-body-2 mb-2">
                     {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
@@ -588,6 +618,8 @@ const showSorting = ref(false)
 const vehicleFilters = ref({
   q: '',
   typeId: null,
+  gearbox: null,
+  fuel: null,
   minPrice: null,
   maxPrice: null,
   onlyAvailable: false,
@@ -617,6 +649,26 @@ const vehicleTypeOptions = computed(() => {
   return Array.from(map.values())
 })
 
+const gearboxOptions = computed(() => {
+  const map = new Map()
+  vehicles.value.forEach(vehicle => {
+    const value = normalizeVehicleField(vehicle.atrumkarba)
+    if (!value || map.has(value)) return
+    map.set(value, { title: value, value })
+  })
+  return Array.from(map.values())
+})
+
+const fuelOptions = computed(() => {
+  const map = new Map()
+  vehicles.value.forEach(vehicle => {
+    const value = normalizeVehicleField(vehicle.degvielas_veids)
+    if (!value || map.has(value)) return
+    map.set(value, { title: value, value })
+  })
+  return Array.from(map.values())
+})
+
 const filteredSortedVehicles = computed(() => {
   const q = vehicleFilters.value.q.trim().toLowerCase()
 
@@ -627,6 +679,14 @@ const filteredSortedVehicles = computed(() => {
     }
 
     if (vehicleFilters.value.typeId && vehicle.veids_id !== vehicleFilters.value.typeId) {
+      return false
+    }
+
+    if (vehicleFilters.value.gearbox && normalizeVehicleField(vehicle.atrumkarba) !== vehicleFilters.value.gearbox) {
+      return false
+    }
+
+    if (vehicleFilters.value.fuel && normalizeVehicleField(vehicle.degvielas_veids) !== vehicleFilters.value.fuel) {
       return false
     }
 
@@ -736,6 +796,20 @@ const company = computed(() => {
 function formatPrice(value) {
   const num = Number(value || 0)
   return `${num.toFixed(2)} €`
+}
+
+function normalizeVehicleField(value) {
+  if (value === null || value === undefined) return ''
+  const normalized = String(value).trim()
+  return normalized && normalized !== '-' ? normalized : ''
+}
+
+function buildVehicleDetails(vehicle) {
+  return [
+    { label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
+    { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
+    { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
+  ].filter(detail => detail.value)
 }
 
 function formatCompanyAddress(provider) {
@@ -855,6 +929,8 @@ function resetVehicleFilters() {
   vehicleFilters.value = {
     q: '',
     typeId: null,
+    gearbox: null,
+    fuel: null,
     minPrice: null,
     maxPrice: null,
     onlyAvailable: false,
@@ -1069,6 +1145,18 @@ watch(availableEndTimeOptions, options => {
   margin-left: auto;
 }
 
+.company-panel-card {
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 22px;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .company-panel-card {
+  background: rgba(15, 23, 42, 0.28);
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
 .toolbar-secondary-btn {
   min-height: 40px;
   padding-inline: 18px;
@@ -1087,6 +1175,28 @@ watch(availableEndTimeOptions, options => {
   border: 1px solid var(--er-stroke) !important;
   background: var(--er-card-soft);
   box-shadow: var(--er-shadow-sm);
+}
+
+.vehicle-card__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vehicle-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--er-panel-soft);
+  border: 1px solid var(--er-stroke);
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
+.vehicle-detail-chip__label {
+  font-weight: 700;
 }
 
 .vehicle-card__actions {
