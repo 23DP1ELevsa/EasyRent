@@ -254,9 +254,19 @@
 													{{ vehicle.veids?.nosaukums || '—' }} • {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
 												</div>
 												<div class="vehicle-detail-list mt-2">
-													<div v-for="detail in buildVehicleDetails(vehicle)" :key="detail.label" class="vehicle-detail-chip">
+													<div
+														v-for="detail in buildVehicleDetails(vehicle)"
+														:key="detail.label"
+														class="vehicle-detail-chip"
+														:class="{ 'vehicle-detail-chip--registration': detail.isRegistration }"
+													>
 														<span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
-														<span>{{ detail.value }}</span>
+															<span
+																class="vehicle-detail-chip__value"
+																:class="{ 'vehicle-detail-chip__value--nowrap': detail.isRegistration }"
+															>
+																{{ detail.value }}
+															</span>
 													</div>
 												</div>
 												<div class="vehicle-rating mt-1">
@@ -1179,9 +1189,9 @@ function buildVehicleAttributeOptions(vehicles, fieldName) {
 
 function buildVehicleDetails(vehicle) {
 	return [
-		{ label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
-		{ label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
-		{ label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
+		{ label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba), isRegistration: false },
+		{ label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids), isRegistration: false },
+		{ label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs), isRegistration: true },
 	].filter(detail => detail.value)
 }
 
@@ -2529,6 +2539,20 @@ watch(drawer, async () => {
 
 .vehicle-detail-chip__label {
 	font-weight: 700;
+}
+
+.vehicle-detail-chip__value {
+	overflow-wrap: anywhere;
+}
+
+.vehicle-detail-chip--registration {
+	max-width: 100%;
+}
+
+.vehicle-detail-chip__value--nowrap {
+	white-space: nowrap;
+	overflow-wrap: normal;
+	word-break: keep-all;
 }
 
 .vehicle-rating {
