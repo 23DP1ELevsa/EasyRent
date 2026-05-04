@@ -2546,13 +2546,28 @@ watch(drawer, async () => {
 }
 
 .vehicle-detail-chip--registration {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	column-gap: 8px;
 	max-width: 100%;
+	width: min(100%, 280px);
 }
 
 .vehicle-detail-chip__value--nowrap {
+	flex-shrink: 0;
 	white-space: nowrap;
 	overflow-wrap: normal;
 	word-break: keep-all;
+}
+
+.vehicle-detail-chip--registration .vehicle-detail-chip__label {
+	min-width: 0;
+	text-align: left;
+}
+
+.vehicle-detail-chip--registration .vehicle-detail-chip__value {
+	justify-self: end;
 }
 
 .vehicle-rating {
@@ -2642,6 +2657,19 @@ watch(drawer, async () => {
 }
 
 @media (max-width: 900px) {
+	.vehicle-detail-chip--registration {
+		grid-template-columns: 1fr;
+		justify-items: center;
+		row-gap: 4px;
+		width: 100%;
+	}
+
+	.vehicle-detail-chip--registration .vehicle-detail-chip__label,
+	.vehicle-detail-chip--registration .vehicle-detail-chip__value {
+		text-align: center;
+		justify-self: center;
+	}
+
 	.map-hud {
 		left: 16px;
 		right: 16px;
