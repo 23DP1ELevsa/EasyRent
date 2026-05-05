@@ -260,7 +260,12 @@
 														class="vehicle-detail-chip"
 													>
 														<span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
-															<span class="vehicle-detail-chip__value">{{ detail.value }}</span>
+															<span
+																class="vehicle-detail-chip__value"
+																:class="{ 'vehicle-detail-chip__value--nowrap': detail.isRegistration }"
+															>
+																{{ detail.value }}
+															</span>
 													</div>
 												</div>
 												<div class="vehicle-rating mt-1">
@@ -1183,9 +1188,9 @@ function buildVehicleAttributeOptions(vehicles, fieldName) {
 
 function buildVehicleDetails(vehicle) {
 	return [
-		{ label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
-		{ label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
-		{ label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
+		{ label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba), isRegistration: false },
+		{ label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids), isRegistration: false },
+		{ label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs), isRegistration: true },
 	].filter(detail => detail.value)
 }
 
@@ -2537,6 +2542,12 @@ watch(drawer, async () => {
 
 .vehicle-detail-chip__value {
 	overflow-wrap: anywhere;
+}
+
+.vehicle-detail-chip__value--nowrap {
+	white-space: nowrap;
+	overflow-wrap: normal;
+	word-break: keep-all;
 }
 
 .vehicle-rating {
