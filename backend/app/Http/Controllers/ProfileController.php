@@ -8,6 +8,7 @@ use App\Models\PakalpojumuSniedzejs;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
@@ -53,7 +54,7 @@ class ProfileController extends Controller
             'uzvards' => ['sometimes', 'string', 'max:50'],
             'kontakttalrunis' => ['sometimes', 'nullable', 'string', 'min:6', 'max:20'],
             'bankas_konts' => ['sometimes', 'nullable', 'string', 'min:15', 'max:34'],
-            'password' => ['sometimes', 'string', 'min:8'],
+            'password' => ['sometimes', 'string', Password::min(8)->mixedCase()->symbols()],
             'registracijas_numurs' => ['sometimes', 'string', 'max:20'],
             'iela' => ['sometimes', 'string', 'max:150'],
             'majas_numurs' => ['sometimes', 'string', 'max:20'],
@@ -81,6 +82,9 @@ class ProfileController extends Controller
             'kontakttalrunis.max' => 'Tālruņa garums nedrīkst pārsniegt 20 simbolus.',
             'bankas_konts.min' => 'IBAN jābūt vismaz 15 simbolu garam.',
             'bankas_konts.max' => 'IBAN nedrīkst būt garāks par 34 simboliem.',
+            'password.min' => 'Parolei jābūt vismaz 8 simbolu garai.',
+            'password.mixed' => 'Parolei jāsatur vismaz viens lielais burts.',
+            'password.symbols' => 'Parolei jāsatur vismaz viens speciālais simbols.',
         ]);
 
         // Update persona fields (only those that are present)

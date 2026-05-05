@@ -93,6 +93,24 @@ class AuthContactAndReviewTest extends TestCase
         $this->assertEquals(24.1052, (float) $provider->longitude);
     }
 
+    public function test_registration_rejects_password_without_required_complexity(): void
+    {
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Weak Password',
+            'email' => 'weak@example.com',
+            'password' => 'password1',
+            'password_confirmation' => 'password1',
+            'loma' => 'klients',
+            'kontakttalrunis' => '+37120000000',
+            'bankas_konts' => 'LV80BANK0000435195001',
+            'lietotajvards' => 'weakclient',
+        ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
     public function test_authenticated_user_can_logout_and_current_token_is_deleted(): void
     {
         $persona = $this->createClientPersona();

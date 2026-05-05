@@ -635,8 +635,18 @@ const postalCodeRules = [
   v => !v || (v && v.length >= 1) || copy.value.validation.postalRequired
 ]
 
+function hasUppercase(value) {
+  return /[A-Z]/.test(value || '')
+}
+
+function hasSpecialCharacter(value) {
+  return /[^A-Za-z0-9]/.test(value || '')
+}
+
 const passwordRules = [
-  v => !v || (v && v.length >= 8) || copy.value.validation.passwordMin
+  v => !v || (v && v.length >= 8) || copy.value.validation.passwordMin,
+  v => !v || hasUppercase(v) || copy.value.validation.passwordUppercase,
+  v => !v || hasSpecialCharacter(v) || copy.value.validation.passwordSpecial
 ]
 
 const unpaidReservations = computed(() =>

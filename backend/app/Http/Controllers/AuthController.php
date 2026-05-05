@@ -18,7 +18,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required','string','min:2','max:255'],
             'email' => ['required','email','max:255','unique:persona,epasts'],
-            'password' => ['required', 'confirmed', Password::min(8)],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->symbols()],
             'loma' => ['required','in:klients,pakalpojumu_sniedzejs'],
             'kontakttalrunis' => ['required', 'string', 'max:20'],
             'bankas_konts' => ['required', 'string', 'max:34'],
@@ -36,6 +36,9 @@ class AuthController extends Controller
             'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
             'name.required' => 'Vārds un uzvārds ir obligāts.',
             'password.required' => 'Parole ir obligāta.',
+            'password.min' => 'Parolei jābūt vismaz 8 simbolu garai.',
+            'password.mixed' => 'Parolei jāsatur vismaz viens lielais burts.',
+            'password.symbols' => 'Parolei jāsatur vismaz viens speciālais simbols.',
             'kontakttalrunis.required' => 'Tālrunis ir obligāts.',
             'bankas_konts.required' => 'Banka konta numurs (IBAN) ir obligāts.',
         ]);

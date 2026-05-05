@@ -64,6 +64,39 @@ class ApiCriteriaTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_login_allows_existing_account_with_legacy_weak_password(): void
+    {
+        Persona::create([
+            'vards' => 'Legacy',
+            'uzvards' => 'User',
+            'epasts' => 'legacy@example.com',
+            'parole' => Hash::make('weakpass'),
+            'kontakttalrunis' => '+37120000000',
+            'loma' => 'klients',
+            'bankas_konts' => 'LV80BANK0000435195001',
+        ]);
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'legacy@example.com',
+            'password' => 'weakpass',
+        ])
+            ->assertOk()
+            ->assertJsonStructure(['token', 'persona']);
+    }
+
+    public function test_profile_update_rejects_password_without_required_complexity(): void
+    {
+        $persona = $this->createClientPersona(['epasts' => 'profile@example.com']);
+
+        Sanctum::actingAs($persona);
+
+        $this->putJson("/api/profile/{$persona->persona_id}", [
+            'password' => 'password1',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
     public function test_client_can_create_and_pay_reservation_when_authenticated(): void
     {
         $client = $this->createClientPersona();

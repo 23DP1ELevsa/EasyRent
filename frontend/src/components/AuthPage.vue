@@ -331,9 +331,19 @@ const emailRules = [
   v => /.+@.+\..+/.test(v) || copy.value.messages.emailInvalid
 ]
 
+function hasUppercase(value) {
+  return /[A-Z]/.test(value || '')
+}
+
+function hasSpecialCharacter(value) {
+  return /[^A-Za-z0-9]/.test(value || '')
+}
+
 const passwordRules = [
   v => !!v || copy.value.messages.passwordRequired,
-  v => (v && v.length >= 8) || copy.value.messages.passwordMin
+  v => (v && v.length >= 8) || copy.value.messages.passwordMin,
+  v => hasUppercase(v) || copy.value.messages.passwordUppercase,
+  v => hasSpecialCharacter(v) || copy.value.messages.passwordSpecial
 ]
 
 const passwordConfirmRules = [
@@ -373,7 +383,7 @@ async function submitRegister() {
   const errors = []
   if (!reg.value.name || reg.value.name.trim().length < 2) errors.push(copy.value.messages.manualName)
   if (!reg.value.email || !/.+@.+\..+/.test(reg.value.email)) errors.push(copy.value.messages.manualEmail)
-  if (!reg.value.password || reg.value.password.length < 8) errors.push(copy.value.messages.manualPassword)
+  if (!reg.value.password || reg.value.password.length < 8 || !hasUppercase(reg.value.password) || !hasSpecialCharacter(reg.value.password)) errors.push(copy.value.messages.manualPassword)
   if (!reg.value.password_confirmation || reg.value.password !== reg.value.password_confirmation) errors.push(copy.value.messages.manualPasswordConfirm)
   if (!reg.value.kontakttalrunis || reg.value.kontakttalrunis.length < 6) errors.push(copy.value.messages.manualPhone)
   if (!reg.value.bankas_konts || reg.value.bankas_konts.length < 15) errors.push(copy.value.messages.manualIban)
