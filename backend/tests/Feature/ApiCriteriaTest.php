@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ReservationInvoiceMail;
 use App\Models\Klients;
+use App\Models\Maksajums;
 use App\Models\PakalpojumuSniedzejs;
 use App\Models\Persona;
 use App\Models\TransportliedzieklsVeids;
@@ -10,6 +12,7 @@ use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -104,6 +107,8 @@ class ApiCriteriaTest extends TestCase
         $type = $this->createVehicleType();
         $vehicle = $this->createVehicle($provider->pakalpojumuSniedzejs, $type);
 
+        Mail::fake();
+
         Sanctum::actingAs($client);
 
         $reservationResponse = $this->postJson('/api/rezervacijas', [
@@ -128,6 +133,17 @@ class ApiCriteriaTest extends TestCase
             'rezervacija_id' => $reservationId,
             'statuss' => 'apstiprinats',
         ]);
+
+        $maksajums = Maksajums::where('rezervacija_id', $reservationId)->first();
+
+        $this->assertNotNull($maksajums?->rekins);
+        $this->assertStringStartsWith('ER-', $maksajums->rekins);
+
+        Mail::assertSent(ReservationInvoiceMail::class, 2);
+        Mail::assertSent(ReservationInvoiceMail::class, function (ReservationInvoiceMail $mail) use ($reservationId) {
+            return $mail->rezervacija->rezervacija_id === $reservationId
+                && in_array($mail->recipientType, ['client', 'provider'], true);
+        });
     }
 
     public function test_provider_can_create_transport_but_client_cannot(): void

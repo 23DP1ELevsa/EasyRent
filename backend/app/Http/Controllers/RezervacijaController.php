@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ReservationInvoiceMail;
 use App\Models\Maksajums;
 use App\Models\Klients;
 use App\Models\PakalpojumuSniedzejs;
@@ -9,6 +10,8 @@ use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class RezervacijaController extends Controller
@@ -181,7 +184,11 @@ class RezervacijaController extends Controller
             return $klients;
         }
 
-        $rezervacija = Rezervacija::with(['transportlidzeklis'])->findOrFail($id);
+        $rezervacija = Rezervacija::with([
+            'klients.persona',
+            'transportlidzeklis.veids',
+            'transportlidzeklis.sniedzejs.persona',
+        ])->findOrFail($id);
 
         if ((int) $rezervacija->klients_id !== (int) $klients->klients_id) {
             return response()->json(['message' => 'Nav atļauts apmaksāt šo rezervāciju.'], 403);
@@ -197,13 +204,14 @@ class RezervacijaController extends Controller
         }
 
         $transaction = 'TX-' . strtoupper(Str::random(12));
+        $invoiceNumber = $this->generateInvoiceNumber($rezervacija);
 
         $maksajums = Maksajums::create([
             'rezervacija_id' => $rezervacija->rezervacija_id,
             'summa' => $rezervacija->kopa_summa,
             'statuss' => 'apstiprinats',
             'tranzakcijas_numurs' => $transaction,
-            'rekins' => null,
+            'rekins' => $invoiceNumber,
         ]);
 
         $rezervacija->update([
@@ -212,6 +220,7 @@ class RezervacijaController extends Controller
         ]);
 
         $this->syncTransportStatusById((int) $rezervacija->transportlidzeklis_id);
+        $this->sendReservationInvoiceEmails($rezervacija, $maksajums);
 
         return response()->json([
             'rezervacija' => $rezervacija->refresh(),
@@ -281,5 +290,32 @@ class RezervacijaController extends Controller
         }
 
         return $sniedzejs;
+    }
+
+    private function generateInvoiceNumber(Rezervacija $rezervacija): string
+    {
+        return sprintf('ER-%s-%d', Carbon::now()->format('YmdHis'), $rezervacija->rezervacija_id);
+    }
+
+    private function sendReservationInvoiceEmails(Rezervacija $rezervacija, Maksajums $maksajums): void
+    {
+        $clientEmail = $rezervacija->klients?->persona?->epasts;
+        $providerEmail = $rezervacija->transportlidzeklis?->sniedzejs?->persona?->epasts;
+
+        try {
+            if ($clientEmail) {
+                Mail::to($clientEmail)->send(new ReservationInvoiceMail($rezervacija, $maksajums, 'client'));
+            }
+
+            if ($providerEmail) {
+                Mail::to($providerEmail)->send(new ReservationInvoiceMail($rezervacija, $maksajums, 'provider'));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to send reservation invoice email.', [
+                'rezervacija_id' => $rezervacija->rezervacija_id,
+                'maksajums_id' => $maksajums->maksajums_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
