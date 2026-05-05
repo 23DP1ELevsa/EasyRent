@@ -192,15 +192,9 @@
                       v-for="detail in buildVehicleDetails(vehicle)"
                       :key="detail.label"
                       class="vehicle-detail-chip"
-                      :class="{ 'vehicle-detail-chip--registration': detail.isRegistration }"
                     >
                       <span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
-                      <span
-                        class="vehicle-detail-chip__value"
-                        :class="{ 'vehicle-detail-chip__value--nowrap': detail.isRegistration }"
-                      >
-                        {{ detail.value }}
-                      </span>
+                      <span class="vehicle-detail-chip__value">{{ detail.value }}</span>
                     </div>
                   </div>
                   <div class="text-body-2 mb-2">
@@ -816,9 +810,9 @@ function normalizeVehicleField(value) {
 
 function buildVehicleDetails(vehicle) {
   return [
-    { label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba), isRegistration: false },
-    { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids), isRegistration: false },
-    { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs), isRegistration: true },
+    { label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
+    { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
+    { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
   ].filter(detail => detail.value)
 }
 
@@ -1213,31 +1207,6 @@ watch(availableEndTimeOptions, options => {
   overflow-wrap: anywhere;
 }
 
-.vehicle-detail-chip--registration {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 8px;
-  max-width: 100%;
-  width: min(100%, 280px);
-}
-
-.vehicle-detail-chip__value--nowrap {
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow-wrap: normal;
-  word-break: keep-all;
-}
-
-.vehicle-detail-chip--registration .vehicle-detail-chip__label {
-  min-width: 0;
-  text-align: left;
-}
-
-.vehicle-detail-chip--registration .vehicle-detail-chip__value {
-  justify-self: end;
-}
-
 .vehicle-card__actions {
   display: flex;
   align-items: center;
@@ -1266,22 +1235,6 @@ watch(availableEndTimeOptions, options => {
   .company-hero {
     grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 600px) {
-  .vehicle-detail-chip--registration {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    row-gap: 4px;
-    width: 100%;
-  }
-
-  .vehicle-detail-chip--registration .vehicle-detail-chip__label,
-  .vehicle-detail-chip--registration .vehicle-detail-chip__value {
-    text-align: center;
-    justify-self: center;
-  }
-
   .company-toolbar {
     width: 100%;
     justify-content: stretch;
