@@ -200,6 +200,21 @@
                   <div class="text-body-2 mb-2">
                     {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
                   </div>
+                  <div v-if="Number(vehicle.atsauksmju_skaits || 0) > 0" class="vehicle-rating mb-2">
+                    <v-rating
+                      :model-value="Number(vehicle.videjais_vertejums || 0)"
+                      length="5"
+                      readonly
+                      half-increments
+                      size="small"
+                      active-color="amber"
+                      empty-icon="mdi-star-outline"
+                      full-icon="mdi-star"
+                    />
+                    <span class="text-caption opacity-80">
+                      {{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
+                    </span>
+                  </div>
                   <div class="vehicle-card__actions">
                     <v-chip
                       size="small"
@@ -208,6 +223,9 @@
                     >
                       {{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}
                     </v-chip>
+                    <v-btn size="small" variant="tonal" @click="openReviews(vehicle)">
+                      {{ copy.reviews }}
+                    </v-btn>
                     <v-btn
                       v-if="isClient"
                       size="small"
@@ -216,6 +234,14 @@
                       @click="openReservation(vehicle)"
                     >
                       {{ copy.reserve }}
+                    </v-btn>
+                    <v-btn
+                      v-else-if="isProvider && isOwnVehicle(vehicle)"
+                      size="small"
+                      variant="tonal"
+                      @click="openEditVehicle(vehicle)"
+                    >
+                      {{ copy.edit }}
                     </v-btn>
                   </div>
                 </v-card-text>
@@ -332,12 +358,184 @@
         </v-card>
       </v-dialog>
 
+      <v-dialog v-model="editDialog" max-width="520">
+        <v-card>
+          <v-card-title class="font-weight-bold">{{ copy.editVehicleTitle }}</v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            <v-select
+              v-model="editVehicle.veids_id"
+              :items="typeOptions"
+              item-title="title"
+              item-value="value"
+              :label="copy.vehicleFields.type"
+              variant="outlined"
+              density="compact"
+            />
+            <v-text-field v-model="editVehicle.marka" :label="copy.vehicleFields.brand" variant="outlined" density="compact" />
+            <v-text-field v-model="editVehicle.modelis" :label="copy.vehicleFields.model" variant="outlined" density="compact" />
+            <v-select
+              v-model="editVehicle.atrumkarba"
+              :items="gearboxOptions"
+              item-title="title"
+              item-value="value"
+              :label="copy.vehicleFields.gearbox"
+              variant="outlined"
+              density="compact"
+            />
+            <v-select
+              v-model="editVehicle.degvielas_veids"
+              :items="fuelOptions"
+              item-title="title"
+              item-value="value"
+              :label="copy.vehicleFields.fuel"
+              variant="outlined"
+              density="compact"
+            />
+            <v-text-field
+              v-model.number="editVehicle.dienas_nomas_cena"
+              :label="copy.vehicleFields.dailyPrice"
+              type="number"
+              min="0"
+              variant="outlined"
+              density="compact"
+            />
+            <v-select
+              v-model="editVehicle.statuss"
+              :items="statusOptions"
+              :label="copy.vehicleFields.status"
+              variant="outlined"
+              density="compact"
+            />
+            <v-text-field
+              v-model="editVehicle.registracijas_numurs"
+              :label="copy.vehicleFields.registrationNumber"
+              variant="outlined"
+              density="compact"
+            />
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-btn color="error" variant="tonal" :loading="deleteVehicleLoading" :disabled="editLoading" @click="deleteVehicle">
+              {{ copy.delete }}
+            </v-btn>
+            <v-spacer />
+            <v-btn variant="text" @click="editDialog = false">{{ copy.cancel }}</v-btn>
+            <v-btn color="primary" :loading="editLoading" :disabled="deleteVehicleLoading" @click="saveVehicle">{{ copy.save }}</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-dialog v-model="deleteVehicleDialog" max-width="420" persistent>
+        <v-card>
+          <v-card-title class="font-weight-bold">{{ copy.deleteVehicleTitle }}</v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            <div class="text-body-2">{{ copy.deleteVehicleConfirm }}</div>
+            <div v-if="editVehicle?.marka || editVehicle?.modelis" class="text-caption opacity-70 mt-2">
+              {{ editVehicle.marka }} {{ editVehicle.modelis }}
+            </div>
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn variant="text" :disabled="deleteVehicleLoading" @click="cancelDeleteVehicle">{{ copy.cancel }}</v-btn>
+            <v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">{{ copy.delete }}</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-dialog v-model="reviewDialog" max-width="760">
+        <v-card>
+          <v-card-title class="font-weight-bold d-flex align-center justify-space-between">
+            <div>
+              <div>{{ copy.reviews }}</div>
+              <div v-if="reviewVehicle" class="text-caption opacity-70">
+                {{ reviewVehicle.marka }} {{ reviewVehicle.modelis }}
+              </div>
+            </div>
+            <v-chip v-if="reviewStats.count > 0" size="small" color="amber" variant="tonal">
+              ★ {{ reviewStats.average.toFixed(1) }} ({{ reviewStats.count }})
+            </v-chip>
+          </v-card-title>
+          <v-divider />
+          <v-card-text class="pa-4">
+            <v-alert v-if="!user" type="info" variant="tonal" density="compact" class="mb-3">
+              {{ copy.reviewClientOnly }}
+            </v-alert>
+            <v-alert v-else-if="!isClient" type="warning" variant="tonal" density="compact" class="mb-3">
+              {{ copy.reviewProviderBlocked }}
+            </v-alert>
+
+            <v-card v-if="canReview" class="mb-4" variant="outlined">
+              <v-card-text class="pa-4 d-flex flex-column ga-3">
+                <div class="text-subtitle-2 font-weight-bold">
+                  {{ ownReview ? copy.reviewEditOwn : copy.reviewAdd }}
+                </div>
+                <v-rating
+                  v-model="reviewForm.vertejums"
+                  length="5"
+                  :half-increments="false"
+                  active-color="amber"
+                  empty-icon="mdi-star-outline"
+                  full-icon="mdi-star"
+                />
+                <v-textarea
+                  v-model="reviewForm.komentars"
+                  :label="copy.reviewComment"
+                  rows="3"
+                  auto-grow
+                  counter="2000"
+                  variant="outlined"
+                  density="compact"
+                />
+                <div class="d-flex justify-end">
+                  <v-btn color="primary" :loading="reviewSaving" @click="submitReview">
+                    {{ ownReview ? copy.reviewSaveChanges : copy.reviewAdd }}
+                  </v-btn>
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.reviewAll }}</div>
+            <div v-if="reviewLoading" class="text-body-2">{{ copy.reviewLoading }}</div>
+            <div v-else-if="!vehicleReviews.length" class="text-body-2 opacity-70">{{ copy.reviewEmpty }}</div>
+            <div v-else class="d-flex flex-column ga-3">
+              <v-card v-for="review in vehicleReviews" :key="review.atsauksme_id" variant="outlined">
+                <v-card-text class="pa-3">
+                  <div class="d-flex align-center justify-space-between ga-3">
+                    <div class="text-subtitle-2 font-weight-bold">{{ reviewerName(review) }}</div>
+                    <div class="text-caption opacity-70">{{ formatReviewDate(review.datums || review.updated_at) }}</div>
+                  </div>
+                  <div class="d-flex align-center ga-2 mt-1">
+                    <v-rating
+                      :model-value="Number(review.vertejums || 0)"
+                      length="5"
+                      readonly
+                      size="small"
+                      active-color="amber"
+                      empty-icon="mdi-star-outline"
+                      full-icon="mdi-star"
+                    />
+                    <span class="text-caption">{{ review.vertejums }}/5</span>
+                  </div>
+                  <div class="mt-2 text-body-2">{{ review.komentars || copy.reviewNoComment }}</div>
+                </v-card-text>
+              </v-card>
+            </div>
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn v-if="!user" variant="text" @click="router.push(AUTH_ROUTE)">{{ copy.login }}</v-btn>
+            <v-btn color="primary" variant="text" @click="reviewDialog = false">{{ copy.close }}</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
     </v-container>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
@@ -359,6 +557,7 @@ const user = ref(null)
 const loading = ref(false)
 const errorText = ref('')
 const transportItems = ref([])
+const transportTypes = ref([])
 const reservationDialog = ref(false)
 const reservationLoading = ref(false)
 const reservationError = ref('')
@@ -371,6 +570,23 @@ const paymentError = ref('')
 const paymentSuccess = ref('')
 const startDatePickerMenu = ref(false)
 const endDatePickerMenu = ref(false)
+const editDialog = ref(false)
+const editLoading = ref(false)
+const editError = ref('')
+const editVehicle = ref({})
+const deleteVehicleLoading = ref(false)
+const deleteVehicleDialog = ref(false)
+const reviewDialog = ref(false)
+const reviewLoading = ref(false)
+const reviewSaving = ref(false)
+const reviewError = ref('')
+const reviewSuccess = ref('')
+const reviewVehicle = ref(null)
+const vehicleReviews = ref([])
+const reviewForm = ref({
+  vertejums: 0,
+  komentars: '',
+})
 
 const snackbar = ref({ show: false, text: '', color: 'error' })
 
@@ -383,6 +599,18 @@ watch(paymentError, value => {
 })
 
 watch(paymentSuccess, value => {
+  if (value) notifySuccess(value)
+})
+
+watch(editError, value => {
+  if (value) notifyError(value)
+})
+
+watch(reviewError, value => {
+  if (value) notifyError(value)
+})
+
+watch(reviewSuccess, value => {
   if (value) notifySuccess(value)
 })
 
@@ -616,6 +844,11 @@ const availableEndTimeOptions = computed(() => {
 
 const companyId = computed(() => Number(route.params.id))
 const isClient = computed(() => user.value?.loma === 'klients')
+const isProvider = computed(() => user.value?.loma === 'pakalpojumu_sniedzejs')
+const clientId = computed(() => user.value?.klients?.klients_id || null)
+const providerId = computed(() =>
+  user.value?.pakalpojumuSniedzejs?.sniedzejs_id || user.value?.pakalpojumu_sniedzejs?.sniedzejs_id || null
+)
 const showFilters = ref(false)
 const showSorting = ref(false)
 
@@ -634,6 +867,11 @@ const vehicleSorting = ref({
 })
 
 const sortOptions = computed(() => copy.value.sortOptions)
+const typeOptions = computed(() => {
+  const source = transportTypes.value.length ? transportTypes.value : vehicleTypeOptions.value
+  return source.map(type => ({ title: type.nosaukums || type.title, value: type.veids_id || type.value }))
+})
+const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
 
 // Kompānijas transporta saraksts ar filtru un kārtošanas loģiku.
 const vehicles = computed(() =>
@@ -744,6 +982,26 @@ const reservationTotal = computed(() => {
   return formatPrice(sum)
 })
 
+const ownReview = computed(() => {
+  if (!clientId.value) return null
+  return vehicleReviews.value.find(review => Number(review.klients_id) === Number(clientId.value)) || null
+})
+
+const canReview = computed(() => Boolean(user.value?.persona_id && isClient.value))
+
+const reviewStats = computed(() => {
+  const count = vehicleReviews.value.length
+  if (!count) {
+    return { count: 0, average: 0 }
+  }
+
+  const sum = vehicleReviews.value.reduce((total, review) => total + Number(review.vertejums || 0), 0)
+  return {
+    count,
+    average: sum / count,
+  }
+})
+
 const reservationBillableDays = computed(() => getBillableDays())
 
 const isReservationFormValid = computed(() => {
@@ -814,6 +1072,43 @@ function buildVehicleDetails(vehicle) {
     { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
     { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
   ].filter(detail => detail.value)
+}
+
+function isOwnVehicle(vehicle) {
+  return Boolean(providerId.value && Number(vehicle?.sniedzejs_id) === Number(providerId.value))
+}
+
+function reviewerName(review) {
+  const persona = review?.klients?.persona
+  if (!persona) return 'Klients'
+  const fullName = `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
+  return fullName || 'Klients'
+}
+
+function formatReviewDate(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat(intlLocale.value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+function resetReviewForm() {
+  if (ownReview.value) {
+    reviewForm.value = {
+      vertejums: Number(ownReview.value.vertejums || 0),
+      komentars: ownReview.value.komentars || '',
+    }
+    return
+  }
+
+  reviewForm.value = {
+    vertejums: 0,
+    komentars: '',
+  }
 }
 
 function formatCompanyAddress(provider) {
@@ -927,6 +1222,196 @@ function openReservation(vehicle) {
   activeVehicle.value = vehicle
   reservationError.value = ''
   reservationDialog.value = true
+}
+
+function openEditVehicle(vehicle) {
+  editVehicle.value = {
+    transportlidzeklis_id: vehicle.transportlidzeklis_id,
+    veids_id: vehicle.veids_id,
+    marka: vehicle.marka,
+    modelis: vehicle.modelis,
+    atrumkarba: vehicle.atrumkarba || '-',
+    degvielas_veids: vehicle.degvielas_veids || '-',
+    dienas_nomas_cena: vehicle.dienas_nomas_cena,
+    statuss: vehicle.statuss,
+    registracijas_numurs: vehicle.registracijas_numurs,
+  }
+  editError.value = ''
+  editDialog.value = true
+}
+
+async function saveVehicle() {
+  editLoading.value = true
+  editError.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        veids_id: editVehicle.value.veids_id,
+        marka: editVehicle.value.marka,
+        modelis: editVehicle.value.modelis,
+        atrumkarba: editVehicle.value.atrumkarba,
+        degvielas_veids: editVehicle.value.degvielas_veids,
+        dienas_nomas_cena: editVehicle.value.dienas_nomas_cena,
+        statuss: editVehicle.value.statuss,
+        registracijas_numurs: editVehicle.value.registracijas_numurs,
+      }),
+    })
+    const result = await response.json()
+
+    if (!response.ok) {
+      editError.value = result?.message || copy.value.messages.saveFailed
+      return
+    }
+
+    editDialog.value = false
+    await loadTransport()
+  } catch {
+    editError.value = copy.value.messages.saveError
+  } finally {
+    editLoading.value = false
+  }
+}
+
+async function deleteVehicle() {
+  editDialog.value = false
+  nextTick().then(() => {
+    deleteVehicleDialog.value = true
+  })
+}
+
+function cancelDeleteVehicle() {
+  deleteVehicleDialog.value = false
+  nextTick().then(() => {
+    editDialog.value = true
+  })
+}
+
+async function confirmDeleteVehicle() {
+  if (!editVehicle.value.transportlidzeklis_id || !providerId.value) {
+    editError.value = copy.value.messages.providerMissing
+    return
+  }
+
+  deleteVehicleDialog.value = false
+  deleteVehicleLoading.value = true
+  editError.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      editError.value = result?.message || copy.value.messages.deleteVehicleFailed
+      nextTick().then(() => {
+        editDialog.value = true
+      })
+      return
+    }
+
+    editDialog.value = false
+    snackbar.value = { show: true, text: result?.message || copy.value.messages.vehicleDeleted, color: 'success' }
+    await loadTransport()
+  } catch {
+    editError.value = copy.value.messages.deleteVehicleError
+    nextTick().then(() => {
+      editDialog.value = true
+    })
+  } finally {
+    deleteVehicleLoading.value = false
+  }
+}
+
+async function loadVehicleReviews(transportlidzeklisId) {
+  reviewLoading.value = true
+  reviewError.value = ''
+
+  try {
+    const response = await fetch(`${API_BASE}/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
+    const result = await response.json()
+
+    if (!response.ok) {
+      reviewError.value = result?.message || copy.value.messages.reviewLoadFailed
+      vehicleReviews.value = []
+      return
+    }
+
+    vehicleReviews.value = Array.isArray(result?.atsauksmes) ? result.atsauksmes : []
+    resetReviewForm()
+  } catch {
+    reviewError.value = copy.value.messages.reviewLoadError
+    vehicleReviews.value = []
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
+async function openReviews(vehicle) {
+  reviewVehicle.value = vehicle
+  reviewSuccess.value = ''
+  reviewError.value = ''
+  reviewDialog.value = true
+  await loadVehicleReviews(vehicle.transportlidzeklis_id)
+}
+
+async function submitReview() {
+  if (!reviewVehicle.value) return
+
+  if (!canReview.value) {
+    reviewError.value = copy.value.messages.reviewOnlyClients
+    return
+  }
+
+  if (!Number.isInteger(Number(reviewForm.value.vertejums)) || Number(reviewForm.value.vertejums) < 1 || Number(reviewForm.value.vertejums) > 5) {
+    reviewError.value = copy.value.messages.reviewRatingRequired
+    return
+  }
+
+  reviewSaving.value = true
+  reviewError.value = ''
+  reviewSuccess.value = ''
+
+  try {
+    const payload = {
+      vertejums: Number(reviewForm.value.vertejums),
+      komentars: (reviewForm.value.komentars || '').trim() || null,
+    }
+
+    let url = `${API_BASE}/api/atsauksmes`
+    let method = 'POST'
+
+    if (ownReview.value?.atsauksme_id) {
+      url = `${API_BASE}/api/atsauksmes/${ownReview.value.atsauksme_id}`
+      method = 'PUT'
+    } else {
+      payload.transportlidzeklis_id = reviewVehicle.value.transportlidzeklis_id
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      reviewError.value = result?.message || copy.value.messages.reviewSaveFailed
+      return
+    }
+
+    reviewSuccess.value = result?.message || copy.value.messages.reviewSaved
+    await loadVehicleReviews(reviewVehicle.value.transportlidzeklis_id)
+    await loadTransport()
+  } catch {
+    reviewError.value = copy.value.messages.reviewSaveError
+  } finally {
+    reviewSaving.value = false
+  }
 }
 
 function resetVehicleFilters() {
@@ -1070,7 +1555,24 @@ async function loadTransport() {
   }
 }
 
+async function loadTransportTypes() {
+  try {
+    const response = await fetch(`${API_BASE}/api/transport/veidi`)
+    const data = await response.json()
+
+    if (!response.ok) {
+      transportTypes.value = []
+      return
+    }
+
+    transportTypes.value = Array.isArray(data) ? data : []
+  } catch {
+    transportTypes.value = []
+  }
+}
+
 onMounted(loadTransport)
+onMounted(loadTransportTypes)
 // Sākotnējā ielāde un lietotāja sesijas nolasīšana.
 
 onMounted(() => {
@@ -1210,9 +1712,15 @@ watch(availableEndTimeOptions, options => {
 .vehicle-card__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.vehicle-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .reservation-summary {

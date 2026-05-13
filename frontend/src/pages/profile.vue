@@ -436,9 +436,9 @@
 
                 <div v-if="!reservationHistory.length" class="text-body-2 opacity-70">{{ reservationHistoryEmptyText }}</div>
 
-                <div v-else class="d-flex flex-column ga-3">
+                <div v-else class="d-flex flex-column ga-4">
                   <v-card
-                    v-for="item in reservationHistory"
+                    v-for="item in paginatedReservationHistory"
                     :key="`history-${item.rezervacija_id}`"
                     class="reservation-card reservation-card-history"
                     elevation="4"
@@ -469,6 +469,16 @@
                       </div>
                     </v-card-text>
                   </v-card>
+
+                  <v-pagination
+                    v-if="reservationHistoryPageCount > 1"
+                    v-model="reservationHistoryPage"
+                    :length="reservationHistoryPageCount"
+                    :total-visible="5"
+                    rounded="circle"
+                    density="comfortable"
+                    class="reservation-history-pagination align-self-center"
+                  />
                 </div>
               </template>
 
@@ -519,6 +529,7 @@ const reservations = ref([])
 const reservationsLoading = ref(false)
 const reservationsError = ref('')
 const reservationsSuccess = ref('')
+const reservationHistoryPage = ref(1)
 const payingReservationId = ref(null)
 const cancellingReservationId = ref(null)
 const cancelDialog = ref(false)
@@ -687,6 +698,17 @@ const reservationHistory = computed(() => {
   })
 })
 
+const reservationHistoryPageSize = 5
+
+const reservationHistoryPageCount = computed(() =>
+  Math.max(1, Math.ceil(reservationHistory.value.length / reservationHistoryPageSize))
+)
+
+const paginatedReservationHistory = computed(() => {
+  const start = (reservationHistoryPage.value - 1) * reservationHistoryPageSize
+  return reservationHistory.value.slice(start, start + reservationHistoryPageSize)
+})
+
 const showReservationsSection = computed(() => isClient.value || isProvider.value)
 const visibleActiveReservations = computed(() => isProvider.value ? providerActiveReservations.value : activeReservations.value)
 const visiblePendingReservations = computed(() => isProvider.value ? providerPendingReservations.value : unpaidReservations.value)
@@ -697,6 +719,12 @@ const activeReservationsEmptyText = computed(() => isProvider.value ? copy.value
 const pendingReservationsEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderPending : copy.value.reservations.noUnpaid)
 const reservationHistoryTitle = computed(() => isProvider.value ? copy.value.reservations.providerHistoryTitle : copy.value.reservations.historyTitle)
 const reservationHistoryEmptyText = computed(() => isProvider.value ? copy.value.reservations.noProviderHistory : copy.value.reservations.noHistory)
+
+watch(reservationHistoryPageCount, pageCount => {
+  if (reservationHistoryPage.value > pageCount) {
+    reservationHistoryPage.value = pageCount
+  }
+})
 
 // Ielādē lietotāja datus no sesijas un aizpilda formu.
 onMounted(() => {
@@ -1240,6 +1268,10 @@ function logout() {
 .profile-reservations .section-title,
 .profile-reservations .font-weight-bold {
   color: var(--er-text) !important;
+}
+
+.reservation-history-pagination :deep(.v-btn) {
+  color: var(--er-text);
 }
 
 .badge-info {
