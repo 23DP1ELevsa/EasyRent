@@ -1,258 +1,267 @@
 <template>
   <div class="company-page">
-    <v-container class="py-8">
-      <v-btn variant="text" class="mb-4 company-back-btn" @click="router.push(MAP_ROUTE)">
-        <v-icon start>mdi-arrow-left</v-icon>
-        {{ copy.backToMap }}
-      </v-btn>
-
-      <v-card class="surface" elevation="10">
-        <v-card-text class="pa-6">
-          <div v-if="loading" class="text-body-1">{{ copy.loadingCompany }}</div>
-          <v-alert v-else-if="errorText" type="error" variant="tonal">{{ errorText }}</v-alert>
-          <template v-else-if="company">
-            <div class="company-hero mb-6">
-              <div>
-                <div class="text-h4 font-weight-bold mb-2">{{ company.name }}</div>
-                <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
-                <div class="text-body-2 opacity-80">{{ company.city }}</div>
-                <div v-if="company.phone" class="text-body-2 mt-2">
-                  <a :href="`tel:${company.phone}`" class="company-phone-link">
-                    {{ copy.phoneLabel }}: {{ company.phone }}
-                  </a>
-                </div>
-              </div>
-              <div class="company-hero__stats">
-                <div class="metric-pill">
-                  <strong>{{ vehicles.length }}</strong>
-                  <span>{{ copy.stats.totalVehicles }}</span>
-                </div>
-                <div class="metric-pill">
-                  <strong>{{ vehicles.filter(vehicle => isVehicleAvailable(vehicle)).length }}</strong>
-                  <span>{{ copy.stats.availableNow }}</span>
-                </div>
-                <div class="metric-pill">
-                  <strong>{{ vehicles.length ? formatPrice(Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0)))) : '0.00 €' }}</strong>
-                  <span>{{ copy.stats.startingPrice }}</span>
-                </div>
+    <section class="company-banner">
+      <v-container>
+        <v-btn class="company-back-btn" variant="text" @click="router.push(MAP_ROUTE)">
+          <v-icon start>mdi-arrow-left</v-icon>{{ copy.backToMap }}
+        </v-btn>
+        <template v-if="company && !loading && !errorText">
+          <div class="company-hero">
+            <div>
+              <h1>{{ company.name }}</h1>
+              <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
+              <div class="text-body-2 opacity-80">{{ company.city }}</div>
+              <div v-if="company.phone" class="text-body-2 mt-2">
+                <a class="company-phone-link" :href="`tel:${company.phone}`">
+                  {{ copy.phoneLabel }}: {{ company.phone }}
+                </a>
               </div>
             </div>
-
-            <div class="d-flex align-center justify-space-between mb-3">
-              <div class="text-h6 font-weight-bold">{{ copy.vehiclesTitle }}</div>
-              <v-chip color="primary" variant="tonal">{{ filteredSortedVehicles.length }}/{{ vehicles.length }}</v-chip>
-            </div>
-
-            <v-alert v-if="!vehicles.length" type="info" variant="tonal">
-              {{ copy.noVehicles }}
-            </v-alert>
-
-            <template v-else>
-                <div class="company-toolbar d-flex justify-end flex-wrap ga-2 mb-3">
-                <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
-                  <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
-                  {{ showFilters ? copy.closeFilters : copy.filters }}
-                </v-btn>
-                <v-btn color="primary" variant="tonal" @click="showSorting = !showSorting">
-                  <v-icon start>{{ showSorting ? 'mdi-sort-variant-remove' : 'mdi-sort-variant' }}</v-icon>
-                  {{ showSorting ? copy.closeSorting : copy.sort }}
-                </v-btn>
+            <div class="company-hero__stats">
+              <div class="metric-pill">
+                <strong>{{ vehicles.length }}</strong>
+                <span>{{ copy.stats.totalVehicles }}</span>
               </div>
+              <div class="metric-pill">
+                <strong>{{ vehicles.filter(vehicle => isVehicleAvailable(vehicle)).length }}</strong>
+                <span>{{ copy.stats.availableNow }}</span>
+              </div>
+              <div class="metric-pill">
+                <strong>{{ vehicles.length > 0 ? formatPrice(Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0)))) : '0.00 €' }}</strong>
+                <span>{{ copy.stats.startingPrice }}</span>
+              </div>
+            </div>
+          </div>
 
-              <v-expand-transition>
-                <v-card v-if="showFilters" class="mb-4 company-panel-card">
-                  <v-card-text class="pb-2">
-                    <v-row dense>
-                      <v-col cols="12" md="6">
-                        <v-text-field
-                          v-model="vehicleFilters.q"
-                          :label="copy.filterLabels.search"
-                          variant="outlined"
-                          density="compact"
-                          clearable
-                        />
-                      </v-col>
-                      <v-col cols="12" sm="6" md="3">
-                        <v-select
-                          v-model="vehicleFilters.typeId"
-                          :items="vehicleTypeOptions"
-                          item-title="title"
-                          item-value="value"
-                          :label="copy.filterLabels.type"
-                          variant="outlined"
-                          density="compact"
-                          clearable
-                        />
-                      </v-col>
-                      <v-col cols="12" sm="6" md="3">
-                        <v-select
-                          v-model="vehicleFilters.gearbox"
-                          :items="gearboxOptions"
-                          item-title="title"
-                          item-value="value"
-                          :label="copy.filterLabels.gearbox"
-                          variant="outlined"
-                          density="compact"
-                          clearable
-                        />
-                      </v-col>
-                      <v-col cols="12" sm="6" md="3">
-                        <v-select
-                          v-model="vehicleFilters.fuel"
-                          :items="fuelOptions"
-                          item-title="title"
-                          item-value="value"
-                          :label="copy.filterLabels.fuel"
-                          variant="outlined"
-                          density="compact"
-                          clearable
-                        />
-                      </v-col>
-                      <v-col cols="6" md="3">
-                        <v-text-field
-                          v-model.number="vehicleFilters.minPrice"
-                          :label="copy.filterLabels.minPrice"
-                          variant="outlined"
-                          density="compact"
-                          type="number"
-                          min="0"
-                        />
-                      </v-col>
-                      <v-col cols="6" md="3">
-                        <v-text-field
-                          v-model.number="vehicleFilters.maxPrice"
-                          :label="copy.filterLabels.maxPrice"
-                          variant="outlined"
-                          density="compact"
-                          type="number"
-                          min="0"
-                        />
-                      </v-col>
-                      <v-col cols="12" md="4" class="d-flex align-center">
-                        <v-switch
-                          v-model="vehicleFilters.onlyAvailable"
-                          :label="copy.filterLabels.onlyAvailable"
-                          inset
-                          density="compact"
-                          hide-details
-                        />
-                      </v-col>
-                      <v-col cols="12" class="d-flex justify-end">
-                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleFilters">{{ copy.clear }}</v-btn>
-                      </v-col>
-                    </v-row>
-                  </v-card-text>
-                </v-card>
-              </v-expand-transition>
+        </template>
+        <h1 v-else class="company-banner__title">{{ loading ? copy.loadingCompany : copy.vehiclesTitle }}</h1>
+      </v-container>
+    </section>
+    <v-container class="company-content">
+      <div v-if="loading" class="company-loading" role="status">
+        <v-progress-circular color="primary" indeterminate size="32" />
+        <p>{{ copy.loadingCompany }}</p>
+      </div>
+      <v-alert v-else-if="errorText" type="error" variant="tonal">{{ errorText }}</v-alert>
+      <div v-else-if="company" class="company-catalog">
+        <aside :aria-label="copy.filters" class="company-controls">
+          <div class="company-toolbar d-flex justify-end flex-wrap ga-2 mb-3">
+            <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
+              <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
+              {{ showFilters ? copy.closeFilters : copy.filters }}
+            </v-btn>
+            <v-btn color="primary" variant="tonal" @click="showSorting = !showSorting">
+              <v-icon start>{{ showSorting ? 'mdi-sort-variant-remove' : 'mdi-sort-variant' }}</v-icon>
+              {{ showSorting ? copy.closeSorting : copy.sort }}
+            </v-btn>
+          </div>
 
-              <v-expand-transition>
-                <v-card v-if="showSorting" class="mb-4 company-panel-card">
-                  <v-card-text class="pb-2">
-                    <v-row dense>
-                      <v-col cols="12" md="6">
-                        <v-select
-                          v-model="vehicleSorting.sortBy"
-                          :items="sortOptions"
-                          item-title="title"
-                          item-value="value"
-                          :label="copy.sortBy"
-                          variant="outlined"
-                          density="compact"
-                        />
-                      </v-col>
-                      <v-col cols="12" md="6" class="d-flex align-center justify-end">
-                        <v-btn variant="text" size="default" class="toolbar-secondary-btn" @click="resetVehicleSorting">{{ copy.resetSorting }}</v-btn>
-                      </v-col>
-                    </v-row>
-                  </v-card-text>
-                </v-card>
-              </v-expand-transition>
-
-              <v-alert v-if="!filteredSortedVehicles.length" type="info" variant="tonal" class="mb-2">
-                {{ copy.noVehiclesByFilter }}
-              </v-alert>
-            </template>
-
-            <div v-if="filteredSortedVehicles.length" class="vehicles-grid">
-              <v-card
-                v-for="vehicle in filteredSortedVehicles"
-                :key="vehicle.transportlidzeklis_id"
-                class="vehicle-card"
-                variant="outlined"
-              >
-                <v-card-text>
-                  <div class="text-subtitle-1 font-weight-bold">
-                    {{ vehicle.marka }} {{ vehicle.modelis }}
-                  </div>
-                  <div class="text-body-2 opacity-80 mb-1">
-                    {{ vehicle.veids?.nosaukums || copy.typeNotProvided }}
-                  </div>
-                  <div class="vehicle-card__details mb-2">
-                    <div
-                      v-for="detail in buildVehicleDetails(vehicle)"
-                      :key="detail.label"
-                      class="vehicle-detail-chip"
-                    >
-                      <span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
-                      <span class="vehicle-detail-chip__value">{{ detail.value }}</span>
-                    </div>
-                  </div>
-                  <div class="text-body-2 mb-2">
-                    {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
-                  </div>
-                  <div v-if="Number(vehicle.atsauksmju_skaits || 0) > 0" class="vehicle-rating mb-2">
-                    <v-rating
-                      :model-value="Number(vehicle.videjais_vertejums || 0)"
-                      length="5"
-                      readonly
-                      half-increments
-                      size="small"
-                      active-color="amber"
-                      empty-icon="mdi-star-outline"
-                      full-icon="mdi-star"
+          <v-expand-transition>
+            <v-card v-if="showFilters" class="mb-4 company-panel-card">
+              <v-card-text class="pb-2">
+                <v-row dense>
+                  <v-col cols="12">
+                    <v-text-field
+                      v-model="vehicleFilters.q"
+                      clearable
+                      density="compact"
+                      :label="copy.filterLabels.search"
+                      variant="outlined"
                     />
-                    <span class="text-caption opacity-80">
-                      {{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
-                    </span>
+                  </v-col>
+                  <v-col cols="12">
+                    <v-select
+                      v-model="vehicleFilters.typeId"
+                      clearable
+                      density="compact"
+                      item-title="title"
+                      item-value="value"
+                      :items="vehicleTypeOptions"
+                      :label="copy.filterLabels.type"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12">
+                    <v-select
+                      v-model="vehicleFilters.gearbox"
+                      clearable
+                      density="compact"
+                      item-title="title"
+                      item-value="value"
+                      :items="gearboxOptions"
+                      :label="copy.filterLabels.gearbox"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12">
+                    <v-select
+                      v-model="vehicleFilters.fuel"
+                      clearable
+                      density="compact"
+                      item-title="title"
+                      item-value="value"
+                      :items="fuelOptions"
+                      :label="copy.filterLabels.fuel"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="6">
+                    <v-text-field
+                      v-model.number="vehicleFilters.minPrice"
+                      density="compact"
+                      :label="copy.filterLabels.minPrice"
+                      min="0"
+                      type="number"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="6">
+                    <v-text-field
+                      v-model.number="vehicleFilters.maxPrice"
+                      density="compact"
+                      :label="copy.filterLabels.maxPrice"
+                      min="0"
+                      type="number"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col class="d-flex align-center" cols="12">
+                    <v-switch
+                      v-model="vehicleFilters.onlyAvailable"
+                      density="compact"
+                      hide-details
+                      inset
+                      :label="copy.filterLabels.onlyAvailable"
+                    />
+                  </v-col>
+                  <v-col class="d-flex justify-end" cols="12">
+                    <v-btn class="toolbar-secondary-btn" size="default" variant="text" @click="resetVehicleFilters">{{ copy.clear }}</v-btn>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-expand-transition>
+
+          <v-expand-transition>
+            <v-card v-if="showSorting" class="mb-4 company-panel-card">
+              <v-card-text class="pb-2">
+                <v-row dense>
+                  <v-col cols="12">
+                    <v-select
+                      v-model="vehicleSorting.sortBy"
+                      density="compact"
+                      item-title="title"
+                      item-value="value"
+                      :items="sortOptions"
+                      :label="copy.sortBy"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col class="d-flex align-center justify-end" cols="12">
+                    <v-btn class="toolbar-secondary-btn" size="default" variant="text" @click="resetVehicleSorting">{{ copy.resetSorting }}</v-btn>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-expand-transition>
+
+        </aside>
+        <section :aria-label="copy.vehiclesTitle" class="company-results">
+          <div class="company-results__heading">
+            <h2>{{ copy.vehiclesTitle }}</h2>
+            <v-chip color="primary" variant="tonal">{{ filteredSortedVehicles.length }}/{{ vehicles.length }}</v-chip>
+          </div>
+          <v-alert v-if="vehicles.length === 0" type="info" variant="tonal">{{ copy.noVehicles }}</v-alert>
+          <v-alert v-else-if="filteredSortedVehicles.length === 0" type="info" variant="tonal">{{ copy.noVehiclesByFilter }}</v-alert>
+          <div v-if="filteredSortedVehicles.length > 0" class="vehicles-grid">
+            <v-card
+              v-for="vehicle in filteredSortedVehicles"
+              :key="vehicle.transportlidzeklis_id"
+              class="vehicle-card"
+              variant="outlined"
+            >
+              <div class="vehicle-card__visual">
+                <img
+                  alt=""
+                  height="704"
+                  loading="lazy"
+                  :src="getVehicleImage(vehicle)"
+                  width="944"
+                >
+                <v-chip class="vehicle-card__status" :color="isVehicleAvailable(vehicle) ? 'primary' : undefined" size="small" variant="flat">{{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}</v-chip>
+              </div>
+              <v-card-text>
+                <div class="vehicle-card__name">
+                  {{ vehicle.marka }} {{ vehicle.modelis }}
+                </div>
+                <div class="vehicle-card__type">
+                  {{ vehicle.veids?.nosaukums || copy.typeNotProvided }}
+                </div>
+                <div class="vehicle-card__details mb-2">
+                  <div
+                    v-for="detail in buildVehicleDetails(vehicle)"
+                    :key="detail.label"
+                    class="vehicle-detail-chip"
+                  >
+                    <span class="vehicle-detail-chip__label">{{ detail.label }}:</span>
+                    <span class="vehicle-detail-chip__value">{{ detail.value }}</span>
                   </div>
-                  <div class="vehicle-card__actions">
-                    <v-chip
-                      size="small"
-                      :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
-                      variant="tonal"
-                    >
-                      {{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}
-                    </v-chip>
-                    <v-btn size="small" variant="tonal" @click="openReviews(vehicle)">
-                      {{ copy.reviews }}
-                    </v-btn>
-                    <v-btn
-                      v-if="isClient"
-                      size="small"
-                      color="primary"
-                      :disabled="!isVehicleAvailable(vehicle)"
-                      @click="openReservation(vehicle)"
-                    >
-                      {{ copy.reserve }}
-                    </v-btn>
-                    <v-btn
-                      v-else-if="isProvider && isOwnVehicle(vehicle)"
-                      size="small"
-                      variant="tonal"
-                      @click="openEditVehicle(vehicle)"
-                    >
-                      {{ copy.edit }}
-                    </v-btn>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </div>
-          </template>
-        </v-card-text>
-      </v-card>
+                </div>
+                <div class="vehicle-card__price">
+                  {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
+                </div>
+                <div v-if="Number(vehicle.atsauksmju_skaits || 0) > 0" class="vehicle-rating mb-2">
+                  <v-rating
+                    active-color="amber"
+                    empty-icon="mdi-star-outline"
+                    full-icon="mdi-star"
+                    half-increments
+                    length="5"
+                    :model-value="Number(vehicle.videjais_vertejums || 0)"
+                    readonly
+                    size="small"
+                  />
+                  <span class="text-caption opacity-80">
+                    {{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
+                  </span>
+                </div>
+                <div class="vehicle-card__actions">
+                  <v-chip
+                    :color="isVehicleAvailable(vehicle) ? 'success' : 'error'"
+                    size="small"
+                    variant="tonal"
+                  >
+                    {{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}
+                  </v-chip>
+                  <v-btn size="small" variant="tonal" @click="openReviews(vehicle)">
+                    {{ copy.reviews }}
+                  </v-btn>
+                  <v-btn
+                    v-if="isClient"
+                    color="primary"
+                    :disabled="!isVehicleAvailable(vehicle)"
+                    size="small"
+                    @click="openReservation(vehicle)"
+                  >
+                    {{ copy.reserve }}
+                  </v-btn>
+                  <v-btn
+                    v-else-if="isProvider && isOwnVehicle(vehicle)"
+                    size="small"
+                    variant="tonal"
+                    @click="openEditVehicle(vehicle)"
+                  >
+                    {{ copy.edit }}
+                  </v-btn>
+                </div>
+              </v-card-text>
+            </v-card>
+          </div>
+        </section>
+      </div>
 
       <v-dialog v-model="reservationDialog" max-width="520">
-        <v-card>
+        <v-card class="rental-dialog__card">
           <v-card-title class="font-weight-bold">{{ copy.reservationTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
@@ -265,60 +274,74 @@
               </div>
             </div>
             <div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
-            <v-row dense>
+            <v-row class="reservation-period-fields" dense>
               <v-col cols="6">
                 <v-menu v-model="startDatePickerMenu" :close-on-content-click="false" location="bottom">
                   <template #activator="{ props }">
                     <v-text-field
                       v-bind="props"
-                      :model-value="reservationStartDateDisplay"
-                      :label="copy.startDate"
-                      variant="outlined"
                       density="compact"
+                      :label="copy.startDate"
+                      :model-value="reservationStartDateDisplay"
                       placeholder="DD/MM/YYYY"
                       prepend-inner-icon="mdi-calendar"
                       readonly
+                      variant="outlined"
                     />
                   </template>
                   <v-date-picker
+                    class="rental-calendar"
+                    color="primary"
+                    hide-header
+                    :locale="datePickerLocale"
+                    :min="minReservationDate"
                     :model-value="reservationStartDate"
                     @update:model-value="onStartDatePicked"
-                    :min="minReservationDate"
-                    color="primary"
-                    :locale="datePickerLocale"
-                    hide-header
                   />
                 </v-menu>
               </v-col>
               <v-col cols="6">
-                <v-select v-model="reservationStartTime" :items="availableStartTimeOptions" :label="copy.startTime" variant="outlined" density="compact" />
+                <v-select
+                  v-model="reservationStartTime"
+                  density="compact"
+                  :items="availableStartTimeOptions"
+                  :label="copy.startTime"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="6">
                 <v-menu v-model="endDatePickerMenu" :close-on-content-click="false" location="bottom">
                   <template #activator="{ props }">
                     <v-text-field
                       v-bind="props"
-                      :model-value="reservationEndDateDisplay"
-                      :label="copy.endDate"
-                      variant="outlined"
                       density="compact"
+                      :label="copy.endDate"
+                      :model-value="reservationEndDateDisplay"
                       placeholder="DD/MM/YYYY"
                       prepend-inner-icon="mdi-calendar"
                       readonly
+                      variant="outlined"
                     />
                   </template>
                   <v-date-picker
+                    class="rental-calendar"
+                    color="primary"
+                    hide-header
+                    :locale="datePickerLocale"
+                    :min="minReservationDate"
                     :model-value="reservationEndDate"
                     @update:model-value="onEndDatePicked"
-                    :min="minReservationDate"
-                    color="primary"
-                    :locale="datePickerLocale"
-                    hide-header
                   />
                 </v-menu>
               </v-col>
               <v-col cols="6">
-                <v-select v-model="reservationEndTime" :items="availableEndTimeOptions" :label="copy.endTime" variant="outlined" density="compact" />
+                <v-select
+                  v-model="reservationEndTime"
+                  density="compact"
+                  :items="availableEndTimeOptions"
+                  :label="copy.endTime"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="12">
                 <div class="text-caption opacity-70">{{ copy.timezone }}: {{ userTimezone }}</div>
@@ -335,98 +358,104 @@
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
             <v-btn variant="text" @click="reservationDialog = false">{{ copy.cancel }}</v-btn>
-            <v-btn color="primary" :loading="reservationLoading" :disabled="!isReservationFormValid" @click="createReservation">{{ copy.reserve }}</v-btn>
+            <v-btn color="primary" :disabled="!isReservationFormValid" :loading="reservationLoading" @click="createReservation">{{ copy.reserve }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
 
       <v-dialog v-model="paymentDialog" max-width="480">
-        <v-card>
+        <v-card class="rental-dialog__card">
           <v-card-title class="font-weight-bold">{{ copy.paymentTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
             <div class="text-body-2">{{ copy.paymentPrompt }}</div>
-            <div v-if="pendingReservation" class="mt-3 text-caption opacity-70">
+            <div v-if="pendingReservation" class="payment-amount mt-3">
               {{ copy.reservationAmount }}: {{ formatPrice(pendingReservation.kopa_summa) }}
             </div>
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
-            <v-btn variant="text" :disabled="paymentLoading" @click="payLater">{{ copy.payLater }}</v-btn>
+            <v-btn :disabled="paymentLoading" variant="text" @click="payLater">{{ copy.payLater }}</v-btn>
             <v-btn color="primary" :loading="paymentLoading" @click="confirmPayment">{{ copy.payNow }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
 
       <v-dialog v-model="editDialog" max-width="520">
-        <v-card>
+        <v-card class="rental-dialog__card">
           <v-card-title class="font-weight-bold">{{ copy.editVehicleTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
             <v-select
               v-model="editVehicle.veids_id"
-              :items="typeOptions"
+              density="compact"
               item-title="title"
               item-value="value"
+              :items="typeOptions"
               :label="copy.vehicleFields.type"
               variant="outlined"
-              density="compact"
             />
-            <v-text-field v-model="editVehicle.marka" :label="copy.vehicleFields.brand" variant="outlined" density="compact" />
-            <v-text-field v-model="editVehicle.modelis" :label="copy.vehicleFields.model" variant="outlined" density="compact" />
+            <v-text-field v-model="editVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
+            <v-text-field v-model="editVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
             <v-select
               v-model="editVehicle.atrumkarba"
-              :items="gearboxOptions"
+              density="compact"
               item-title="title"
               item-value="value"
+              :items="gearboxOptions"
               :label="copy.vehicleFields.gearbox"
               variant="outlined"
-              density="compact"
             />
             <v-select
               v-model="editVehicle.degvielas_veids"
-              :items="fuelOptions"
+              density="compact"
               item-title="title"
               item-value="value"
+              :items="fuelOptions"
               :label="copy.vehicleFields.fuel"
               variant="outlined"
-              density="compact"
             />
             <v-text-field
               v-model.number="editVehicle.dienas_nomas_cena"
-              :label="copy.vehicleFields.dailyPrice"
-              type="number"
-              min="0"
-              variant="outlined"
               density="compact"
+              :label="copy.vehicleFields.dailyPrice"
+              min="0"
+              type="number"
+              variant="outlined"
             />
             <v-select
               v-model="editVehicle.statuss"
+              density="compact"
               :items="statusOptions"
               :label="copy.vehicleFields.status"
               variant="outlined"
-              density="compact"
             />
             <v-text-field
               v-model="editVehicle.registracijas_numurs"
+              density="compact"
               :label="copy.vehicleFields.registrationNumber"
               variant="outlined"
-              density="compact"
             />
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
-            <v-btn color="error" variant="tonal" :loading="deleteVehicleLoading" :disabled="editLoading" @click="deleteVehicle">
+            <v-btn
+              color="error"
+              :disabled="editLoading"
+              :loading="deleteVehicleLoading"
+              variant="tonal"
+              @click="deleteVehicle"
+            >
               {{ copy.delete }}
             </v-btn>
             <v-spacer />
             <v-btn variant="text" @click="editDialog = false">{{ copy.cancel }}</v-btn>
-            <v-btn color="primary" :loading="editLoading" :disabled="deleteVehicleLoading" @click="saveVehicle">{{ copy.save }}</v-btn>
+            <v-btn color="primary" :disabled="deleteVehicleLoading" :loading="editLoading" @click="saveVehicle">{{ copy.save }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
 
       <v-dialog v-model="deleteVehicleDialog" max-width="420" persistent>
-        <v-card>
+        <v-card class="rental-dialog__card">
           <v-card-title class="font-weight-bold">{{ copy.deleteVehicleTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
@@ -437,14 +466,14 @@
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-spacer />
-            <v-btn variant="text" :disabled="deleteVehicleLoading" @click="cancelDeleteVehicle">{{ copy.cancel }}</v-btn>
+            <v-btn :disabled="deleteVehicleLoading" variant="text" @click="cancelDeleteVehicle">{{ copy.cancel }}</v-btn>
             <v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">{{ copy.delete }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
 
       <v-dialog v-model="reviewDialog" max-width="760">
-        <v-card>
+        <v-card class="rental-dialog__card">
           <v-card-title class="font-weight-bold d-flex align-center justify-space-between">
             <div>
               <div>{{ copy.reviews }}</div>
@@ -452,16 +481,28 @@
                 {{ reviewVehicle.marka }} {{ reviewVehicle.modelis }}
               </div>
             </div>
-            <v-chip v-if="reviewStats.count > 0" size="small" color="amber" variant="tonal">
+            <v-chip v-if="reviewStats.count > 0" color="amber" size="small" variant="tonal">
               ★ {{ reviewStats.average.toFixed(1) }} ({{ reviewStats.count }})
             </v-chip>
           </v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
-            <v-alert v-if="!user" type="info" variant="tonal" density="compact" class="mb-3">
+            <v-alert
+              v-if="!user"
+              class="mb-3"
+              density="compact"
+              type="info"
+              variant="tonal"
+            >
               {{ copy.reviewClientOnly }}
             </v-alert>
-            <v-alert v-else-if="!isClient" type="warning" variant="tonal" density="compact" class="mb-3">
+            <v-alert
+              v-else-if="!isClient"
+              class="mb-3"
+              density="compact"
+              type="warning"
+              variant="tonal"
+            >
               {{ copy.reviewProviderBlocked }}
             </v-alert>
 
@@ -472,20 +513,20 @@
                 </div>
                 <v-rating
                   v-model="reviewForm.vertejums"
-                  length="5"
-                  :half-increments="false"
                   active-color="amber"
                   empty-icon="mdi-star-outline"
                   full-icon="mdi-star"
+                  :half-increments="false"
+                  length="5"
                 />
                 <v-textarea
                   v-model="reviewForm.komentars"
-                  :label="copy.reviewComment"
-                  rows="3"
                   auto-grow
                   counter="2000"
-                  variant="outlined"
                   density="compact"
+                  :label="copy.reviewComment"
+                  rows="3"
+                  variant="outlined"
                 />
                 <div class="d-flex justify-end">
                   <v-btn color="primary" :loading="reviewSaving" @click="submitReview">
@@ -496,8 +537,8 @@
             </v-card>
 
             <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.reviewAll }}</div>
-            <div v-if="reviewLoading" class="text-body-2">{{ copy.reviewLoading }}</div>
-            <div v-else-if="!vehicleReviews.length" class="text-body-2 opacity-70">{{ copy.reviewEmpty }}</div>
+            <div v-if="reviewLoading" class="dialog-state" role="status"><v-progress-circular color="primary" indeterminate size="22" />{{ copy.reviewLoading }}</div>
+            <div v-else-if="vehicleReviews.length === 0" class="dialog-state"><v-icon>mdi-comment-outline</v-icon>{{ copy.reviewEmpty }}</div>
             <div v-else class="d-flex flex-column ga-3">
               <v-card v-for="review in vehicleReviews" :key="review.atsauksme_id" variant="outlined">
                 <v-card-text class="pa-3">
@@ -507,13 +548,13 @@
                   </div>
                   <div class="d-flex align-center ga-2 mt-1">
                     <v-rating
-                      :model-value="Number(review.vertejums || 0)"
-                      length="5"
-                      readonly
-                      size="small"
                       active-color="amber"
                       empty-icon="mdi-star-outline"
                       full-icon="mdi-star"
+                      length="5"
+                      :model-value="Number(review.vertejums || 0)"
+                      readonly
+                      size="small"
                     />
                     <span class="text-caption">{{ review.vertejums }}/5</span>
                   </div>
@@ -541,6 +582,7 @@ import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useNotifications } from '@/stores/notifications'
 import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
+  import { getVehicleImage } from '@/utils/vehicleVisuals'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const route = useRoute()
@@ -849,8 +891,8 @@ const clientId = computed(() => user.value?.klients?.klients_id || null)
 const providerId = computed(() =>
   user.value?.pakalpojumuSniedzejs?.sniedzejs_id || user.value?.pakalpojumu_sniedzejs?.sniedzejs_id || null
 )
-const showFilters = ref(false)
-const showSorting = ref(false)
+const showFilters = ref(true)
+const showSorting = ref(true)
 
 const vehicleFilters = ref({
   q: '',
@@ -1597,155 +1639,100 @@ watch(availableEndTimeOptions, options => {
 </script>
 
 <style scoped>
-.company-page {
-  min-height: calc(100vh - 72px);
-  background: var(--er-page-bg);
+.company-page { min-height: calc(100vh - 72px); color: var(--er-text); background: var(--er-page-bg); }
+.company-page :deep(.v-container) { max-width: 1280px; padding-inline: 20px; }
+.company-banner { background: var(--er-night); color: var(--er-night-text); padding: 24px 0 56px; }
+.company-back-btn { color: var(--er-night-muted); margin-left: -16px; margin-bottom: 20px; border-radius: 999px; font-size: .875rem; }
+.company-back-btn:hover { color: var(--er-primary); }
+.company-hero { display: grid; gap: 32px; }
+.company-hero h1, .company-banner__title { font-family: var(--er-display-font); font-size: clamp(2.25rem, 5vw, 3rem); font-weight: 900; letter-spacing: -.025em; line-height: 1.1; margin-bottom: 20px; overflow-wrap: anywhere; }
+.company-hero > div:first-child > .text-body-2 { color: var(--er-night-muted); opacity: 1 !important; }
+.company-phone-link { color: var(--er-night-muted); font-weight: 500; text-decoration: none; }
+.company-phone-link:hover { color: var(--er-primary); text-decoration: underline; text-underline-offset: 4px; }
+.company-hero__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 680px; }
+.metric-pill { display: grid; align-content: start; gap: 8px; border: 1px solid var(--er-night-border); background: transparent; padding: 18px; border-radius: 18px; min-width: 0; }
+.metric-pill strong { color: var(--er-primary); font-family: var(--er-display-font); font-size: clamp(1.35rem, 2.8vw, 1.875rem); font-weight: 900; letter-spacing: -.025em; line-height: 1.1; overflow-wrap: anywhere; }
+.metric-pill span { font-size: .75rem; color: var(--er-night-muted); line-height: 1.4; }
+.company-content { padding-block: 48px 72px; }
+.company-loading { display: grid; justify-items: center; gap: 16px; padding: 72px 20px; color: var(--er-text-muted); background: var(--er-surface-strong); border-radius: 26px; }
+.company-catalog { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); align-items: start; gap: 32px; }
+.company-controls { background: var(--er-surface-strong); border: 1px solid var(--er-stroke); border-radius: 26px; padding: 24px; box-shadow: var(--er-shadow-sm); min-width: 0; }
+.company-toolbar { justify-content: flex-start !important; gap: 8px !important; margin-bottom: 20px !important; }
+.company-toolbar :deep(.v-btn) { border-radius: 999px; min-width: 0; font-size: .7rem; flex: 1 1 auto; padding-inline: 10px; }
+.company-panel-card { background: transparent; color: var(--er-text); border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.company-panel-card :deep(.v-card-text) { padding: 0; }
+.company-panel-card :deep(.v-row) { margin-inline: -4px; }
+.company-panel-card :deep(.v-col) { padding-inline: 4px; }
+.toolbar-secondary-btn { border-radius: 999px; font-size: .75rem; }
+.company-results { min-width: 0; }
+.company-results__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin: 0 0 24px; }
+.company-results__heading h2 { font-family: var(--er-display-font); font-size: 1.875rem; font-weight: 900; letter-spacing: -.025em; }
+.vehicles-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.vehicle-card { border: 1px solid var(--er-stroke) !important; border-radius: 26px; color: var(--er-text); background: var(--er-surface-strong); box-shadow: var(--er-shadow-sm); transition: transform .2s ease, box-shadow .2s ease; overflow: hidden; }
+.vehicle-card:hover { transform: translateY(-4px); box-shadow: var(--er-shadow-md); }
+.vehicle-card__visual { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--er-panel-soft); }
+.vehicle-card__visual img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s ease; }
+.vehicle-card:hover .vehicle-card__visual img { transform: scale(1.05); }
+.vehicle-card__status { position: absolute; top: 16px; left: 16px; font-weight: 800; border-radius: 999px; }
+.vehicle-card :deep(.v-card-text) { padding: 20px; }
+.vehicle-card__name { font-family: var(--er-display-font); font-size: 1.25rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; margin-bottom: 8px; }
+.vehicle-card__type { color: var(--er-primary); text-transform: uppercase; font-size: .7rem; font-weight: 800; letter-spacing: .08em; margin-bottom: 12px; }
+.vehicle-card__price { font-family: var(--er-display-font); font-size: 1.35rem; font-weight: 900; margin: 12px 0; }
+.vehicle-card__details { display: flex; flex-wrap: wrap; gap: 6px; }
+.vehicle-detail-chip { display: inline-flex; gap: 4px; max-width: 100%; padding: 5px 8px; border-radius: 9px; background: var(--er-panel-soft); color: var(--er-text-muted); font-size: .7rem; line-height: 1.4; overflow-wrap: anywhere; }
+.vehicle-detail-chip__label { font-weight: 500; }
+.vehicle-detail-chip__value { overflow-wrap: anywhere; }
+.vehicle-card__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--er-stroke); }
+.vehicle-card__actions > .v-chip { display: none; }
+.vehicle-card__actions :deep(.v-btn) { border-radius: 999px; font-weight: 800; }
+.vehicle-card__actions :deep(.v-btn:last-child) { margin-left: auto; }
+.vehicle-rating { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--er-text-muted); }
+.reservation-summary { display: grid; gap: 10px; padding: 20px; border-radius: 18px; background: var(--er-primary-soft); border: 1px solid var(--er-stroke); color: var(--er-text); font-size: .875rem; }
+.reservation-summary > :last-child { border-top: 1px solid var(--er-stroke); padding-top: 12px; margin-top: 2px; font-family: var(--er-display-font); font-size: 1.15rem; font-weight: 800; }
+@media (min-width: 1500px) { .vehicles-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 959px) {
+ .company-catalog { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); gap: 24px; }
+ .vehicles-grid { grid-template-columns: minmax(0, 1fr); }
+ .company-controls { padding: 20px; }
+}
+@media (max-width: 699px) {
+ .company-page :deep(.v-container) { padding-inline: 16px; }
+ .company-banner { padding: 16px 0 32px; }
+ .company-hero { gap: 24px; }
+ .metric-pill { padding: 14px 10px; gap: 8px; border-radius: 14px; }
+ .metric-pill span { font-size: .65rem; }
+ .company-hero__stats { gap: 8px; }
+ .company-content { padding-block: 28px 48px; }
+ .company-catalog { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+ .company-controls { padding: 20px; }
+ .company-toolbar :deep(.v-btn) { flex: 0 1 auto; padding-inline: 14px; font-size: .75rem; }
+ .company-results__heading { margin-bottom: 20px; }
+ .company-results__heading h2 { font-size: 1.5rem; }
+ .vehicle-card__visual { aspect-ratio: 16 / 10; }
+}
+@media (prefers-reduced-motion: reduce) { .vehicle-card, .vehicle-card__visual img { transition: none; } }
+
+.rental-dialog__card :deep(.v-card-title) { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.rental-dialog__card :deep(.v-card-title .v-chip) { flex: 0 0 auto; }
+.rental-dialog__card :deep(.v-card-actions) { border-top: 1px solid var(--er-stroke); background: var(--er-panel-soft); }
+.rental-dialog__card :deep(.v-card-actions .v-btn) { border-radius: 999px; }
+.rental-dialog__card :deep(.v-card-actions .v-spacer) { min-width: 0; }
+.rental-dialog__card :deep(.v-card--variant-outlined) { border: 1px solid var(--er-stroke); border-radius: 18px; background: var(--er-surface-strong); box-shadow: none; }
+.rental-dialog__card :deep(.v-card--variant-outlined .v-card-text) { padding: 18px !important; }
+.dialog-state { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 28px 20px; border: 1px dashed var(--er-stroke); border-radius: 18px; background: var(--er-panel-soft); color: var(--er-text-muted); font-size: .875rem; line-height: 1.6; text-align: center; }
+.dialog-state .v-icon { color: var(--er-primary); }
+.payment-amount { padding: 18px; border-radius: 16px; border: 1px solid var(--er-stroke); background: var(--er-primary-soft); color: var(--er-text); opacity: 1 !important; font-family: var(--er-display-font); font-size: 1rem !important; font-weight: 800; }
+.rental-calendar { border: 1px solid var(--er-stroke); border-radius: 20px !important; box-shadow: var(--er-shadow-md); }
+.rental-calendar :deep(.v-date-picker-controls) { padding-inline: 12px; }
+.rental-calendar :deep(.v-date-picker-month) { padding-inline: 6px; }
+.rental-calendar :deep(.v-date-picker-month__days) { grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; }
+.rental-calendar :deep(.v-date-picker-month__day) { width: auto; min-width: 0; }
+@media (max-width: 599px) {
+ .rental-dialog__card :deep(.v-card-actions) { gap: 8px; }
+ .rental-dialog__card :deep(.v-card-actions .v-btn) { font-size: .75rem; min-height: 40px; flex: 1 1 auto; }
+ .rental-dialog__card :deep(.v-card-actions .v-spacer) { display: none; }
+ .rental-dialog__card :deep(.v-card--variant-outlined .v-card-text) { padding: 14px !important; }
+ .rental-calendar :deep(.v-date-picker-month__day .v-btn) { width: 32px; height: 32px; }
 }
 
-.surface {
-  background: var(--er-surface);
-  border: 1px solid var(--er-stroke);
-  border-radius: 28px;
-  color: var(--er-text);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--er-shadow-md);
-}
-
-.company-back-btn {
-  border-radius: 999px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
-}
-
-.company-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.95fr);
-  gap: 18px;
-  padding: 22px;
-  border-radius: 26px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
-}
-
-.company-hero__stats {
-  display: grid;
-  gap: 12px;
-}
-
-.company-phone-link {
-  color: var(--er-primary);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.company-phone-link:hover {
-  text-decoration: underline;
-}
-
-.company-toolbar {
-  padding: 6px;
-  border-radius: 999px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
-  width: fit-content;
-  margin-left: auto;
-}
-
-.company-panel-card {
-  background: rgba(255, 255, 255, 0.36);
-  border: 1px solid rgba(148, 163, 184, 0.22) !important;
-  border-radius: 22px;
-  box-shadow: none !important;
-}
-
-:root[data-theme='dark'] .company-panel-card {
-  background: rgba(15, 23, 42, 0.28);
-  border-color: rgba(148, 163, 184, 0.18) !important;
-}
-
-.toolbar-secondary-btn {
-  min-height: 40px;
-  padding-inline: 18px;
-  font-size: 0.95rem;
-}
-
-.vehicles-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 16px;
-}
-
-.vehicle-card {
-  border-radius: 22px;
-  color: var(--er-text);
-  border: 1px solid var(--er-stroke) !important;
-  background: var(--er-card-soft);
-  box-shadow: var(--er-shadow-sm);
-}
-
-.vehicle-card__details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.vehicle-detail-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--er-panel-soft);
-  border: 1px solid var(--er-stroke);
-  font-size: 0.78rem;
-  line-height: 1.1;
-}
-
-.vehicle-detail-chip__label {
-  font-weight: 700;
-}
-
-.vehicle-detail-chip__value {
-  overflow-wrap: anywhere;
-}
-
-.vehicle-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}
-
-.vehicle-rating {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.reservation-summary {
-  padding: 10px 12px;
-  border-radius: 16px;
-  border: 1px solid var(--er-stroke);
-  background: var(--er-card-strong);
-  color: var(--er-text);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.9rem;
-}
-
-.reservation-summary strong {
-	color: var(--er-text);
-}
-
-@media (max-width: 960px) {
-  .company-hero {
-    grid-template-columns: 1fr;
-  }
-  .company-toolbar {
-    width: 100%;
-    justify-content: stretch;
-  }
-}
 </style>

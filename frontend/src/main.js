@@ -4,21 +4,20 @@
  * Bootstraps Vuetify and other plugins then mounts the App`
  */
 
-// Plugins
-import { registerPlugins } from '@/plugins'
-
-// Components
-import App from './App.vue'
-import { registerPwa } from './pwa/register'
-
 // Composables
 import { createApp } from 'vue'
+
+// Plugins
+import { registerPlugins } from '@/plugins'
+// Components
+import App from './App.vue'
+
+import { registerPwa } from './pwa/register'
 
 // MDI Icons
 import '@mdi/font/css/materialdesignicons.css'
 
 // Styles
-import 'unfonts.css'
 import './styles/design-system.css'
 
 const app = createApp(App)

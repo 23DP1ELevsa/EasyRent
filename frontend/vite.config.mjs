@@ -1,14 +1,13 @@
+import { fileURLToPath, URL } from 'node:url'
+import Vue from '@vitejs/plugin-vue'
 // Plugins
 import Components from 'unplugin-vue-components/vite'
-import Vue from '@vitejs/plugin-vue'
-import { VitePWA } from 'vite-plugin-pwa'
-import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
-import Fonts from 'unplugin-fonts/vite'
 import VueRouter from 'unplugin-vue-router/vite'
-
 // Utilities
 import { defineConfig } from 'vite'
-import { fileURLToPath, URL } from 'node:url'
+
+import { VitePWA } from 'vite-plugin-pwa'
+import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -25,17 +24,6 @@ export default defineConfig({
       },
     }),
     Components(),
-    Fonts({
-      fontsource: {
-        families: [
-          {
-            name: 'Roboto',
-            weights: [100, 300, 400, 500, 700, 900],
-            styles: ['normal', 'italic'],
-          },
-        ],
-      },
-    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'masked-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
@@ -43,8 +31,8 @@ export default defineConfig({
         name: 'EasyRent',
         short_name: 'EasyRent',
         description: 'Transporta nomas platforma ar karti, filtriem un rezervācijām.',
-        theme_color: '#0f766e',
-        background_color: '#f5f7f2',
+        theme_color: '#00a768',
+        background_color: '#f8fbf9',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -69,7 +57,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,jpg,svg,woff2}'],
       },
       devOptions: {
         enabled: false,
