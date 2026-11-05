@@ -60,26 +60,6 @@
         </div>
       </v-expand-transition>
 
-      <div v-if="selectedPoint" class="map-point-preview">
-        <v-btn
-          :aria-label="copy.close"
-          class="map-point-preview__close"
-          icon="mdi-close"
-          size="small"
-          variant="text"
-          @click="selectedPointId = null"
-        />
-        <h2>{{ selectedPoint.name }}</h2>
-        <p>{{ selectedPoint.address }}, {{ selectedPoint.city }}</p>
-        <div class="map-point-preview__count">{{ selectedPoint.vehicles.length }} {{ copy.stats.vehicles }} &middot; {{ selectedPoint.availableCount }} {{ copy.stats.available }}</div>
-        <v-btn
-          block
-          class="mt-3"
-          color="primary"
-          size="small"
-          @click="openCompany(selectedPoint.id)"
-        >{{ copy.viewProvider }}<v-icon end>mdi-arrow-right</v-icon></v-btn>
-      </div>
       <div class="floating-actions">
         <v-btn
           class="action-btn"
@@ -230,7 +210,7 @@
                 <div v-else-if="filteredPoints.length === 0" class="dialog-state"><v-icon>mdi-map-search-outline</v-icon>{{ copy.noResults }}</div>
                 <div v-else class="pa-2 d-flex flex-column ga-3">
                   <v-card
-                    v-for="point in filteredPoints"
+                    v-for="point in pagedPoints"
                     :key="point.id"
                     class="point-card"
                     :class="{ 'is-selected': selectedPointId === point.id }"
@@ -270,6 +250,26 @@
                     </v-card-text>
                   </v-card>
                 </div>
+              </div>
+
+              <div v-if="!loading && !errorText && pointPageCount > 1" class="vehicle-pagination">
+                <v-btn
+                  :aria-label="copy.previousPage"
+                  :disabled="pointPage <= 1"
+                  icon="mdi-chevron-left"
+                  size="small"
+                  variant="text"
+                  @click="pointPage -= 1"
+                />
+                <span aria-live="polite" class="vehicle-pagination__info">{{ pointPage }} / {{ pointPageCount }}</span>
+                <v-btn
+                  :aria-label="copy.nextPage"
+                  :disabled="pointPage >= pointPageCount"
+                  icon="mdi-chevron-right"
+                  size="small"
+                  variant="text"
+                  @click="pointPage += 1"
+                />
               </div>
 
               <v-card v-if="catalogVehicles.length > 0" class="surface mt-4" elevation="10">
@@ -1407,6 +1407,14 @@ const filteredPoints = computed(() => {
 	}))
 })
 
+  const pointPage = ref(1)
+  const pointsPerPage = 5
+  const pointPageCount = computed(() => Math.max(1, Math.ceil(filteredPoints.value.length / pointsPerPage)))
+  const pagedPoints = computed(() => {
+    const start = (pointPage.value - 1) * pointsPerPage
+    return filteredPoints.value.slice(start, start + pointsPerPage)
+  })
+
 const selectedPointId = ref(null)
 const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
 const catalogVehicles = computed(() => selectedPoint.value?.vehicles || filteredPoints.value.flatMap(point => point.vehicles))
@@ -1610,6 +1618,9 @@ function openMapTools () {
 function selectPoint(id) {
     selectedPointId.value = id
     selectedPointVehiclePage.value = 1
+    const pointIndex = filteredPoints.value.findIndex(point => point.id === id)
+    if (pointIndex !== -1) pointPage.value = Math.floor(pointIndex / pointsPerPage) + 1
+    markers.find(marker => marker.options.pointId === id)?.openPopup()
     if (!expandedPanels.value.includes('points')) expandedPanels.value.push('points')
     if (window.innerWidth < 700) hudVisible.value = false
 }
@@ -2190,6 +2201,7 @@ function renderMarkers() {
 		if (!point.hasCoords) return
 
 		const marker = L.marker([point.lat, point.lng], {
+        pointId: point.id,
 			icon: L.divIcon({
 				className: 'marker-point',
 				html: '<span></span>',
@@ -2293,11 +2305,13 @@ watch(points, async () => {
 })
 
 watch(filteredPoints, () => {
+    pointPage.value = 1
 	nextTick().then(renderMarkers)
 })
 
 watch(() => selectedPoint.value?.id, () => {
 	selectedPointVehiclePage.value = 1
+    if (!selectedPoint.value) mapInstance?.closePopup()
 })
 
 watch(selectedPointVehiclePageCount, pageCount => {
@@ -2341,12 +2355,6 @@ watch(availableEndTimeOptions, options => {
 .map-hud__stat { padding: 12px 6px; border-radius: 16px; background: color-mix(in srgb, var(--er-night-text) 8%, transparent); display: grid; gap: 5px; text-align: center; }
 .map-hud__stat strong { color: var(--er-primary); font-family: var(--er-display-font); font-weight: 900; font-size: 1.5rem; line-height: 1; }
 .map-hud__stat span { font-size: .68rem; color: var(--er-night-muted); overflow-wrap: anywhere; }
-.map-point-preview { position: absolute; right: 16px; bottom: 76px; z-index: 480; width: 300px; max-width: calc(100% - 32px); padding: 20px; background: var(--er-surface-strong); border: 1px solid var(--er-stroke); border-radius: 24px; box-shadow: var(--er-shadow-lg); }
-.map-point-preview__close { position: absolute; right: 8px; top: 8px; }
-.map-point-preview h2 { padding-right: 28px; font-family: var(--er-display-font); font-size: 1.2rem; font-weight: 900; line-height: 1.25; }
-.map-point-preview p { margin-top: 8px; color: var(--er-text-muted); font-size: .8rem; line-height: 1.5; }
-.map-point-preview__count { margin-top: 12px; font-size: .75rem; font-weight: 700; }
-.map-point-preview :deep(.v-btn) { border-radius: 999px; }
 .floating-actions { position: absolute; bottom: 18px; left: 18px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 500; pointer-events: none; max-width: calc(100% - 90px); }
 .action-btn { background: var(--er-surface-strong); color: var(--er-text); border-radius: 999px; box-shadow: var(--er-shadow-sm); pointer-events: auto; touch-action: manipulation; }
 .action-btn:hover { background: var(--er-primary-soft); }
@@ -2418,7 +2426,6 @@ watch(availableEndTimeOptions, options => {
  .map-page__heading > .v-chip { display: none; }
  .map-viewport { height: 440px; border-radius: 22px; }
  .map-hud { top: 76px; padding: 18px; }
- .map-point-preview { bottom: 76px; width: 280px; padding: 16px; }
  .map-hud__copy { font-size: .8rem; margin-bottom: 12px; }
  .map-hud__title { font-size: 1.2rem; }
  .map-hud__stat { padding: 10px 4px; }

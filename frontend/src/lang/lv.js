@@ -52,7 +52,7 @@ export default {
         { icon: 'mdi-van-utility', title: 'Mikroautobusi', text: 'Pārvākšanās, kravas un komandas braucieniem.' },
         { icon: 'mdi-motorbike', title: 'Motocikli', text: 'Sezonas braucieniem un hobijam.' },
         { icon: 'mdi-bicycle', title: 'E-skrejriteņi / velo', text: 'Ātrai pārvietošanai pilsētā.' },
-        { icon: 'mdi-car-wrench', title: 'Speciālie piedāvājumi', text: 'Īpaši auto, akcijas, ilgtermiņa noma (drīzumā).' },
+        { icon: 'mdi-atv', title: 'Kvadracikli', text: 'Piedzīvojumiem dabā un izbraucieniem pa bezceļiem.' },
       ],
     },
     why: {

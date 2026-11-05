@@ -14,16 +14,6 @@
         <p class="home-eyebrow">EasyRent · {{ t('app.brandSubtitle') }}</p>
         <h1 id="home-title">{{ content.hero.slogan }}</h1>
         <p class="home-hero__description">{{ content.hero.description }}</p>
-        <v-btn
-          class="home-hero__link"
-          rounded="pill"
-          size="large"
-          variant="outlined"
-          @click="goMap"
-        >
-          {{ content.hero.ctaMap }}
-          <v-icon end>mdi-arrow-right</v-icon>
-        </v-btn>
         <div class="home-search-card">
           <div class="home-search-card__icon"><v-icon size="30">mdi-map-search-outline</v-icon></div>
           <div class="home-search-card__copy">
@@ -128,19 +118,19 @@
 <script setup>
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
+  import atvImage from '@/assets/cat-atv.jpg'
   import bikeImage from '@/assets/cat-bike.jpg'
   import carImage from '@/assets/cat-car.jpg'
   import motoImage from '@/assets/cat-moto.jpg'
   import suvImage from '@/assets/cat-suv.jpg'
   import vanImage from '@/assets/cat-van.jpg'
-  import heroImage from '@/assets/hero.jpg'
   import { MAP_ROUTE } from '@/router/paths'
   import { useLocale } from '@/stores/locale'
 
   const router = useRouter()
   const { t } = useLocale()
   const content = computed(() => t('home'))
-  const categoryImages = [carImage, suvImage, vanImage, motoImage, bikeImage, heroImage]
+  const categoryImages = [carImage, suvImage, vanImage, motoImage, bikeImage, atvImage]
 
   function goMap () {
     router.push(MAP_ROUTE)
@@ -158,8 +148,6 @@
 .home-eyebrow { color: var(--er-primary); font-size: .8rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 20px; }
 .home-hero h1 { max-width: 830px; font-family: var(--er-display-font, 'Archivo', sans-serif); font-size: clamp(2.75rem, 5.6vw, 4.5rem); font-weight: 900; line-height: 1.02; letter-spacing: -.04em; text-wrap: balance; }
 .home-hero__description { max-width: 680px; margin-top: 24px; font-size: 1.125rem; line-height: 1.75; color: #b4c4cb; }
-.home-hero__link { margin-top: 28px; color: #f3f7f7 !important; border: 2px solid var(--er-primary) !important; font-weight: 800; background: transparent !important; }
-.home-hero__link:hover { color: #fff !important; background: var(--er-primary) !important; }
 .home-search-card { display: flex; align-items: center; gap: 24px; margin-top: 48px; padding: 24px; border-radius: 26px; background: var(--er-surface-strong); color: var(--er-text); box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .45); }
 .home-search-card__icon { display: grid; place-items: center; width: 62px; height: 62px; flex-shrink: 0; border-radius: 18px; color: var(--er-primary); background: var(--er-primary-soft); }
 .home-search-card__copy { flex: 1; min-width: 0; }
