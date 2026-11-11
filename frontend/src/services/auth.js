@@ -1,3 +1,5 @@
+import { startLoading } from '@/stores/loading'
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
 export function getApiBase() {
@@ -63,6 +65,7 @@ export async function syncCurrentUser() {
     return getStoredUser()
   }
 
+  const finish = startLoading()
   try {
     const response = await fetch(`${API_BASE}/api/auth/me`, {
       headers: getAuthHeaders({
@@ -89,10 +92,13 @@ export async function syncCurrentUser() {
     return result.persona
   } catch {
     return getStoredUser()
+  } finally {
+    finish()
   }
 }
 
 export async function logoutRequest() {
+  const finish = startLoading()
   try {
     const token = getStoredToken()
 
@@ -107,5 +113,6 @@ export async function logoutRequest() {
   } catch {
   } finally {
     clearAuthSession()
+    finish()
   }
 }

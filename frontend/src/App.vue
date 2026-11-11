@@ -1,11 +1,11 @@
 <template>
-  <v-app :class="['app-shell', themeModeClass, { 'app-shell--home': route.path === HOME_ROUTE }]">
+  <v-app :class="['app-shell', themeModeClass, { 'app-shell--home': route.path === HOME_ROUTE, 'app-shell--map': route.path === MAP_ROUTE }]">
     <v-app-bar
       :absolute="route.path === HOME_ROUTE"
       class="appbar"
       :class="{ 'appbar--home': route.path === HOME_ROUTE }"
       flat
-      :height="mdAndUp ? 128 : 112"
+      :height="route.path === MAP_ROUTE ? (mdAndUp ? 80 : 76) : (mdAndUp ? 128 : 112)"
     >
       <div class="appbar__inner">
         <div class="utility-bar">
@@ -115,7 +115,7 @@
       </div>
     </v-navigation-drawer>
 
-    <v-main class="app-main"><RouterView /><AppFooter /></v-main>
+    <v-main class="app-main"><RouterView /><AppFooter v-if="route.path !== MAP_ROUTE" /></v-main>
 
     <v-snackbar
       v-model="notificationVisible"
@@ -130,6 +130,7 @@
       </div>
     </v-snackbar>
   </v-app>
+  <LoadingScreen :active="isLoading" :label="t('app.loading')" />
 </template>
 
 <script setup>
@@ -138,14 +139,17 @@
   import { useDisplay, useTheme } from 'vuetify'
   import AppFooter from '@/components/AppFooter.vue'
   import BrandLogo from '@/components/BrandLogo.vue'
+  import LoadingScreen from '@/components/LoadingScreen.vue'
   import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
   import { getStoredUser, logoutRequest, syncCurrentUser } from '@/services/auth'
+  import { useLoading } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
 
   const router = useRouter()
   const route = useRoute()
   const theme = useTheme()
+  const { isLoading } = useLoading()
   const { mdAndUp } = useDisplay()
   const { locale, supportedLanguages, setLocale, t } = useLocale()
   const drawer = ref(false)
@@ -294,6 +298,16 @@
 .profile-menu-btn.is-active { color: var(--er-primary) !important; }
 .profile-menu-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .app-main { min-width: 0; }
+html:has(.app-shell--map) { overflow: hidden; }
+.app-shell--map .app-main { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+.app-shell--map .utility-bar { height: 28px; }
+.app-shell--map .navigation-bar { height: 52px; }
+.app-shell--map .utility-bar .theme-toggle { width: 26px; height: 26px; }
+.app-shell--map .language-switch button { padding: 3px 8px; font-size: .65rem; }
+.app-shell--map .utility-tagline { font-size: .65rem; }
+.app-shell--map .brand-logo { gap: 5px; }
+.app-shell--map .brand-logo__word { font-size: 22px; }
+.app-shell--map .auth-btn { height: 36px !important; }
 .app-shell--home .app-main { padding-top: 0 !important; }
 .drawer { --er-text: var(--er-night-text); --er-text-muted: var(--er-night-muted); --er-surface: var(--er-night); --er-stroke: var(--er-night-border); --er-stroke-strong: rgb(255 255 255 / 24%); background: var(--er-night) !important; color: var(--er-night-text) !important; }
 .drawer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 28px 20px; }
@@ -310,5 +324,6 @@
 .app-notification__body.is-warning > .v-icon { color: rgb(var(--v-theme-warning)); }
 .app-notification__text { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 959px) { .navigation-bar { height: 68px; } .utility-bar { height: 44px; } }
+@media (max-width: 959px) { .app-shell--map .navigation-bar { height: 48px; } }
 @media (max-width: 359px) { .appbar__inner { padding-inline: 16px; } .language-switch button { padding-inline: 8px; } }
 </style>

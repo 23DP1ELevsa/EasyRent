@@ -1,5 +1,6 @@
 export default {
   app: {
+    loading: 'Ielādē…',
     brandSubtitle: 'Transporta noma Latvijā',
     language: {
       select: 'Valoda',
@@ -134,6 +135,21 @@ export default {
     messages: { loadReservationsFailed: 'Neizdevās ielādēt rezervācijas.', loadReservationsError: 'Kļūda: Neizdevās ielādēt rezervācijas.', reservationPaid: 'Rezervācija apmaksāta veiksmīgi.', cancelReservationFailed: 'Neizdevās atcelt rezervāciju.', reservationCanceled: 'Rezervācija atcelta. Transports atkal ir pieejams.', cancelReservationError: 'Kļūda: Neizdevās atcelt rezervāciju.', profileUpdated: 'Profils atjaunināts sekmīgi!' },
   },
   map: {
+    catalogTitle: 'Transporta noma',
+    catalogSubtitle: 'Atrodi piemērotu transportu un rezervē tiešsaistē.',
+    allVehicles: 'Visi transportlīdzekļi',
+    mapView: 'Karte',
+    listView: 'Saraksts',
+    viewMode: 'Skata režīms',
+    closePanel: 'Aizvērt paneli',
+    allResults: 'Visi rezultāti',
+    resetFilters: 'Atiestatīt filtrus',
+    vehicleDetails: 'Informācija',
+    inactive: 'Neaktīvs',
+    retry: 'Mēģināt vēlreiz',
+    providerFallback: 'Pakalpojumu sniedzējs',
+    addressMissing: 'Adrese nav norādīta',
+    cityMissing: 'Pilsēta nav norādīta',
     hudHide: 'Paslēpt kartes informāciju', hudShow: 'Parādīt kartes informāciju', hudEyebrow: 'EasyRent Live karte', hudTitle: 'Atrodi tuvāko un piemērotāko nomas punktu.', hudCopy: 'Filtrē pēc cenas, veida un pieejamības, pēc tam rezervē tieši no kartes.', nearMe: 'Man tuvumā', reset: 'Atiestatīt', drawerTitle: 'Karte un īres punkti', drawerSubtitle: 'Filtri, punkti un rezervācijas vienuviet.', close: 'Aizvērt', filters: 'Filtri', rentalPoints: 'Īres punkti', loading: 'Ielādē...', noResults: 'Nav rezultātu.', noMapCoords: 'Nav koordināšu kartē', noVehicles: 'Nav transporta.', perDay: 'dienā', available: 'Pieejams', busy: 'Aizņemts', reviews: 'Atsauksmes', reserve: 'Rezervēt', edit: 'Rediģēt', addVehicle: 'Pievienot transportu', addVehicleType: 'Pievienot transporta veidu', newVehicleType: 'Jaunais transporta veids', vehicleTypeHint: 'Piemēram, kvadracikls, laiva vai piekabe', saveNewType: 'Saglabāt jauno veidu', existingVehicleTypes: 'Esošie transporta veidi', selectVehicleType: 'Izvēlies transporta veidu', editSelectedType: 'Labot izvēlēto veidu', addVehicleItem: 'Pievienot transportlīdzekli', reservationTitle: 'Rezervācija', selectPeriod: 'Izvēlieties nomas periodu.', startDate: 'No datuma', startTime: 'No laika', endDate: 'Līdz datumam', endTime: 'Līdz laikam', timezone: 'Laika josla', period: 'Periods', billableDays: 'Apmaksas dienas', pricePerDay: 'Cena par dienu', total: 'Kopā', cancel: 'Atcelt', paymentTitle: 'Apmaksa', paymentPrompt: 'Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.', reservationAmount: 'Rezervācijas summa', cancelReservation: 'Atcelt rezervāciju', payLater: 'Maksāšu vēlāk', payNow: 'Apmaksāt', confirmTitle: 'Drošības apstiprinājums', confirmCancelReservation: 'Vai tiešām vēlaties atcelt šo neapmaksāto rezervāciju?', no: 'Nē', yesCancel: 'Jā, atcelt', loginToReserve: 'Lūdzu, pieslēdzieties, lai rezervētu.', editVehicleTitle: 'Rediģēt transportu', delete: 'Dzēst', save: 'Saglabāt', deleteVehicleTitle: 'Dzēst transportlīdzekli', deleteVehicleConfirm: 'Vai tiešām vēlaties dzēst šo transportlīdzekli?', editVehicleTypeTitle: 'Labot transporta veidu', vehicleTypeName: 'Transporta veida nosaukums', reviewClientOnly: 'Atsauksmes var pievienot tikai autorizēti klienti.', reviewProviderBlocked: 'Pakalpojumu sniedzējs atsauksmes pievienot nevar.', reviewEditOwn: 'Rediģēt savu atsauksmi', reviewAdd: 'Pievienot atsauksmi', reviewComment: 'Komentārs', reviewSaveChanges: 'Saglabāt izmaiņas', reviewAll: 'Visas atsauksmes', reviewLoading: 'Ielādē atsauksmes...', reviewEmpty: 'Šim transportlīdzeklim vēl nav atsauksmju.', reviewNoComment: 'Komentārs nav pievienots.', login: 'Pieslēgties', viewProvider: 'Skatīt sniedzēju', popupVehicles: 'Transporti: {count} ({available} pieejami)', previousPage: 'Iepriekšējā lapa', nextPage: 'Nākamā lapa',
     stats: { points: 'Punkti', vehicles: 'Transporti', available: 'Pieejami' },
     filterLabels: { search: 'Meklēt pēc nosaukuma vai pilsētas', provider: 'Pakalpojumu sniedzējs', type: 'Transporta veids', gearbox: 'Ātrumkārba', fuel: 'Degvielas veids', minPrice: 'Cena no (€)', maxPrice: 'Cena līdz (€)', onlyAvailable: 'Rādīt tikai pieejamo' },

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:loading": "node --test tests/loading.test.mjs",
     "lint": "eslint . --fix"
   },
   "dependencies": {

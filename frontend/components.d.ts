@@ -15,6 +15,9 @@ declare module 'vue' {
     AuthPage: typeof import('./src/components/AuthPage.vue')['default']
     BrandLogo: typeof import('./src/components/BrandLogo.vue')['default']
     HomePage: typeof import('./src/components/HomePage.vue')['default']
+    LoadingScreen: typeof import('./src/components/LoadingScreen.vue')['default']
+    MapViewSwitch: typeof import('./src/components/MapViewSwitch.vue')['default']
+    RentalVehicleCard: typeof import('./src/components/RentalVehicleCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

@@ -267,6 +267,7 @@
 <script setup>
   import { computed, ref, watch } from 'vue'
   import { getApiBase, setAuthSession } from '@/services/auth'
+  import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
 
@@ -277,6 +278,7 @@
 
   const tab = ref('login')
   const loading = ref(false)
+  useLoadingState(loading)
   const errorText = ref('')
   const okText = ref('')
 

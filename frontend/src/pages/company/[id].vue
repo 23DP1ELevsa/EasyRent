@@ -580,6 +580,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
+import { useLoadingState } from '@/stores/loading'
 import { useNotifications } from '@/stores/notifications'
 import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
   import { getVehicleImage } from '@/utils/vehicleVisuals'
@@ -597,6 +598,7 @@ const intlLocale = computed(() => getIntlLocale())
 // Lapas pamatstāvoklis: kompānija, transports un rezervācijas dialogi.
 const user = ref(null)
 const loading = ref(false)
+const transportTypesLoading = ref(false)
 const errorText = ref('')
 const transportItems = ref([])
 const transportTypes = ref([])
@@ -631,6 +633,7 @@ const reviewForm = ref({
 })
 
 const snackbar = ref({ show: false, text: '', color: 'error' })
+useLoadingState(loading, transportTypesLoading, reservationLoading, paymentLoading, editLoading, deleteVehicleLoading, reviewLoading, reviewSaving)
 
 watch(reservationError, value => {
   if (value) notifyError(value)
@@ -1598,6 +1601,7 @@ async function loadTransport() {
 }
 
 async function loadTransportTypes() {
+  transportTypesLoading.value = true
   try {
     const response = await fetch(`${API_BASE}/api/transport/veidi`)
     const data = await response.json()
@@ -1610,6 +1614,8 @@ async function loadTransportTypes() {
     transportTypes.value = Array.isArray(data) ? data : []
   } catch {
     transportTypes.value = []
+  } finally {
+    transportTypesLoading.value = false
   }
 }
 

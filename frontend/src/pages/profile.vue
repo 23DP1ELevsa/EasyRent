@@ -486,6 +486,7 @@
   import { useRouter } from 'vue-router'
   import { useLocale } from '@/stores/locale'
   import { HOME_ROUTE } from '@/router/paths'
+  import { useLoadingState } from '@/stores/loading'
   import { useNotifications } from '@/stores/notifications'
   import { clearAuthSession, getApiBase, getAuthHeaders, getStoredToken, setAuthSession, syncCurrentUser } from '@/services/auth'
 
@@ -498,6 +499,7 @@
   // Profila lapas pamatstāvoklis un UI darbību statusi.
   const formRef = ref(null)
   const loading = ref(false)
+  const profileLoading = ref(true)
   const errorText = ref('')
   const successText = ref('')
   const fieldErrors = ref({})
@@ -513,6 +515,7 @@
   const currentClientId = ref(null)
   const geocodeLoading = ref(false)
   const geocodeError = ref('')
+  useLoadingState(profileLoading, loading, reservationsLoading, geocodeLoading, () => payingReservationId.value !== null, () => cancellingReservationId.value !== null)
   const initialProviderAddress = ref({
     iela: '',
     majas_numurs: '',
@@ -704,7 +707,9 @@
 
   // Ielādē lietotāja datus no sesijas un aizpilda formu.
   onMounted(() => {
-    initializeProfile()
+    void initializeProfile().finally(() => {
+      profileLoading.value = false
+    })
   })
 
   async function initializeProfile () {
