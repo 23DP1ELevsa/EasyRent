@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:loading": "node --test tests/loading.test.mjs",
+    "test:catalog": "node --test tests/rentalFilters.test.mjs",
+    "test:catalog:browser": "node tests/catalog.browser.mjs",
     "lint": "eslint . --fix"
   },
   "dependencies": {

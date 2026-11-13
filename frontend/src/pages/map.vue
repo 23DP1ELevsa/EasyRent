@@ -1,84 +1,80 @@
 <template>
   <div class="map-page">
-    <header class="map-toolbar" :inert="isMobile && panelOpen ? true : undefined">
-      <div class="map-toolbar__title">
-        <h1>{{ copy.catalogTitle }}</h1>
-        <span aria-live="polite">{{ filteredPoints.length }} {{ copy.stats.points }} &middot; {{ catalogVehicles.length }} {{ copy.stats.vehicles }}</span>
+    <header v-if="viewMode === 'list'" class="map-toolbar" :inert="isMobile && panelOpen ? true : undefined">
+      <div class="map-toolbar__main">
+        <div class="map-toolbar__title">
+          <h1>{{ copy.catalogTitle }}</h1>
+          <span aria-live="polite">{{ t('map.resultCount', { count: catalogVehicles.length }) }}</span>
+        </div>
+        <MapViewSwitch v-model="viewMode" class="desktop-view-switch" />
+        <v-btn
+          :aria-expanded="listPanelOpen"
+          class="toolbar-filter"
+          prepend-icon="mdi-tune-variant"
+          variant="tonal"
+          @click="openMapTools"
+        >
+          {{ copy.filters }}<span v-if="activeFilterKeys.length > 0" class="toolbar-count">{{ activeFilterKeys.length }}</span>
+        </v-btn>
+        <v-select
+          v-model="sortOrder"
+          class="toolbar-sort"
+          density="compact"
+          hide-details
+          item-title="title"
+          item-value="value"
+          :items="sortOptions"
+          :label="copy.sortBy"
+          variant="outlined"
+        />
+        <v-btn
+          v-if="isProvider"
+          class="toolbar-add"
+          color="primary"
+          prepend-icon="mdi-plus"
+          @click="providerDialog = true"
+        >{{ copy.addVehicle }}</v-btn>
       </div>
-      <MapViewSwitch v-model="viewMode" class="desktop-view-switch" />
+      <div v-if="activeFilterKeys.length > 0 || selectedPoint" :aria-label="copy.activeFilters" class="active-filters">
+        <v-chip
+          v-for="key in activeFilterKeys"
+          :key="key"
+          closable
+          color="primary"
+          size="small"
+          variant="tonal"
+          @click:close="removeFilter(key)"
+        >{{ filterChipLabel(key) }}</v-chip>
+        <v-chip
+          v-if="selectedPoint && !filters.companyId"
+          closable
+          size="small"
+          variant="outlined"
+          @click:close="clearPointSelection"
+        >{{ selectedPoint.name }}</v-chip>
+        <v-btn size="small" variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn>
+      </div>
     </header>
-    <div :aria-busy="isWorkspaceLoading" class="map-body" :class="{ 'has-panel': panelOpen }">
+    <div :aria-busy="isWorkspaceLoading" class="map-body" :class="{ 'has-panel': viewMode === 'map' && mapPanelOpen }">
       <div v-show="viewMode === 'map'" ref="mapViewport" class="map-viewport" :inert="isMobile && panelOpen ? true : undefined">
 
         <div id="map" class="map-canvas" />
 
         <v-btn
-          v-if="viewMode === 'map' && !panelOpen"
+          v-if="!mapPanelOpen"
           ref="panelToggle"
           aria-controls="rental-workspace"
-          :aria-expanded="panelOpen"
+          :aria-expanded="mapPanelOpen"
           class="map-menu-btn"
           color="primary"
+          prepend-icon="mdi-tune-variant"
           @click="openMapTools"
-        >
-          <v-icon start>mdi-tune-variant</v-icon>{{ copy.filters }}
-        </v-btn>
-
-        <v-btn
-          :aria-label="hudVisible ? copy.hudHide : copy.hudShow"
-          class="map-hud-toggle"
-          icon
-          size="large"
-          variant="elevated"
-          @click="toggleHud"
-        >
-          <v-icon>{{ hudVisible ? 'mdi-eye-off-outline' : 'mdi-information-outline' }}</v-icon>
-        </v-btn>
-
-        <v-expand-transition>
-          <div v-show="hudVisible" class="map-hud">
-            <div class="map-hud__head">
-              <div class="soft-eyebrow map-hud__eyebrow">{{ copy.hudEyebrow }}</div>
-              <v-btn
-                :aria-label="copy.hudHide"
-                class="map-hud__close"
-                icon
-                size="small"
-                variant="text"
-                @click="toggleHud"
-              >
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-            </div>
-            <div class="map-hud__title">{{ copy.hudTitle }}</div>
-            <div class="map-hud__copy">{{ copy.hudCopy }}</div>
-            <div class="map-hud__stats">
-              <div class="map-hud__stat">
-                <strong>{{ filteredPoints.length }}</strong>
-                <span>{{ copy.stats.points }}</span>
-              </div>
-              <div class="map-hud__stat">
-                <strong>{{ catalogVehicles.length }}</strong>
-                <span>{{ copy.stats.vehicles }}</span>
-              </div>
-              <div class="map-hud__stat">
-                <strong>{{ selectedPoint ? selectedPoint.availableCount : filteredPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong>
-                <span>{{ copy.stats.available }}</span>
-              </div>
-            </div>
-            <v-btn
-              class="mt-3"
-              prepend-icon="mdi-backup-restore"
-              size="small"
-              variant="tonal"
-              @click="resetMap"
-            >{{ copy.reset }}</v-btn>
-          </div>
-        </v-expand-transition>
+        >{{ copy.filters }}<span v-if="activeFilterKeys.length > 0" class="toolbar-count">{{ activeFilterKeys.length }}</span></v-btn>
 
         <button
           :aria-label="copy.nearMe"
           class="map-locate-btn"
+          :disabled="locating"
           :title="copy.nearMe"
           type="button"
           @click.stop="locateUser"
@@ -96,7 +92,7 @@
         @click="panelOpen = false"
       />
       <section
-        v-show="panelOpen"
+        v-show="viewMode === 'map' && mapPanelOpen"
         id="rental-workspace"
         ref="panelElement"
         :aria-label="copy.drawerTitle"
@@ -106,399 +102,150 @@
         tabindex="-1"
         @keydown="handlePanelKeydown"
       >
+        <div class="workspace-view-switch"><MapViewSwitch v-model="viewMode" class="desktop-view-switch" /></div>
         <div class="drawer-header">
-          <div class="drawer-header-main">
-            <div class="text-h6 font-weight-bold header-title">{{ copy.drawerTitle }}</div>
-            <div class="text-caption header-subtitle">{{ copy.drawerSubtitle }}</div>
-            <v-chip
-              v-if="user"
-              class="mt-2 map-role-chip"
-              color="primary"
-              size="small"
-              variant="tonal"
-            >
-              {{ roleLabel }}
-            </v-chip>
-          </div>
+          <div class="drawer-header-main"><h2 class="header-title">{{ copy.drawerTitle }}</h2><p class="header-subtitle">{{ copy.mapSubtitle }}</p></div>
           <v-btn
             :aria-label="copy.closePanel"
             class="header-close-btn"
-            icon
+            icon="mdi-close"
             variant="text"
             @click="panelOpen = false"
-          >
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
+          />
         </div>
-
-        <v-divider />
-
+        <div class="map-search">
+          <v-text-field
+            v-model="filters.q"
+            clearable
+            density="comfortable"
+            hide-details
+            :label="copy.searchPlaceholder"
+            prepend-inner-icon="mdi-magnify"
+            variant="outlined"
+            @click:clear="filters.q = ''"
+          />
+        </div>
         <div ref="panelScroll" class="drawer-scroll">
-          <div aria-live="polite" class="workspace-counts">{{ filteredPoints.length }} {{ copy.stats.points }} &middot; {{ catalogVehicles.length }} {{ copy.stats.vehicles }}</div>
+          <div aria-live="polite" class="workspace-stats">
+            <div><strong>{{ filteredPoints.length }}</strong><span>{{ copy.stats.points }}</span></div>
+            <div><strong>{{ filteredPoints.reduce((sum, point) => sum + point.vehicles.length, 0) }}</strong><span>{{ copy.stats.vehicles }}</span></div>
+            <div><strong>{{ filteredPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong><span>{{ copy.stats.available }}</span></div>
+          </div>
+          <div class="workspace-tools">
+            <v-select
+              v-model="sortOrder"
+              class="workspace-sort"
+              density="compact"
+              hide-details
+              item-title="title"
+              item-value="value"
+              :items="sortOptions"
+              :label="copy.sortBy"
+              variant="outlined"
+            />
+            <v-btn :aria-label="copy.reset" icon="mdi-backup-restore" variant="text" @click="resetMap" />
+          </div>
           <v-btn
-            v-if="selectedPointId !== null || filters.companyId"
+            v-if="isProvider && viewMode === 'map'"
             block
-            class="mb-3"
-            prepend-icon="mdi-arrow-left"
-            size="small"
-            variant="tonal"
-            @click="clearPointSelection"
-          >{{ copy.allResults }}</v-btn>
-          <v-expansion-panels v-model="expandedPanels" class="drawer-panels" multiple variant="accordion">
-            <v-expansion-panel class="surface filters-panel" value="filters">
-              <v-expansion-panel-title>
-                <div class="text-subtitle-1 font-weight-bold">{{ copy.filters }}</div>
-              </v-expansion-panel-title>
-              <v-expansion-panel-text>
-                <v-text-field
-                  ref="searchField"
-                  v-model="filters.q"
-                  density="compact"
-                  :label="copy.filterLabels.search"
-                  variant="outlined"
-                />
-                <v-select
-                  v-model="filters.companyId"
-                  clearable
-                  density="compact"
-                  item-title="title"
-                  item-value="value"
-                  :items="companyOptions"
-                  :label="copy.filterLabels.provider"
-                  variant="outlined"
-                />
-                <v-select
-                  v-model="filters.typeId"
-                  clearable
-                  density="compact"
-                  item-title="title"
-                  item-value="value"
-                  :items="typeOptions"
-                  :label="copy.filterLabels.type"
-                  variant="outlined"
-                />
-                <v-select
-                  v-model="filters.gearbox"
-                  clearable
-                  density="compact"
-                  item-title="title"
-                  item-value="value"
-                  :items="publicGearboxOptions"
-                  :label="copy.filterLabels.gearbox"
-                  variant="outlined"
-                />
-                <v-select
-                  v-model="filters.fuel"
-                  clearable
-                  density="compact"
-                  item-title="title"
-                  item-value="value"
-                  :items="publicFuelOptions"
-                  :label="copy.filterLabels.fuel"
-                  variant="outlined"
-                />
-                <v-row dense>
-                  <v-col cols="6">
-                    <v-text-field
-                      v-model.number="filters.minPrice"
-                      density="compact"
-                      :label="copy.filterLabels.minPrice"
-                      min="0"
-                      type="number"
-                      variant="outlined"
-                    />
-                  </v-col>
-                  <v-col cols="6">
-                    <v-text-field
-                      v-model.number="filters.maxPrice"
-                      density="compact"
-                      :label="copy.filterLabels.maxPrice"
-                      min="0"
-                      type="number"
-                      variant="outlined"
-                    />
-                  </v-col>
-                </v-row>
-                <v-btn
-                  block
-                  class="mb-3"
-                  size="small"
-                  variant="text"
-                  @click="resetFilters"
-                >{{ copy.resetFilters }}</v-btn>
-                <v-switch
-                  v-model="filters.onlyAvailable"
-                  density="compact"
-                  inset
-                  :label="copy.filterLabels.onlyAvailable"
-                />
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-
-            <v-expansion-panel class="surface points-panel" value="points">
-              <v-expansion-panel-title>
-                <div class="d-flex align-center justify-space-between w-100 pr-2">
-                  <div class="text-subtitle-1 font-weight-bold">{{ copy.rentalPoints }}</div>
-                  <div class="d-flex align-center ga-2">
-                    <v-chip color="primary" size="small" variant="tonal">{{ filteredPoints.length }}</v-chip>
-                  </div>
-                </div>
-              </v-expansion-panel-title>
-              <v-expansion-panel-text>
-                <div class="list-wrap">
-                  <div v-if="loading" class="dialog-state" role="status"><v-progress-circular color="primary" indeterminate size="22" />{{ copy.loading }}</div>
-                  <div v-else-if="errorText" class="pa-2 text-error">{{ errorText }}</div>
-                  <div v-else-if="filteredPoints.length === 0" class="dialog-state"><v-icon>mdi-map-search-outline</v-icon>{{ copy.noResults }}</div>
-                  <div v-else class="pa-2 d-flex flex-column ga-3">
-                    <v-card
-                      v-for="point in pagedPoints"
-                      :key="point.id"
-                      :aria-pressed="selectedPointId === point.id"
-                      class="point-card"
-                      :class="{ 'is-selected': selectedPointId === point.id }"
-                      elevation="4"
-                      role="button"
-                      tabindex="0"
-                      @click="selectPoint(point.id)"
-                      @keydown.enter.prevent="selectPoint(point.id)"
-                      @keydown.space.prevent="selectPoint(point.id)"
-                    >
-                      <v-card-text class="pa-4">
-                        <div class="point-card-header">
-                          <div class="point-card-copy">
-                            <div class="point-card-name text-subtitle-1 font-weight-bold">{{ point.name }}</div>
-                            <div class="point-card-address text-caption opacity-70">{{ point.address }}</div>
-                            <div class="point-card-city text-caption opacity-70">{{ point.city }}</div>
-                          </div>
-                          <div class="d-flex align-center ga-2">
-                            <v-chip
-                              v-if="point.reviewCount > 0"
-                              class="point-card-chip"
-                              color="amber"
-                              size="small"
-                              variant="tonal"
-                            >
-                              ★ {{ point.reviewAverage.toFixed(1) }} ({{ point.reviewCount }})
-                            </v-chip>
-                            <v-chip class="point-card-chip" :color="point.availableCount ? 'success' : 'grey'" size="small" variant="tonal">
-                              {{ point.availableCount }}/{{ point.vehicles.length }}
-                            </v-chip>
-                          </div>
-                        </div>
-                        <div v-if="!hasPointCoordinates(point.id)" class="text-caption mt-2">{{ copy.noMapCoords }}</div>
-                        <v-btn
-                          class="mt-3 point-provider-link"
-                          color="primary"
-                          size="small"
-                          variant="text"
-                          @click.stop="openCompany(point.id)"
-                        >{{ copy.viewProvider }}<v-icon end>mdi-arrow-right</v-icon></v-btn>
-                      </v-card-text>
-                    </v-card>
-                  </div>
-                </div>
-
-                <div v-if="!loading && !errorText && pointPageCount > 1" class="vehicle-pagination">
-                  <v-btn
-                    :aria-label="copy.previousPage"
-                    :disabled="pointPage <= 1"
-                    icon="mdi-chevron-left"
-                    size="small"
-                    variant="text"
-                    @click="pointPage -= 1"
-                  />
-                  <span aria-live="polite" class="vehicle-pagination__info">{{ pointPage }} / {{ pointPageCount }}</span>
-                  <v-btn
-                    :aria-label="copy.nextPage"
-                    :disabled="pointPage >= pointPageCount"
-                    icon="mdi-chevron-right"
-                    size="small"
-                    variant="text"
-                    @click="pointPage += 1"
-                  />
-                </div>
-
-                <section v-if="viewMode === 'map' && catalogVehicles.length > 0" ref="panelCatalog" class="panel-catalog">
-                  <div class="catalog-heading">
-                    <div><h2>{{ selectedPoint ? selectedPoint.name : copy.stats.vehicles }}</h2><p v-if="selectedPoint">{{ selectedPoint.address }} &middot; {{ selectedPoint.city }}</p></div>
-                    <v-btn
-                      v-if="selectedPoint"
-                      :aria-label="copy.allResults"
-                      icon="mdi-close"
-                      size="small"
-                      variant="text"
-                      @click="clearPointSelection"
-                    />
-                  </div>
-                  <div class="vehicle-grid vehicle-grid--compact">
-                    <RentalVehicleCard
-                      v-for="vehicle in pagedSelectedPointVehicles"
-                      :key="vehicle.transportlidzeklis_id"
-                      :available="isVehicleAvailable(vehicle)"
-                      :can-edit="isProvider && isOwnVehicle(vehicle)"
-                      :can-reserve="isClient || !user"
-                      :compact="viewMode === 'map'"
-                      :details="buildVehicleDetails(vehicle)"
-                      :provider="vehicleProviders.get(vehicle.transportlidzeklis_id)"
-                      :vehicle="vehicle"
-                      @details="detailVehicle = vehicle"
-                      @edit="openEditVehicle(vehicle)"
-                      @reserve="openReservation(vehicle)"
-                      @reviews="openReviews(vehicle)"
-                      @select-provider="selectPoint(vehicleProviders.get(vehicle.transportlidzeklis_id)?.id)"
-                    />
-                  </div>
-                  <div v-if="selectedPointVehiclePageCount > 1" class="vehicle-pagination">
-                    <v-btn
-                      :aria-label="copy.previousPage"
-                      :disabled="selectedPointVehiclePage <= 1"
-                      icon="mdi-chevron-left"
-                      size="small"
-                      variant="text"
-                      @click="selectedPointVehiclePage -= 1"
-                    />
-                    <span aria-live="polite" class="vehicle-pagination__info">{{ selectedPointVehiclePage }} / {{ selectedPointVehiclePageCount }}</span>
-                    <v-btn
-                      :aria-label="copy.nextPage"
-                      :disabled="selectedPointVehiclePage >= selectedPointVehiclePageCount"
-                      icon="mdi-chevron-right"
-                      size="small"
-                      variant="text"
-                      @click="selectedPointVehiclePage += 1"
-                    />
-                  </div>
-                </section>
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-
-            <v-expansion-panel v-if="isProvider" class="surface provider-panel" value="add-vehicle">
-              <v-expansion-panel-title>
-                <div class="text-subtitle-1 font-weight-bold">{{ copy.addVehicle }}</div>
-              </v-expansion-panel-title>
-              <v-expansion-panel-text>
-                <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleType }}</div>
-                <v-form class="d-flex flex-column ga-3 mb-5" @submit.prevent="submitVehicleType">
-                  <v-text-field
-                    v-model="newVehicleType.nosaukums"
-                    density="compact"
-                    :hint="copy.vehicleTypeHint"
-                    :label="copy.newVehicleType"
-                    persistent-hint
-                    variant="outlined"
-                  />
-                  <v-btn
-                    block
-                    color="primary"
-                    :loading="vehicleTypeLoading"
-                    type="submit"
-                    variant="tonal"
-                  >
-                    {{ copy.saveNewType }}
-                  </v-btn>
-                </v-form>
-
-                <div v-if="transportTypes.length > 0" class="mb-5">
-                  <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.existingVehicleTypes }}</div>
-                  <v-select
-                    v-model="editingVehicleTypeId"
-                    clearable
-                    density="compact"
-                    item-title="title"
-                    item-value="value"
-                    :items="vehicleTypeSelectOptions"
-                    :label="copy.selectVehicleType"
-                    variant="outlined"
-                  />
-                  <div class="d-flex justify-end mt-2">
-                    <v-btn
-                      :disabled="!selectedVehicleTypeToEdit"
-                      size="small"
-                      variant="tonal"
-                      @click="startEditingVehicleType"
-                    >
-                      {{ copy.editSelectedType }}
-                    </v-btn>
-                  </div>
-                </div>
-
-                <v-divider class="mb-4" />
-                <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleItem }}</div>
-                <v-form @submit.prevent="submitVehicle">
-                  <v-select
-                    v-model="newVehicle.veids_id"
-                    density="compact"
-                    item-title="title"
-                    item-value="value"
-                    :items="typeOptions"
-                    :label="copy.vehicleFields.type"
-                    variant="outlined"
-                  />
-                  <v-text-field v-model="newVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
-                  <v-text-field v-model="newVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
-                  <v-select
-                    v-model="newVehicle.atrumkarba"
-                    density="compact"
-                    :items="gearboxOptions"
-                    :label="copy.vehicleFields.gearbox"
-                    variant="outlined"
-                  />
-                  <v-select
-                    v-model="newVehicle.degvielas_veids"
-                    density="compact"
-                    :items="fuelOptions"
-                    :label="copy.vehicleFields.fuel"
-                    variant="outlined"
-                  />
-                  <v-text-field
-                    v-model.number="newVehicle.dienas_nomas_cena"
-                    density="compact"
-                    :label="copy.vehicleFields.dailyPrice"
-                    min="0"
-                    type="number"
-                    variant="outlined"
-                  />
-                  <v-select
-                    v-model="newVehicle.statuss"
-                    density="compact"
-                    :items="statusOptions"
-                    :label="copy.vehicleFields.status"
-                    variant="outlined"
-                  />
-                  <v-text-field
-                    v-model="newVehicle.registracijas_numurs"
-                    density="compact"
-                    :label="copy.vehicleFields.registrationNumber"
-                    variant="outlined"
-                  />
-                  <v-btn
-                    block
-                    class="mt-2"
-                    color="primary"
-                    :loading="providerLoading"
-                    type="submit"
-                  >
-                    {{ copy.save }}
-                  </v-btn>
-                </v-form>
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-          </v-expansion-panels>
+            class="toolbar-add mb-4"
+            color="primary"
+            prepend-icon="mdi-plus"
+            @click="providerDialog = true"
+          >{{ copy.addVehicle }}</v-btn>
+          <div v-if="activeFilterKeys.length > 0 || selectedPoint" :aria-label="copy.activeFilters" class="active-filters">
+            <v-chip
+              v-for="key in activeFilterKeys"
+              :key="key"
+              closable
+              color="primary"
+              size="small"
+              variant="tonal"
+              @click:close="removeFilter(key)"
+            >{{ filterChipLabel(key) }}</v-chip>
+            <v-chip
+              v-if="selectedPoint && !filters.companyId"
+              closable
+              size="small"
+              variant="outlined"
+              @click:close="clearPointSelection"
+            >{{ selectedPoint.name }}</v-chip>
+            <v-btn size="small" variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn>
+          </div>
+          <RentalFilterGroups
+            v-model="filters"
+            v-bind="filterOptions"
+            :show-search="false"
+          />
+          <div class="points-section">
+            <div v-if="isWorkspaceLoading" class="dialog-state" role="status"><v-progress-circular indeterminate size="22" />{{ copy.loading }}</div>
+            <div v-else-if="errorText" class="dialog-state" role="alert">{{ errorText }}<v-btn variant="text" @click="loadTransport">{{ copy.retry }}</v-btn></div>
+            <div v-else-if="filteredPoints.length === 0" class="dialog-state">{{ copy.noResults }}<v-btn variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn></div>
+            <RentalPointList v-else :points="filteredPoints" :selected-id="selectedPointId" @select="selectPoint" />
+          </div>
+          <section v-if="selectedPoint && catalogVehicles.length > 0" ref="panelCatalog" class="panel-catalog">
+            <div class="catalog-heading">
+              <div><h2>{{ selectedPoint ? selectedPoint.name : copy.stats.vehicles }}</h2><p v-if="selectedPoint">{{ selectedPoint.address }} &middot; {{ selectedPoint.city }}</p><p v-if="selectedPoint && !hasPointCoordinates(selectedPoint.id)">{{ copy.noMapCoords }}</p></div>
+              <v-btn
+                v-if="selectedPoint"
+                :aria-label="copy.allResults"
+                icon="mdi-close"
+                size="small"
+                variant="text"
+                @click="clearPointSelection"
+              />
+            </div>
+            <v-btn
+              block
+              class="mb-4"
+              prepend-icon="mdi-storefront-outline"
+              variant="tonal"
+              @click="openCompany(selectedPoint.id)"
+            >{{ copy.viewProvider }}</v-btn>
+            <div class="vehicle-grid vehicle-grid--compact">
+              <RentalVehicleCard
+                v-for="vehicle in pagedSelectedPointVehicles"
+                :key="vehicle.transportlidzeklis_id"
+                :available="isVehicleAvailable(vehicle)"
+                :can-edit="isProvider && isOwnVehicle(vehicle)"
+                :can-reserve="isClient || !user"
+                :compact="viewMode === 'map'"
+                :details="buildVehicleDetails(vehicle)"
+                :provider="vehicleProviders.get(vehicle.transportlidzeklis_id)"
+                :vehicle="vehicle"
+                @details="detailVehicle = vehicle"
+                @edit="openEditVehicle(vehicle)"
+                @reserve="openReservation(vehicle)"
+                @reviews="openReviews(vehicle)"
+                @select-provider="selectPoint(vehicleProviders.get(vehicle.transportlidzeklis_id)?.id)"
+              />
+            </div>
+            <div v-if="selectedPointVehiclePageCount > 1" class="vehicle-pagination">
+              <v-btn
+                :aria-label="copy.previousPage"
+                :disabled="selectedPointVehiclePage <= 1"
+                icon="mdi-chevron-left"
+                size="small"
+                variant="text"
+                @click="selectedPointVehiclePage -= 1"
+              />
+              <span aria-live="polite" class="vehicle-pagination__info">{{ selectedPointVehiclePage }} / {{ selectedPointVehiclePageCount }}</span>
+              <v-btn
+                :aria-label="copy.nextPage"
+                :disabled="selectedPointVehiclePage >= selectedPointVehiclePageCount"
+                icon="mdi-chevron-right"
+                size="small"
+                variant="text"
+                @click="selectedPointVehiclePage += 1"
+              />
+            </div>
+          </section>
         </div>
       </section>
 
-      <section v-show="viewMode === 'list'" :aria-label="copy.listView" class="list-catalog" :inert="isMobile && panelOpen ? true : undefined">
+      <section v-show="viewMode === 'list'" :aria-label="copy.listView" class="list-catalog">
         <div class="catalog-heading">
           <div><h2>{{ selectedPoint ? selectedPoint.name : copy.allVehicles }}</h2><p v-if="selectedPoint">{{ selectedPoint.address }} &middot; {{ selectedPoint.city }}</p><p v-else>{{ copy.catalogSubtitle }}</p></div>
-          <v-btn
-            v-if="viewMode === 'list' && !panelOpen"
-            ref="panelToggle"
-            aria-controls="rental-workspace"
-            :aria-expanded="panelOpen"
-            prepend-icon="mdi-tune-variant"
-            size="small"
-            variant="tonal"
-            @click="openMapTools"
-          >{{ copy.filters }}</v-btn>
           <v-btn
             v-if="selectedPointId !== null || filters.companyId"
             prepend-icon="mdi-arrow-left"
@@ -507,10 +254,10 @@
             @click="clearPointSelection"
           >{{ copy.allResults }}</v-btn>
         </div>
-        <div v-if="loading" class="dialog-state" role="status"><v-progress-circular color="primary" indeterminate size="22" />{{ copy.loading }}</div>
+        <div v-if="isWorkspaceLoading" class="dialog-state" role="status"><v-progress-circular color="primary" indeterminate size="22" />{{ copy.loading }}</div>
         <div v-else-if="errorText" class="dialog-state" role="alert">{{ errorText }}<v-btn variant="text" @click="loadTransport">{{ copy.retry }}</v-btn></div>
         <div v-else-if="catalogVehicles.length === 0" class="dialog-state"><v-icon>mdi-magnify-close</v-icon>{{ copy.noResults }}<v-btn variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn></div>
-        <template v-else-if="viewMode === 'list'">
+        <template v-else>
           <div class="vehicle-grid">
             <RentalVehicleCard
               v-for="vehicle in pagedSelectedPointVehicles"
@@ -553,6 +300,129 @@
     </div>
     <div class="mobile-view-switch" :inert="isMobile && panelOpen ? true : undefined"><MapViewSwitch v-model="viewMode" /></div>
 
+    <RentalSlideOver v-model="listPanelOpen" :is-mobile="isMobile" return-focus=".toolbar-filter" :title="copy.filters">
+      <RentalFilterGroups v-model="draftFilters" v-bind="filterOptions" />
+      <template #footer>
+        <v-btn variant="text" @click="draftFilters = createRentalFilters()">{{ copy.reset }}</v-btn>
+        <v-btn color="primary" :disabled="!hasValidPriceRange(draftFilters) || isWorkspaceLoading" @click="applyListFilters">{{ t('map.showResults', { count: draftResultCount }) }}</v-btn>
+      </template>
+    </RentalSlideOver>
+    <RentalSlideOver
+      v-if="isProvider"
+      v-model="providerDialog"
+      :is-mobile="isMobile"
+      return-focus=".toolbar-add"
+      :title="copy.addVehicle"
+      width="540"
+    >
+      <div class="provider-panel">
+        <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleType }}</div>
+        <v-form class="d-flex flex-column ga-3 mb-5" @submit.prevent="submitVehicleType">
+          <v-text-field
+            v-model="newVehicleType.nosaukums"
+            density="compact"
+            :hint="copy.vehicleTypeHint"
+            :label="copy.newVehicleType"
+            persistent-hint
+            variant="outlined"
+          />
+          <v-btn
+            block
+            color="primary"
+            :loading="vehicleTypeLoading"
+            type="submit"
+            variant="tonal"
+          >
+            {{ copy.saveNewType }}
+          </v-btn>
+        </v-form>
+
+        <div v-if="transportTypes.length > 0" class="mb-5">
+          <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.existingVehicleTypes }}</div>
+          <v-select
+            v-model="editingVehicleTypeId"
+            clearable
+            density="compact"
+            item-title="title"
+            item-value="value"
+            :items="vehicleTypeSelectOptions"
+            :label="copy.selectVehicleType"
+            variant="outlined"
+          />
+          <div class="d-flex justify-end mt-2">
+            <v-btn
+              :disabled="!selectedVehicleTypeToEdit"
+              size="small"
+              variant="tonal"
+              @click="startEditingVehicleType"
+            >
+              {{ copy.editSelectedType }}
+            </v-btn>
+          </div>
+        </div>
+
+        <v-divider class="mb-4" />
+        <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleItem }}</div>
+        <v-form @submit.prevent="submitVehicle">
+          <v-select
+            v-model="newVehicle.veids_id"
+            density="compact"
+            item-title="title"
+            item-value="value"
+            :items="typeOptions"
+            :label="copy.vehicleFields.type"
+            variant="outlined"
+          />
+          <v-text-field v-model="newVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
+          <v-text-field v-model="newVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
+          <v-select
+            v-model="newVehicle.atrumkarba"
+            density="compact"
+            :items="gearboxOptions"
+            :label="copy.vehicleFields.gearbox"
+            variant="outlined"
+          />
+          <v-select
+            v-model="newVehicle.degvielas_veids"
+            density="compact"
+            :items="fuelOptions"
+            :label="copy.vehicleFields.fuel"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model.number="newVehicle.dienas_nomas_cena"
+            density="compact"
+            :label="copy.vehicleFields.dailyPrice"
+            min="0"
+            type="number"
+            variant="outlined"
+          />
+          <v-select
+            v-model="newVehicle.statuss"
+            density="compact"
+            :items="statusOptions"
+            :label="copy.vehicleFields.status"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model="newVehicle.registracijas_numurs"
+            density="compact"
+            :label="copy.vehicleFields.registrationNumber"
+            variant="outlined"
+          />
+          <v-btn
+            block
+            class="mt-2"
+            color="primary"
+            :loading="providerLoading"
+            type="submit"
+          >
+            {{ copy.save }}
+          </v-btn>
+        </v-form>
+      </div>
+    </RentalSlideOver>
+
     <v-dialog max-width="600" :model-value="!!detailVehicle" @update:model-value="value => { if (!value) detailVehicle = null }">
       <v-card v-if="detailVehicle" class="rental-dialog__card">
         <v-card-title>{{ copy.vehicleDetails }}</v-card-title>
@@ -594,7 +464,7 @@
               {{ activeVehicle.marka }} {{ activeVehicle.modelis }}
             </div>
             <div class="text-caption opacity-70 mb-3">
-              {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
+              {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
             </div>
           </div>
           <div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
@@ -936,12 +806,16 @@
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import MapViewSwitch from '@/components/MapViewSwitch.vue'
+  import RentalFilterGroups from '@/components/RentalFilterGroups.vue'
+  import RentalPointList from '@/components/RentalPointList.vue'
+  import RentalSlideOver from '@/components/RentalSlideOver.vue'
   import RentalVehicleCard from '@/components/RentalVehicleCard.vue'
   import { AUTH_ROUTE, buildCompanyRoute } from '@/router/paths'
   import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
+  import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, sortRentalVehicles } from '@/utils/rentalFilters'
   import 'leaflet/dist/leaflet.css'
 
   const router = useRouter()
@@ -960,37 +834,33 @@
   const initialLoading = ref(true)
   const isWorkspaceLoading = computed(() => initialLoading.value || loading.value)
   const errorText = ref('')
-  const expandedPanels = ref(['filters', 'points'])
   const viewMode = ref('map')
   const mobileQuery = window.matchMedia('(max-width: 767px)')
   const isMobile = ref(mobileQuery.matches)
   const mapPanelOpen = ref(!mobileQuery.matches)
   const listPanelOpen = ref(false)
   const panelOpen = computed({
-    get: () => viewMode.value === 'map' ? mapPanelOpen.value : listPanelOpen.value,
+    get: () => viewMode.value === 'map' && mapPanelOpen.value,
     set: value => {
-      if (viewMode.value === 'map') mapPanelOpen.value = value
-      else listPanelOpen.value = value
+      mapPanelOpen.value = value
     },
   })
+  const providerDialog = ref(false)
+  const draftFilters = ref(createRentalFilters())
+  const sortOrder = ref('default')
+  const userPosition = ref(null)
+  const locating = ref(false)
   const mapViewport = ref(null)
   const panelElement = ref(null)
   const panelToggle = ref(null)
   const panelScroll = ref(null)
   const panelCatalog = ref(null)
-  const searchField = ref(null)
   const detailVehicle = ref(null)
 
-  const filters = ref({
-    q: '',
-    typeId: null,
-    companyId: null,
-    gearbox: null,
-    fuel: null,
-    minPrice: null,
-    maxPrice: null,
-    onlyAvailable: false,
-  })
+  const filters = ref(createRentalFilters())
+  const activeFilterKeys = computed(() => activeRentalFilters(filters.value))
+  const filterOptions = computed(() => ({ typeOptions: typeOptions.value, companyOptions: companyOptions.value, gearboxOptions: publicGearboxOptions.value, fuelOptions: publicFuelOptions.value }))
+  const sortOptions = computed(() => copy.value.sortOptions)
 
   // Izveido sākotnējo rezervācijas periodu (no tagad+30min līdz nākamajai dienai).
   function buildDefaultReservationWindow () {
@@ -1248,7 +1118,6 @@
   })
 
   const snackbar = ref({ show: false, text: '', color: 'error' })
-  const hudVisible = ref(true)
   useLoadingState(isWorkspaceLoading, providerLoading, vehicleTypeLoading, vehicleTypeEditLoading, reservationLoading, paymentLoading, editLoading, deleteVehicleLoading, reviewLoading, reviewSaving)
 
   watch(vehicleTypeError, value => {
@@ -1339,11 +1208,6 @@
   const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
   const gearboxOptions = ['Automāts', 'Mehānika', '-']
   const fuelOptions = ['Benzīns', 'Dīzelis', 'Elektro', '-']
-
-  const roleLabel = computed(() => {
-    if (!user.value) return ''
-    return user.value.loma === 'pakalpojumu_sniedzejs' ? t('profile.roles.provider') : t('profile.roles.client')
-  })
 
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 
@@ -1475,33 +1339,22 @@
 
   const companyOptions = computed(() => points.value.map(point => ({ title: point.name, value: point.id })))
 
-  const filteredPoints = computed(() => {
-    const query = filters.value.q.trim().toLocaleLowerCase()
-    return points.value.flatMap(point => {
-      if (filters.value.companyId && point.id !== filters.value.companyId) return []
-      const pointMatches = [point.name, point.city, point.address].some(value => value.toLocaleLowerCase().includes(query))
-      const vehicles = point.vehicles.filter(vehicle => passesVehicleFilters(vehicle) && (
-        !query || pointMatches || [vehicle.marka, vehicle.modelis, vehicle.veids?.nosaukums, vehicle.registracijas_numurs]
-          .some(value => String(value || '').toLocaleLowerCase().includes(query))
-      ))
-      if (vehicles.length === 0) return []
-      return [{ ...point, vehicles, ...buildVehicleReviewStats(vehicles), availableCount: vehicles.filter(vehicle => isVehicleAvailable(vehicle)).length }]
-    })
+  function pointsForFilters (value) {
+    return filterRentalPoints(points.value, value, { isAvailable: isVehicleAvailable, position: userPosition.value, coordinates: pointCoordsOverride.value })
+  }
+  const filteredPoints = computed(() => pointsForFilters(filters.value))
+  const draftResultCount = computed(() => {
+    const draftPoints = pointsForFilters(draftFilters.value)
+    const selected = draftPoints.find(point => point.id === selectedPointId.value)
+    // An explicit provider change replaces the current point selection.
+    const scope = !draftFilters.value.companyId && selected ? [selected] : draftPoints
+    return scope.reduce((sum, point) => sum + point.vehicles.length, 0)
   })
-
   const vehicleProviders = computed(() => new Map(points.value.flatMap(point => point.vehicles.map(vehicle => [vehicle.transportlidzeklis_id, point]))))
-
-  const pointPage = ref(1)
-  const pointsPerPage = 5
-  const pointPageCount = computed(() => Math.max(1, Math.ceil(filteredPoints.value.length / pointsPerPage)))
-  const pagedPoints = computed(() => {
-    const start = (pointPage.value - 1) * pointsPerPage
-    return filteredPoints.value.slice(start, start + pointsPerPage)
-  })
 
   const selectedPointId = ref(null)
   const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
-  const catalogVehicles = computed(() => selectedPoint.value?.vehicles || filteredPoints.value.flatMap(point => point.vehicles))
+  const catalogVehicles = computed(() => sortRentalVehicles(selectedPoint.value?.vehicles || filteredPoints.value.flatMap(point => point.vehicles), sortOrder.value, isVehicleAvailable, intlLocale.value))
   const selectedPointVehiclePage = ref(1)
   const pointCoordsOverride = ref({})
   const vehiclesPerPage = 12
@@ -1678,34 +1531,58 @@
     })
   }
 
-  // Vienota transporta filtrēšanas loģika sarakstam un kartes punktiem.
-  function normalizePriceFilter (value) {
-    if (value === '' || value === null || value === undefined) return null
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  function passesVehicleFilters (vehicle) {
-    const minPrice = normalizePriceFilter(filters.value.minPrice)
-    const maxPrice = normalizePriceFilter(filters.value.maxPrice)
-    const vehiclePrice = Number(vehicle.dienas_nomas_cena)
-
-    if (filters.value.typeId && vehicle.veids_id !== filters.value.typeId) return false
-    if (filters.value.gearbox && normalizeVehicleField(vehicle.atrumkarba) !== filters.value.gearbox) return false
-    if (filters.value.fuel && normalizeVehicleField(vehicle.degvielas_veids) !== filters.value.fuel) return false
-    if (minPrice !== null && vehiclePrice < minPrice) return false
-    if (maxPrice !== null && vehiclePrice > maxPrice) return false
-    if (filters.value.onlyAvailable && !isVehicleAvailable(vehicle)) return false
-    return true
-  }
-
   function openMapTools () {
-    panelOpen.value = true
-    if (!expandedPanels.value.includes('filters')) expandedPanels.value.push('filters')
-    nextTick(() => {
-      if (panelScroll.value) panelScroll.value.scrollTop = 0
-      searchField.value?.focus()
-    })
+    if (viewMode.value === 'list') {
+      draftFilters.value = { ...filters.value }
+      listPanelOpen.value = true
+    } else {
+      panelOpen.value = true
+      nextTick(() => {
+        if (panelScroll.value) panelScroll.value.scrollTop = 0
+        panelElement.value?.querySelector('input')?.focus()
+      })
+    }
+  }
+
+  function applyListFilters () {
+    if (!hasValidPriceRange(draftFilters.value)) return
+    const providerChanged = draftFilters.value.companyId !== filters.value.companyId
+    if (providerChanged) selectedPointId.value = null
+    filters.value = { ...draftFilters.value }
+    listPanelOpen.value = false
+  }
+
+  function removeFilter (key) {
+    filters.value[key] = createRentalFilters()[key]
+  }
+
+  function filterChipLabel (key) {
+    const value = filters.value[key]
+    if (key === 'q') return value.trim()
+    if (key === 'typeId') return typeOptions.value.find(option => option.value === value)?.title || copy.value.filterLabels.type
+    if (key === 'companyId') return companyOptions.value.find(option => option.value === value)?.title || copy.value.filterLabels.provider
+    if (key === 'onlyAvailable') return copy.value.quickAvailable
+    if (key === 'nearby') return copy.value.quickNearby
+    if (key === 'minPrice' || key === 'maxPrice') return `${copy.value.filterLabels[key]}: ${formatPrice(value)}`
+    return `${copy.value.filterLabels[key]}: ${value}`
+  }
+
+  function requestLocation (onSuccess) {
+    if (!navigator.geolocation) {
+      notifyWarning(copy.value.locationFailed)
+      return
+    }
+    locating.value = true
+    navigator.geolocation.getCurrentPosition(position => {
+      if (disposed) return
+      locating.value = false
+      userPosition.value = { lat: position.coords.latitude, lng: position.coords.longitude }
+      onSuccess(userPosition.value)
+    }, () => {
+      if (disposed) return
+      locating.value = false
+      notifyWarning(copy.value.locationFailed)
+    }, { timeout: 12_000, maximumAge: 60_000 })
   }
 
   function clearPointSelection () {
@@ -1715,7 +1592,7 @@
   }
 
   function resetFilters () {
-    filters.value = { q: '', typeId: null, companyId: null, gearbox: null, fuel: null, minPrice: null, maxPrice: null, onlyAvailable: false }
+    filters.value = createRentalFilters()
     clearPointSelection()
   }
 
@@ -1727,7 +1604,10 @@
     if (!mapInstance || viewMode.value !== 'map') return
     const marker = markers.find(item => item.options.pointId === selectedPointId.value)
     if (!marker) return
-    if (animate) mapInstance.flyTo(marker.getLatLng(), Math.max(mapInstance.getZoom(), 13), { duration: 0.5 })
+    if (animate) {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      mapInstance.setView(marker.getLatLng(), Math.max(mapInstance.getZoom(), 13), { animate: !reduced, duration: 0.25 })
+    }
     marker.openPopup()
   }
 
@@ -1735,17 +1615,13 @@
     if (id === undefined || id === null) return
     selectedPointId.value = id
     selectedPointVehiclePage.value = 1
-    const pointIndex = filteredPoints.value.findIndex(point => point.id === id)
-    if (pointIndex !== -1) pointPage.value = Math.floor(pointIndex / pointsPerPage) + 1
-    if (!expandedPanels.value.includes('points')) expandedPanels.value.push('points')
     if (viewMode.value === 'map') panelOpen.value = true
-    if (isMobile.value) hudVisible.value = false
     await nextTick()
     invalidateMapSize()
     updateMarkerSelection()
     focusSelectedMarker(true)
     // Scroll only the panel; the page and site header stay in place.
-    if (panelCatalog.value && panelScroll.value) panelScroll.value.scrollTo({ top: panelCatalog.value.offsetTop - panelScroll.value.offsetTop, behavior: 'smooth' })
+    if (panelCatalog.value && panelScroll.value) panelScroll.value.scrollTo({ top: panelCatalog.value.offsetTop - panelScroll.value.offsetTop, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
 
   function handlePanelKeydown (event) {
@@ -2419,24 +2295,12 @@
   }
 
   function locateUser () {
-    if (!mapInstance || !navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(position => {
-      mapInstance?.setView([position.coords.latitude, position.coords.longitude], 12)
-    })
+    requestLocation(position => mapInstance?.setView([position.lat, position.lng], 12))
   }
 
   function resetMap () {
     if (!mapInstance) return
     mapInstance.setView([56.8796, 24.6032], 7)
-  }
-
-  function getDefaultHudVisibility () {
-    return typeof window === 'undefined' ? true : window.innerWidth > 900
-  }
-
-  function toggleHud () {
-    hudVisible.value = !hudVisible.value
-    localStorage.setItem('map-hud-visible', hudVisible.value ? '1' : '0')
   }
 
   function handleViewportChange (event) {
@@ -2450,8 +2314,6 @@
   }
 
   onMounted(() => {
-    const storedHudVisibility = localStorage.getItem('map-hud-visible')
-    hudVisible.value = storedHudVisibility === null ? getDefaultHudVisibility() : storedHudVisibility === '1'
     mobileQuery.addEventListener('change', handleViewportChange)
     window.addEventListener('user-updated', handleUserUpdated)
     initMap()
@@ -2466,7 +2328,6 @@
 
   onBeforeUnmount(() => {
     disposed = true
-    localStorage.setItem('map-hud-visible', hudVisible.value ? '1' : '0')
     mobileQuery.removeEventListener('change', handleViewportChange)
     window.removeEventListener('user-updated', handleUserUpdated)
     geocodeController.abort()
@@ -2483,12 +2344,17 @@
   watch([mappablePoints, copy], renderMarkers)
 
   watch(filteredPoints, () => {
-    pointPage.value = 1
     if (selectedPointId.value !== null && !selectedPoint.value) selectedPointId.value = null
   })
   watch(filters, () => {
     selectedPointVehiclePage.value = 1
   }, { deep: true })
+  watch(sortOrder, () => {
+    selectedPointVehiclePage.value = 1
+  })
+  watch(viewMode, () => {
+    listPanelOpen.value = false
+  })
   watch(() => filters.value.companyId, id => {
     if (id && filteredPoints.value.some(point => point.id === id)) void selectPoint(id)
     else if (!id) selectedPointId.value = null
@@ -2530,70 +2396,59 @@
 
 <style scoped>
 .map-page { position: relative; isolation: isolate; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: 100%; color: var(--er-text); overflow: hidden; }
-.map-toolbar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; min-height: 56px; padding: 6px 20px; border-bottom: 1px solid var(--er-stroke); background: var(--er-surface); }
-.map-toolbar__title { flex: 1; min-width: 0; }
-.map-toolbar h1 { font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
-.map-toolbar__title > span { display: block; color: var(--er-text-muted); font-size: .7rem; line-height: 1.35; }
+.map-toolbar { z-index: 1; flex-shrink: 0; padding: 14px 24px; border-bottom: 1px solid var(--er-stroke); background: var(--er-surface); }
+.map-toolbar__main { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.map-toolbar__title { flex: 1; min-width: 160px; }
+.map-toolbar h1 { font-size: 1.25rem; font-weight: 800; line-height: 1.3; }
+.map-toolbar__title > span { display: block; margin-top: 4px; color: var(--er-text-muted); font-size: .75rem; }
 .desktop-view-switch { padding: 3px; }
-.desktop-view-switch :deep(button) { min-height: 32px; padding-inline: 16px; font-size: .8rem; }
+.desktop-view-switch :deep(button) { min-height: 36px; padding-inline: 16px; font-size: .8rem; }
+.toolbar-sort { flex: 0 1 200px; min-width: 160px; }
+.toolbar-count { display: inline-grid; place-items: center; margin-left: 8px; min-width: 22px; height: 22px; border-radius: 50%; background: var(--er-primary-strong); color: var(--er-on-primary); font-size: .7rem; }
+.active-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 12px; max-height: 100px; overflow-y: auto; }
+.active-filters :deep(.v-chip) { max-width: 100%; }
+.active-filters :deep(.v-chip__content) { overflow: hidden; text-overflow: ellipsis; display: block; }
 .map-body { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
-.map-body.has-panel { grid-template-columns: clamp(340px, 29vw, 430px) minmax(0, 1fr); }
+.map-body.has-panel { grid-template-columns: 380px minmax(0, 1fr); }
 .map-viewport, .list-catalog { grid-row: 1; grid-column: -2 / -1; min-width: 0; min-height: 0; }
 .map-viewport { position: relative; background: var(--er-bg-soft); overflow: hidden; isolation: isolate; }
 .map-canvas { height: 100%; width: 100%; }
-.map-menu-btn { position: absolute; top: 16px; left: 16px; z-index: 500; border-radius: 999px; box-shadow: var(--er-shadow-sm); }
-.map-hud-toggle { position: absolute; top: 16px; right: 16px; z-index: 500; border-radius: 999px; background: var(--er-surface) !important; color: var(--er-text) !important; }
-.map-hud { position: absolute; top: 76px; right: 16px; width: 320px; max-width: calc(100% - 32px); padding: 18px; border-radius: 20px; background: var(--er-night); color: var(--er-night-text); border: 1px solid var(--er-night-border); box-shadow: var(--er-shadow-md); z-index: 450; }
-.map-hud__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.map-hud__eyebrow { color: var(--er-primary); font-size: .65rem; margin-bottom: 10px; }
-.map-hud__close { margin: -8px -10px 0 0; color: var(--er-night-muted); }
-.map-hud__title { font-family: var(--er-display-font); font-size: 1.15rem; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
-.map-hud__copy { color: var(--er-night-muted); font-size: .75rem; line-height: 1.6; margin-bottom: 14px; }
-.map-hud__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.map-hud__stat { display: grid; gap: 6px; padding: 10px 4px; border-radius: 12px; background: rgb(255 255 255 / 6%); text-align: center; }
-.map-hud__stat strong { color: var(--er-primary); font: 800 1.3rem var(--er-display-font); }
-.map-hud__stat span { color: var(--er-night-muted); font-size: .65rem; overflow-wrap: anywhere; }
-.map-locate-btn { position: absolute; right: 12px; bottom: 112px; z-index: 500; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--er-stroke); border-radius: 7px; background: var(--er-surface); color: var(--er-text); box-shadow: 0 1px 5px rgb(0 0 0 / 25%); cursor: pointer; }
+.workspace-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.workspace-stats > div { display: grid; gap: 5px; text-align: center; }
+.workspace-stats strong { color: var(--er-primary-strong); font: 800 1.4rem var(--er-display-font); }
+.workspace-stats span { color: var(--er-text-muted); font-size: .7rem; overflow-wrap: anywhere; }
+.workspace-view-switch { flex-shrink: 0; padding: 16px 20px 0; }
+.workspace-view-switch .desktop-view-switch { width: 100%; }
+.workspace-view-switch :deep(button) { flex: 1; }
+.workspace-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.workspace-sort { min-width: 0; flex: 1; }
+.map-workspace .active-filters { padding-top: 0; padding-bottom: 16px; max-height: none; overflow: visible; }
+.map-menu-btn { position: absolute; top: 16px; left: 16px; z-index: 500; min-height: 44px; border-radius: 999px; box-shadow: var(--er-shadow-sm); }
+.workspace-stats { padding: 0 0 20px; margin-bottom: 22px; border-bottom: 1px solid var(--er-stroke); }
+.map-locate-btn { position: absolute; right: 16px; bottom: 132px; z-index: 500; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--er-stroke); border-radius: 12px; background: var(--er-surface); color: var(--er-text); box-shadow: var(--er-shadow-sm); cursor: pointer; }
 .map-locate-btn:hover { background: var(--er-bg-soft); }
-:deep(.leaflet-control-zoom) { border: 1px solid var(--er-stroke) !important; border-radius: 7px; overflow: hidden; box-shadow: 0 1px 5px rgb(0 0 0 / 25%); margin: 12px 12px 28px !important; }
-:deep(.leaflet-control-attribution) { line-height: 16px; }
-:deep(.leaflet-control-zoom a) { width: 30px; height: 30px; line-height: 30px; background: var(--er-surface); color: var(--er-text); border-color: var(--er-stroke); font-size: 22px; }
+:deep(.leaflet-control-zoom) { border: 1px solid var(--er-stroke) !important; border-radius: 12px; overflow: hidden; box-shadow: var(--er-shadow-sm); margin: 12px 16px 28px !important; }
+:deep(.leaflet-control-attribution) { line-height: 16px; max-width: 100%; }
+:deep(.leaflet-control-zoom a) { width: 42px; height: 42px; line-height: 42px; background: var(--er-surface); color: var(--er-text); border-color: var(--er-stroke); font-size: 22px; }
 :deep(.leaflet-popup-content-wrapper), :deep(.leaflet-popup-tip) { background: var(--er-surface); color: var(--er-text); }
 :deep(.leaflet-popup-content) { font-family: var(--er-body-font); line-height: 1.6; }
-.map-workspace { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; border-right: 1px solid var(--er-stroke); background: var(--er-bg); }
-.drawer-header { display: flex; justify-content: space-between; align-items: start; gap: 8px; flex-shrink: 0; padding: 18px 16px; }
+.map-workspace { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; border-right: 1px solid var(--er-stroke); background: var(--er-surface); }
+.drawer-header { display: flex; justify-content: space-between; align-items: start; gap: 8px; flex-shrink: 0; padding: 22px 20px 16px; }
 .drawer-header-main { min-width: 0; }
-.header-title { font: 800 1.05rem var(--er-display-font) !important; }
-.header-subtitle { color: var(--er-text-muted); margin-top: 6px; }
-.header-close-btn { flex-shrink: 0; color: var(--er-text-muted); }
-.drawer-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px; scrollbar-width: thin; }
-.workspace-counts { margin-bottom: 14px; color: var(--er-text-muted); font-size: .75rem; }
-.drawer-panels { display: flex; flex-direction: column; gap: 12px; }
-.surface { background: var(--er-surface); color: var(--er-text); border: 1px solid var(--er-stroke); border-radius: 16px !important; box-shadow: var(--er-shadow-sm); }
-.drawer-panels :deep(.v-expansion-panel) { margin: 0 !important; min-width: 0; }
-.drawer-panels :deep(.v-expansion-panel__shadow) { display: none; }
-.drawer-panels :deep(.v-expansion-panel-title) { min-height: 52px; padding: 14px; border-radius: 16px; font-family: var(--er-display-font); }
-.drawer-panels :deep(.v-expansion-panel-text__wrapper) { padding: 0 12px 14px; }
-.list-wrap > .d-flex { padding: 0 !important; gap: 8px !important; }
-.point-card { cursor: pointer; border: 1px solid var(--er-stroke); border-radius: 12px; background: var(--er-surface); color: var(--er-text); box-shadow: none !important; }
-.point-card:hover, .point-card.is-selected { border-color: var(--er-primary); background: var(--er-primary-soft); }
-.point-card :deep(.v-card-text) { padding: 12px !important; }
-.point-card-header { display: flex; flex-direction: column; align-items: start; gap: 8px; min-width: 0; }
-.point-card-header > .d-flex { flex-wrap: wrap; }
-.point-card-copy { min-width: 0; }
-.point-card-name { font-family: var(--er-display-font); font-size: .875rem !important; font-weight: 800 !important; }
-.point-card-name, .point-card-address, .point-card-city { overflow-wrap: anywhere; }
-.point-card-address, .point-card-city { color: var(--er-text-muted); }
-.point-provider-link { max-width: 100%; padding-inline: 0; font-size: .7rem; }
-.point-provider-link :deep(.v-btn__content) { white-space: normal; }
-.panel-catalog { margin-top: 20px; }
-.catalog-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.header-title { font: 800 1.15rem var(--er-display-font) !important; }
+.header-subtitle { color: var(--er-text-muted); margin-top: 6px; font-size: .8rem; }
+.header-close-btn { flex-shrink: 0; color: var(--er-text-muted); margin-top: -8px; }
+.map-search { flex-shrink: 0; padding: 0 20px 20px; }
+.drawer-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 24px; scrollbar-width: thin; }
+.points-section { margin-top: 26px; }
+.panel-catalog { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--er-stroke); }
+.catalog-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .catalog-heading h2 { font-size: 1.2rem; font-weight: 800; }
 .catalog-heading p { margin-top: 6px; color: var(--er-text-muted); font-size: .8rem; overflow-wrap: anywhere; }
-.list-catalog { padding: 24px; overflow-y: auto; overscroll-behavior: contain; background: var(--er-bg); }
-.vehicle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); align-items: stretch; gap: 20px; }
-.vehicle-grid--compact { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.vehicle-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 0; }
+.list-catalog { padding: 28px; overflow-y: auto; overscroll-behavior: contain; background: var(--er-bg); }
+.vehicle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: stretch; gap: 24px; max-width: 1600px; margin-inline: auto; }
+.vehicle-grid--compact { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.vehicle-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 20px 0; }
 .vehicle-pagination__info { color: var(--er-text-muted); font-size: .875rem; }
 .reservation-summary { display: grid; gap: 10px; padding: 20px; border-radius: 18px; background: var(--er-primary-soft); border: 1px solid var(--er-stroke); color: var(--er-text); font-size: .875rem; }
 .reservation-summary > :last-child { border-top: 1px solid var(--er-stroke); padding-top: 12px; font-size: 1.15rem; font-weight: 800; }
@@ -2603,25 +2458,30 @@
 .mobile-view-switch { display: none; }
 @media (min-width: 768px) and (max-width: 1100px) {
  .map-body.has-panel { grid-template-columns: 340px minmax(0, 1fr); }
- .map-toolbar { padding-inline: 16px; gap: 10px; }
- .map-toolbar h1 { font-size: 1rem; }
- .map-toolbar__title > span { font-size: .65rem; }
+ .map-toolbar { padding-inline: 16px; }
+ .map-toolbar__title { flex-basis: 25%; }
+ .toolbar-sort { flex-basis: 170px; }
 }
 @media (max-width: 767px) {
- .map-toolbar { min-height: 44px; padding: 6px 12px; gap: 8px; }
- .map-toolbar h1 { font-size: .9rem; }
- .map-toolbar__title > span { display: block; font-size: .65rem; }
- .desktop-view-switch { display: none; }
+ .map-toolbar { padding: 10px 12px; }
+ .map-toolbar__main { gap: 8px; }
+ .map-toolbar h1 { font-size: 1rem; }
+ .map-toolbar__title { min-width: 120px; }
+ .map-toolbar__title > span { font-size: .7rem; }
+ .toolbar-filter { min-height: 44px; }
+ .toolbar-sort { flex: 1 1 140px; }
+ .toolbar-add { flex: 1 1 auto; min-height: 44px; max-width: 100%; }
+ .toolbar-add :deep(.v-btn__content) { white-space: normal; }
+ .desktop-view-switch, .workspace-view-switch { display: none; }
  .mobile-view-switch { display: flex; flex-shrink: 0; padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border-top: 1px solid var(--er-stroke); background: var(--er-surface); }
+ .active-filters { max-height: 76px; }
  .map-body.has-panel { grid-template-columns: minmax(0, 1fr); }
- .map-workspace { position: absolute; z-index: 800; inset: 0 auto 0 0; width: min(400px, calc(100% - 24px)); border-radius: 0 20px 20px 0; box-shadow: var(--er-shadow-lg); padding-left: env(safe-area-inset-left); }
- .panel-scrim { position: absolute; z-index: 750; inset: 0; background: rgb(0 0 0 / 40%); cursor: pointer; }
- .list-catalog { padding: 16px 12px; }
- .vehicle-grid { gap: 14px; }
- .catalog-heading h2 { font-size: 1.1rem; }
- .map-hud { padding: 16px; width: 280px; }
- .map-hud__title { font-size: 1rem; }
+ .map-workspace { position: absolute; z-index: 800; inset: auto 0 0; width: 100%; height: 90%; border-radius: 24px 24px 0 0; box-shadow: var(--er-shadow-lg); padding-inline: env(safe-area-inset-left) env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
+ .panel-scrim { position: absolute; z-index: 750; inset: 0; background: rgb(0 0 0 / 35%); cursor: pointer; }
+ .list-catalog { padding: 20px 12px; }
+ .vehicle-grid { gap: 20px; }
 }
+@media (prefers-reduced-motion: reduce) { .map-page :deep(*) { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; } }
 
 .rental-dialog__card :deep(.v-card-title) { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
 .rental-dialog__card :deep(.v-card-title .v-chip) { flex: 0 0 auto; }
