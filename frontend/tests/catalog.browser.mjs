@@ -39,6 +39,7 @@ const pending = new Map()
 const failures = []
 const writes = []
 const types = ['Automašīna', 'Motocikls', 'Kvadracikls', 'Laiva', 'Velosipēds', 'Furgons'].map((nosaukums, index) => ({ veids_id: index + 1, nosaukums }))
+const providerCoordinates = [[56.95, 24.1], [56.96, 24.12], [56.94, 24.09], [56.58, 21.08], [56.59, 21.09], [56.6, 21.1], [56.61, 21.11]]
 const vehicles = Array.from({ length: 12 }, (_, index) => ({
   transportlidzeklis_id: index + 1,
   sniedzejs_id: index < 6 ? 1 : index - 4,
@@ -54,7 +55,7 @@ const vehicles = Array.from({ length: 12 }, (_, index) => ({
   atsauksmju_skaits: 3,
   videjais_vertejums: 4.7,
   rezervacijas: [],
-  sniedzejs: { sniedzejs_id: index < 6 ? 1 : index - 4, persona: { vards: 'Rental', uzvards: String(index < 6 ? 1 : index - 4) }, pilseta: 'Rīga', iela: 'Brīvības', maja: '1', latitude: 56.95 + index / 100, longitude: 24.1 + index / 100 },
+  sniedzejs: { sniedzejs_id: index < 6 ? 1 : index - 4, persona: { vards: 'Rental', uzvards: String(index < 6 ? 1 : index - 4) }, pilseta: 'Rīga', iela: 'Brīvības', maja: '1', latitude: providerCoordinates[index < 6 ? 0 : index - 5][0], longitude: providerCoordinates[index < 6 ? 0 : index - 5][1] },
 }))
 
 function send (method, params = {}) {
@@ -136,6 +137,18 @@ async function resize (width, height) {
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 768 })
   await delay(400)
 }
+async function panMap () {
+  const rect = await evaluate('(() => { const r = document.querySelector(".map-viewport").getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()')
+  const x = rect.x + rect.width * 0.8
+  const y = rect.y + rect.height / 2
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 })
+  for (let step = 1; step <= 12; step++) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - rect.width * 0.6 * step / 12, y, button: 'left', buttons: 1 })
+    await delay(20)
+  }
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x - rect.width * 0.6, y, button: 'left', buttons: 0, clickCount: 1 })
+  await delay(600)
+}
 async function noOverflow () {
   assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'No page horizontal overflow')
   assert.ok(await evaluate(`[...document.querySelectorAll('.slide-over-body, .drawer-scroll, .list-catalog')].filter(el => el.getClientRects().length).every(el => el.scrollWidth <= el.clientWidth + 1)`), 'No panel horizontal overflow')
@@ -167,6 +180,18 @@ try {
   assert.equal(await evaluate('document.querySelectorAll(".point-row").length'), 7)
   await click('.point-row')
   await waitFor('!!document.querySelector(".marker-point.is-selected")')
+  await waitFor('document.querySelector(".workspace-stats > div:first-child strong").textContent === "3"', 'Zooming into Riga shows its three providers')
+  assert.equal(await evaluate('document.querySelectorAll(".point-row").length'), 3)
+  assert.equal(await evaluate('document.querySelectorAll(".marker-point").length'), 7, 'Other markers remain available when panning')
+  await panMap()
+  await panMap()
+  await waitFor('document.querySelector(".workspace-stats > div:first-child strong").textContent === "0"', 'Panning to an empty area clears the sidebar')
+  assert.ok(await evaluate('document.querySelector(".points-section").textContent.includes("No vehicles in this area")'))
+  assert.ok(await evaluate('!document.querySelector(".panel-catalog")'), 'Selected provider outside the area does not leak into the sidebar')
+  await screenshot('empty-map-area')
+  await click('.points-section .dialog-state .v-btn')
+  await waitFor('document.querySelector(".workspace-stats > div:first-child strong").textContent === "7"', 'Show all restores every located provider')
+  await click('.point-row')
   await screenshot('desktop-map')
   await click('.desktop-view-switch button:nth-child(2)')
   assert.equal(await evaluate('document.querySelectorAll(".list-catalog .rental-vehicle").length'), 6)

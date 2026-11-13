@@ -3,7 +3,7 @@ import test from 'node:test'
 import en from '../src/lang/en.js'
 import lv from '../src/lang/lv.js'
 import ru from '../src/lang/ru.js'
-import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, normalizePriceFilter, sortRentalVehicles } from '../src/utils/rentalFilters.js'
+import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, normalizePriceFilter, pointsInMapBounds, sortRentalVehicles } from '../src/utils/rentalFilters.js'
 
 const car = { transportlidzeklis_id: 1, marka: 'Toyota', modelis: 'Corolla', veids_id: 1, atrumkarba: 'Automāts', degvielas_veids: 'Elektro', dienas_nomas_cena: '50.00', statuss: 'pieejams' }
 const bike = { transportlidzeklis_id: 2, marka: 'Honda', modelis: 'CB500', veids_id: 2, atrumkarba: '-', degvielas_veids: 'Benzīns', dienas_nomas_cena: '20.00', statuss: 'aiznemts' }
@@ -56,8 +56,32 @@ test('zero prices count as filters; blanks and invalid prices do not', () => {
   assert.equal(hasValidPriceRange({ minPrice: 0, maxPrice: '' }), true)
 })
 
+test('map area scopes points without mutating the full catalog or including unknown coordinates', () => {
+  const all = filter()
+  const riga = { north: 57, south: 56.9, west: 24, east: 24.2 }
+  assert.deepEqual(pointsInMapBounds(all, riga).map(point => point.id), [1])
+  assert.deepEqual(pointsInMapBounds(all, { north: 58.2, south: 55.6, west: 20.8, east: 28.4 }).map(point => point.id), [1, 2])
+  assert.deepEqual(pointsInMapBounds(all, { north: 55, south: 54, west: 20, east: 21 }), [])
+  assert.deepEqual(pointsInMapBounds(all, null), [])
+  assert.deepEqual(ids(all), [1, 2, 3, 4])
+  assert.deepEqual(pointsInMapBounds(filter({ maxPrice: 25 }), riga).flatMap(point => point.vehicles.map(vehicle => vehicle.transportlidzeklis_id)), [2])
+})
+
+test('viewport boundaries include edge points, zero coordinates, and wrapped longitudes', () => {
+  const located = [
+    { id: 1, hasCoords: true, lat: 0, lng: 0 },
+    { id: 2, hasCoords: true, lat: 1, lng: 1 },
+    { id: 3, hasCoords: true, lat: 0, lng: 179 },
+    { id: 4, hasCoords: true, lat: 0, lng: -179 },
+    { id: 5, hasCoords: false, lat: null, lng: null },
+  ]
+  assert.deepEqual(pointsInMapBounds(located, { north: 1, south: 0, west: 0, east: 1 }).map(point => point.id), [1, 2])
+  assert.deepEqual(pointsInMapBounds(located, { north: 1, south: -1, west: 178, east: -178 }).map(point => point.id), [3, 4])
+  assert.deepEqual(pointsInMapBounds(located, { north: 1, south: -1, west: 359, east: 362 }).map(point => point.id), [1, 2])
+})
+
 test('all new catalog labels and sorting options exist in LV/RU/EN', () => {
-  const keys = ['mapSubtitle', 'searchPlaceholder', 'quickFilters', 'quickAvailable', 'quickPrice', 'quickAutomatic', 'quickElectric', 'quickNearby', 'priceAvailability', 'additionalParameters', 'activeFilters', 'showMore', 'showResults', 'resultCount', 'sortBy', 'noTypes', 'availabilityHint', 'invalidPriceRange', 'locationFailed']
+  const keys = ['mapSubtitle', 'searchPlaceholder', 'quickFilters', 'quickAvailable', 'quickPrice', 'quickAutomatic', 'quickElectric', 'quickNearby', 'priceAvailability', 'additionalParameters', 'activeFilters', 'showMore', 'showResults', 'resultCount', 'sortBy', 'noTypes', 'availabilityHint', 'invalidPriceRange', 'locationFailed', 'noVehiclesInArea', 'showAllPoints']
   for (const locale of [lv, ru, en]) {
     for (const key of keys) {
       assert.equal(typeof locale.map[key], 'string', key)

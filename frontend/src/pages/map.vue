@@ -127,9 +127,9 @@
         </div>
         <div ref="panelScroll" class="drawer-scroll">
           <div aria-live="polite" class="workspace-stats">
-            <div><strong>{{ filteredPoints.length }}</strong><span>{{ copy.stats.points }}</span></div>
-            <div><strong>{{ filteredPoints.reduce((sum, point) => sum + point.vehicles.length, 0) }}</strong><span>{{ copy.stats.vehicles }}</span></div>
-            <div><strong>{{ filteredPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong><span>{{ copy.stats.available }}</span></div>
+            <div><strong>{{ visibleMapPoints.length }}</strong><span>{{ copy.stats.points }}</span></div>
+            <div><strong>{{ visibleMapPoints.reduce((sum, point) => sum + point.vehicles.length, 0) }}</strong><span>{{ copy.stats.vehicles }}</span></div>
+            <div><strong>{{ visibleMapPoints.reduce((sum, point) => sum + point.availableCount, 0) }}</strong><span>{{ copy.stats.available }}</span></div>
           </div>
           <div class="workspace-tools">
             <v-select
@@ -153,7 +153,7 @@
             prepend-icon="mdi-plus"
             @click="providerDialog = true"
           >{{ copy.addVehicle }}</v-btn>
-          <div v-if="activeFilterKeys.length > 0 || selectedPoint" :aria-label="copy.activeFilters" class="active-filters">
+          <div v-if="activeFilterKeys.length > 0 || mapSelectedPoint" :aria-label="copy.activeFilters" class="active-filters">
             <v-chip
               v-for="key in activeFilterKeys"
               :key="key"
@@ -164,12 +164,12 @@
               @click:close="removeFilter(key)"
             >{{ filterChipLabel(key) }}</v-chip>
             <v-chip
-              v-if="selectedPoint && !filters.companyId"
+              v-if="mapSelectedPoint && !filters.companyId"
               closable
               size="small"
               variant="outlined"
               @click:close="clearPointSelection"
-            >{{ selectedPoint.name }}</v-chip>
+            >{{ mapSelectedPoint.name }}</v-chip>
             <v-btn size="small" variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn>
           </div>
           <RentalFilterGroups
@@ -181,11 +181,15 @@
             <div v-if="isWorkspaceLoading" class="dialog-state" role="status"><v-progress-circular indeterminate size="22" />{{ copy.loading }}</div>
             <div v-else-if="errorText" class="dialog-state" role="alert">{{ errorText }}<v-btn variant="text" @click="loadTransport">{{ copy.retry }}</v-btn></div>
             <div v-else-if="filteredPoints.length === 0" class="dialog-state">{{ copy.noResults }}<v-btn variant="text" @click="resetFilters">{{ copy.resetFilters }}</v-btn></div>
-            <RentalPointList v-else :points="filteredPoints" :selected-id="selectedPointId" @select="selectPoint" />
+            <div v-else-if="visibleMapPoints.length === 0" aria-live="polite" class="dialog-state">
+              <v-icon>mdi-map-search-outline</v-icon>{{ copy.noVehiclesInArea }}
+              <v-btn variant="text" @click="resetMap">{{ copy.showAllPoints }}</v-btn>
+            </div>
+            <RentalPointList v-else :points="visibleMapPoints" :selected-id="selectedPointId" @select="selectPoint" />
           </div>
-          <section v-if="selectedPoint && catalogVehicles.length > 0" ref="panelCatalog" class="panel-catalog">
+          <section v-if="mapSelectedPoint && catalogVehicles.length > 0" ref="panelCatalog" class="panel-catalog">
             <div class="catalog-heading">
-              <div><h2>{{ selectedPoint ? selectedPoint.name : copy.stats.vehicles }}</h2><p v-if="selectedPoint">{{ selectedPoint.address }} &middot; {{ selectedPoint.city }}</p><p v-if="selectedPoint && !hasPointCoordinates(selectedPoint.id)">{{ copy.noMapCoords }}</p></div>
+              <div><h2>{{ mapSelectedPoint.name }}</h2><p>{{ mapSelectedPoint.address }} &middot; {{ mapSelectedPoint.city }}</p></div>
               <v-btn
                 v-if="selectedPoint"
                 :aria-label="copy.allResults"
@@ -200,7 +204,7 @@
               class="mb-4"
               prepend-icon="mdi-storefront-outline"
               variant="tonal"
-              @click="openCompany(selectedPoint.id)"
+              @click="openCompany(mapSelectedPoint.id)"
             >{{ copy.viewProvider }}</v-btn>
             <div class="vehicle-grid vehicle-grid--compact">
               <RentalVehicleCard
@@ -815,7 +819,7 @@
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
-  import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, sortRentalVehicles } from '@/utils/rentalFilters'
+  import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, pointsInMapBounds, sortRentalVehicles } from '@/utils/rentalFilters'
   import 'leaflet/dist/leaflet.css'
 
   const router = useRouter()
@@ -1354,7 +1358,14 @@
 
   const selectedPointId = ref(null)
   const selectedPoint = computed(() => filteredPoints.value.find(point => point.id === selectedPointId.value) || null)
-  const catalogVehicles = computed(() => sortRentalVehicles(selectedPoint.value?.vehicles || filteredPoints.value.flatMap(point => point.vehicles), sortOrder.value, isVehicleAvailable, intlLocale.value))
+  const mapBounds = ref(null)
+  const visibleMapPoints = computed(() => pointsInMapBounds(mappablePoints.value, mapBounds.value))
+  const mapSelectedPoint = computed(() => visibleMapPoints.value.find(point => point.id === selectedPointId.value) || null)
+  const catalogVehicles = computed(() => {
+    const scopedPoints = viewMode.value === 'map' ? visibleMapPoints.value : filteredPoints.value
+    const selection = viewMode.value === 'map' ? mapSelectedPoint.value : selectedPoint.value
+    return sortRentalVehicles(selection?.vehicles || scopedPoints.flatMap(point => point.vehicles), sortOrder.value, isVehicleAvailable, intlLocale.value)
+  })
   const selectedPointVehiclePage = ref(1)
   const pointCoordsOverride = ref({})
   const vehiclesPerPage = 12
@@ -1594,10 +1605,6 @@
   function resetFilters () {
     filters.value = createRentalFilters()
     clearPointSelection()
-  }
-
-  function hasPointCoordinates (id) {
-    return mappablePoints.value.some(point => point.id === id && point.hasCoords)
   }
 
   function focusSelectedMarker (animate = false) {
@@ -2216,11 +2223,19 @@
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(mapInstance)
+    mapInstance.on('moveend resize', updateMapBounds)
+    updateMapBounds()
     mapResizeObserver = new ResizeObserver(() => {
       cancelAnimationFrame(mapResizeFrame)
       mapResizeFrame = requestAnimationFrame(invalidateMapSize)
     })
     mapResizeObserver.observe(mapViewport.value)
+  }
+
+  function updateMapBounds () {
+    if (!mapInstance || disposed || viewMode.value !== 'map' || !mapViewport.value?.clientWidth) return
+    const bounds = mapInstance.getBounds()
+    mapBounds.value = { north: bounds.getNorth(), south: bounds.getSouth(), west: bounds.getWest(), east: bounds.getEast() }
   }
 
   // Pārzīmē marķierus pēc aktīvajiem filtriem un punktiem.
@@ -2300,7 +2315,9 @@
 
   function resetMap () {
     if (!mapInstance) return
-    mapInstance.setView([56.8796, 24.6032], 7)
+    const coordinates = mappablePoints.value.filter(point => point.hasCoords).map(point => [point.lat, point.lng])
+    if (coordinates.length > 0) mapInstance.fitBounds(coordinates, { padding: [24, 24], maxZoom: 12, animate: false })
+    else mapInstance.setView([56.8796, 24.6032], 7)
   }
 
   function handleViewportChange (event) {
@@ -2336,6 +2353,7 @@
     clearTimeout(paymentSuccessTimer)
     for (const marker of markers) marker.off()
     markers = []
+    mapInstance?.off('moveend resize', updateMapBounds)
     mapInstance?.remove()
     mapInstance = null
   })
@@ -2351,6 +2369,9 @@
   }, { deep: true })
   watch(sortOrder, () => {
     selectedPointVehiclePage.value = 1
+  })
+  watch(mapBounds, () => {
+    if (viewMode.value === 'map') selectedPointVehiclePage.value = 1
   })
   watch(viewMode, () => {
     listPanelOpen.value = false

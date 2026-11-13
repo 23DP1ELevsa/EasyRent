@@ -135,6 +135,8 @@ export default {
     messages: { loadReservationsFailed: 'Neizdevās ielādēt rezervācijas.', loadReservationsError: 'Kļūda: Neizdevās ielādēt rezervācijas.', reservationPaid: 'Rezervācija apmaksāta veiksmīgi.', cancelReservationFailed: 'Neizdevās atcelt rezervāciju.', reservationCanceled: 'Rezervācija atcelta. Transports atkal ir pieejams.', cancelReservationError: 'Kļūda: Neizdevās atcelt rezervāciju.', profileUpdated: 'Profils atjaunināts sekmīgi!' },
   },
   map: {
+    noVehiclesInArea: 'Šajā kartes apgabalā nav transporta.',
+    showAllPoints: 'Rādīt visus punktus',
     mapSubtitle: 'Atrodi transportu tuvumā',
     searchPlaceholder: 'Marka, modelis vai pilsēta',
     quickFilters: 'Ātrie filtri',

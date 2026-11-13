@@ -28,6 +28,25 @@ export function activeRentalFilters (filters) {
   })
 }
 
+export function pointsInMapBounds (points, bounds) {
+  if (!bounds) {
+    return []
+  }
+  const east = bounds.east < bounds.west ? bounds.east + 360 : bounds.east
+  const center = (bounds.west + east) / 2
+  return points.filter(point => {
+    if (!point.hasCoords || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) {
+      return false
+    }
+    if (point.lat < bounds.south || point.lat > bounds.north) {
+      return false
+    }
+    // Leaflet may return longitudes outside -180..180 after a world-width pan.
+    const lng = point.lng + 360 * Math.round((center - point.lng) / 360)
+    return lng >= bounds.west && lng <= east
+  })
+}
+
 function distanceKm (first, second) {
   const radians = degrees => degrees * Math.PI / 180
   const lat = radians(second.lat - first.lat)
