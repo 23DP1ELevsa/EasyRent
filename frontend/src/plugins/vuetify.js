@@ -6,6 +6,7 @@
 
 // Composables
 import { createVuetify } from 'vuetify'
+import { en, lv, ru } from 'vuetify/locale'
 // Styles
 import '@mdi/font/css/materialdesignicons.css'
 
@@ -13,6 +14,7 @@ import 'vuetify/styles'
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
+  locale: { locale: 'lv', fallback: 'en', messages: { en, lv, ru } },
   theme: {
     defaultTheme: 'easyRent',
     themes: {

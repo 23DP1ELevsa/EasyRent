@@ -42,7 +42,7 @@ class GoogleOAuth
             'response_type' => 'code',
             'scope' => 'openid email profile',
             'prompt' => $deletionAccount === null ? 'select_account' : 'select_account consent',
-            'hl' => 'lv',
+            'hl' => app()->getLocale(),
             'state' => $state,
             'code_challenge_method' => 'S256',
             'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='),

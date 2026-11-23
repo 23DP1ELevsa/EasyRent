@@ -10,36 +10,43 @@ const supportedLanguages = [
   { code: 'en', flag: '🇬🇧', nativeName: 'English', intl: 'en-GB', datePicker: 'en' },
 ]
 
-function resolveInitialLocale() {
-  const stored = typeof window !== 'undefined' ? window.localStorage.getItem(LOCALE_STORAGE_KEY) : null
-  if (stored && messages[stored]) return stored
-  return fallbackLocale
+function resolveInitialLocale () {
+  const stored = typeof window === 'undefined' ? null : window.localStorage.getItem(LOCALE_STORAGE_KEY)
+  return stored && Object.hasOwn(messages, stored) ? stored : fallbackLocale
 }
 
 const state = reactive({
   locale: resolveInitialLocale(),
 })
 
-function resolveMessage(locale, key) {
+function resolveMessage (locale, key) {
   return key.split('.').reduce((current, part) => current?.[part], messages[locale])
 }
 
-function interpolate(template, params = {}) {
+function interpolate (template, params = {}) {
   return String(template).replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? ''))
 }
 
-export function setLocale(locale) {
-  if (!messages[locale]) return
+export function setLocale (locale) {
+  if (!Object.hasOwn(messages, locale)) {
+    return
+  }
   state.locale = locale
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
   }
 }
 
-export function useLocale() {
+export function getLocale () {
+  return state.locale
+}
+
+export function useLocale () {
   const currentLanguage = computed(() => {
     return supportedLanguages.find(item => item.code === state.locale) || supportedLanguages[0]
   })
+  const priceFormatter = computed(() => new Intl.NumberFormat(currentLanguage.value.intl, { style: 'currency', currency: 'EUR' }))
+  const ratingFormatter = computed(() => new Intl.NumberFormat(currentLanguage.value.intl, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
 
   const t = (key, params) => {
     const currentValue = resolveMessage(state.locale, key)
@@ -54,6 +61,8 @@ export function useLocale() {
     supportedLanguages,
     setLocale,
     t,
+    formatPrice: value => priceFormatter.value.format(Number(value || 0)),
+    formatRating: value => ratingFormatter.value.format(Number(value || 0)),
     getIntlLocale: () => currentLanguage.value.intl,
     getDatePickerLocale: () => currentLanguage.value.datePicker,
   }

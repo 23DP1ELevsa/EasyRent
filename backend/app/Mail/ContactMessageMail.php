@@ -15,7 +15,7 @@ class ContactMessageMail extends Mailable
     public function build()
     {
         return $this
-            ->subject('EasyRent: Jauns ziņojums no kontaktformas')
+            ->subject(__('app.contactSubject'))
             ->replyTo($this->data['email'], $this->data['name']) // ATBILDES IES UZ LIETOTĀJU
             ->view('emails.contact')
             ->with($this->data);

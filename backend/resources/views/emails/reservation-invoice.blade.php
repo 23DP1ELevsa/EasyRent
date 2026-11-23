@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="lv">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EasyRent rēķins</title>
+    <title>{{ __('invoice.title') }}</title>
     <style>
         body {
             margin: 0;
@@ -88,76 +88,76 @@
     <div class="invoice-card" style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #dbe3f0;box-sizing:border-box;">
         <h1 class="invoice-title" style="margin-top:0;font-size:24px;line-height:1.2;">
             @if ($recipientType === 'provider')
-                Jauna apmaksāta rezervācija
+                {{ __('invoice.providerTitle') }}
             @else
-                Jūsu rezervācijas rēķins
+                {{ __('invoice.clientTitle') }}
             @endif
         </h1>
 
         <p style="font-size:15px;line-height:1.6;">
             @if ($recipientType === 'provider')
-                Pakalpojums ir apmaksāts. Zemāk ir rēķina un rezervācijas detaļas.
+                {{ __('invoice.providerIntro') }}
             @else
-                Paldies par apmaksu. Zemāk ir jūsu rēķina un rezervācijas detaļas.
+                {{ __('invoice.clientIntro') }}
             @endif
         </p>
 
         <table class="invoice-table" style="width:100%;border-collapse:collapse;margin:24px 0;table-layout:fixed;">
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Rēķina numurs</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.number') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $invoiceNumber }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Transakcijas numurs</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.transactionNumber') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $transactionNumber }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Rezervācijas ID</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.reservationId') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $reservationId }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Summa</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.amount') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $amount }} EUR</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Apmaksas datums</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.paidAt') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $paidAt }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Rezervēts</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.reservedAt') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $reservedAt }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Nomas sākums</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.startAt') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $startAt }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Nomas beigas</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.endAt') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $endAt }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Transportlīdzeklis</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.vehicle') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $vehicleName ?: '—' }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Transporta veids</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.vehicleType') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $vehicleType ?: '—' }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Reģistrācijas numurs</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.registrationNumber') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $vehicleRegistrationNumber ?: '—' }}</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Klients</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.client') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $clientName ?: '—' }} ({{ $clientEmail ?: '—' }})</td>
             </tr>
             <tr>
-                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>Pakalpojumu sniedzējs</strong></td>
+                <td class="invoice-label" style="padding:10px 12px;border:1px solid #dbe3f0;background:#f8fafc;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;"><strong>{{ __('invoice.provider') }}</strong></td>
                 <td class="invoice-value" style="padding:10px 12px;border:1px solid #dbe3f0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;">{{ $providerName ?: '—' }} ({{ $providerEmail ?: '—' }})</td>
             </tr>
         </table>
 
-        <p style="font-size:13px;color:#6b7280;margin-bottom:0;">Šī vēstule ir ģenerēta automātiski no EasyRent sistēmas.</p>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:0;">{{ __('invoice.footer') }}</p>
     </div>
 </body>
 </html>

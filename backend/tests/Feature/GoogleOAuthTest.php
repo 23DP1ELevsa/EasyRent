@@ -271,6 +271,15 @@ class GoogleOAuthTest extends TestCase
         $this->assertDatabaseCount('persona', 0);
     }
 
+    public function test_google_consent_screen_uses_the_selected_language(): void
+    {
+        foreach (['lv', 'ru', 'en'] as $language) {
+            $response = $this->browser('language', 'GET', '/oauth/google/start?lang='.$language)->assertRedirect();
+            parse_str(parse_url($response->headers->get('Location'), PHP_URL_QUERY), $parameters);
+            $this->assertSame($language, $parameters['hl']);
+        }
+    }
+
     public function test_incomplete_google_account_requires_fresh_oauth_and_can_register_again_after_deletion(): void
     {
         $this->fakeGoogle();

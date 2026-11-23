@@ -38,8 +38,8 @@ let sequence = 0
 const pending = new Map()
 const failures = []
 const writes = []
-const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, lastProfile: null }
-const deletion = { blockers: 0, conflict: false, google: false, confirmed: false }
+const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
+const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
 function signedInPersona (role, completed = false) {
@@ -101,13 +101,15 @@ socket.addEventListener('message', async event => {
       let responseCode = 200
       const responseHeaders = [{ name: 'Content-Type', value: 'application/json' }]
       if (request.method !== 'GET' && request.method !== 'OPTIONS') {
-        writes.push({ method: request.method, path: url.pathname, body: request.postData })
+        const language = Object.entries(request.headers).find(([name]) => name.toLowerCase() === 'accept-language')?.[1]
+        writes.push({ method: request.method, path: url.pathname, body: request.postData, language })
       }
       if (url.pathname === '/api/auth/me') {
         result = { persona: signIn.persona, google_pending: signIn.pending }
         responseCode = signIn.persona || signIn.pending ? 200 : 401
       } else if (url.pathname === '/oauth/google/start') {
         signIn.selectedRole = url.searchParams.get('role')
+        signIn.language = url.searchParams.get('lang')
         let destination = '/profile?google=ok'
         if (signIn.scenario === 'cancelled') {
           destination = '/auth?google=cancelled'
@@ -129,6 +131,7 @@ socket.addEventListener('message', async event => {
         deletion.confirmed = true
         result = { authorization_url: '/profile?delete_google=ok' }
       } else if (url.pathname === '/api/profile/deletion-check') {
+        deletion.checks++
         result = {
           can_delete: deletion.blockers === 0,
           blocking_reservations_count: deletion.blockers,
@@ -205,6 +208,11 @@ async function input (selector, value) {
   await evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input', { bubbles: true })); })()`)
   await delay(250)
 }
+async function changeLanguage (locale) {
+  const index = ['lv', 'ru', 'en'].indexOf(locale)
+  await evaluate(`document.querySelectorAll('.language-switch button')[${index}].click()`)
+  await waitFor(`document.documentElement.lang === '${locale}'`)
+}
 async function key (value, extra = {}) {
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: value, code: value, ...extra })
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code: value, ...extra })
@@ -242,7 +250,7 @@ try {
     patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*']
       .map(urlPattern => ({ urlPattern })),
   })
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear(); localStorage.setItem(\'easy-rent-locale\', \'en\');' })
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: "if (!localStorage.getItem('easy-rent-locale')) localStorage.setItem('easy-rent-locale', 'en')" })
   await resize(1440, 1000)
   await send('Page.navigate', { url: `${base}/map` })
   await waitFor('document.querySelectorAll(".point-row").length === 5 && document.querySelectorAll(".marker-point").length === 7', 'Map API data loaded')
@@ -375,11 +383,15 @@ try {
   await click('.utility-controls .theme-toggle')
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark')
   await screenshot('desktop-dark')
-  for (const locale of ['ru', 'lv', 'en']) {
-    await evaluate(`document.querySelectorAll('.language-switch button')[${['lv', 'ru', 'en'].indexOf(locale)}].click()`)
-    await delay(200)
+  for (const [locale, type, zoomLabel] of [
+    ['ru', 'Легковой автомобиль', 'Приблизить'],
+    ['lv', 'Automašīna', 'Tuvināt'],
+    ['en', 'Passenger car', 'Zoom in'],
+  ]) {
+    await changeLanguage(locale)
     await click('.toolbar-filter')
-    assert.ok(await evaluate('!document.querySelector(".slide-over-card").textContent.includes("???")'))
+    assert.ok(await evaluate(`document.querySelector('.slide-over-card').textContent.includes(${JSON.stringify(type)})`))
+    assert.equal(await evaluate('document.querySelector(".leaflet-control-zoom-in").getAttribute("aria-label")'), zoomLabel)
     await noOverflow()
     await screenshot(`filters-${locale}-dark`)
     await key('Escape')
@@ -395,6 +407,10 @@ try {
   await resize(390, 844)
   await send('Page.navigate', { url: `${base}/auth` })
   await waitFor('!!document.querySelector(".google-sign-in")')
+  assert.match(await evaluate('document.querySelector(".google-sign-in").textContent'), /Continue with Google/)
+  await changeLanguage('ru')
+  assert.match(await evaluate('document.querySelector(".google-sign-in").textContent'), /Продолжить с Google/)
+  await changeLanguage('lv')
   assert.match(await evaluate('document.querySelector(".google-sign-in").textContent'), /Turpināt ar Google/)
   await noOverflow()
   await click('.auth-tabs [role=tab]:nth-child(2)')
@@ -402,10 +418,18 @@ try {
   await click('.google-sign-in')
   await waitFor('location.pathname === "/profile" && !location.search && !!document.querySelector(".profile-details input")', 'Provider lands in profile')
   assert.equal(signIn.selectedRole, providerRole)
+  assert.equal(signIn.language, 'lv')
   assert.match(await evaluate('document.querySelector(".profile-name").textContent'), /Anna Ozola/)
   assert.match(await evaluate('document.querySelector(".profile-email").textContent'), /anna@example.com/)
   assert.match(await evaluate('document.querySelector(".profile-content .v-alert").textContent'), /Pabeidziet sava profila izveidi/)
   assert.ok(await evaluate(`!document.querySelector('.nav-link[href="/map"]') && !document.querySelector('.profile-reservations')`))
+  assert.ok(await evaluate('!document.querySelector("#profile-deletion-title")'))
+  assert.equal(deletion.checks, 0, 'Registration does not check eligibility for account deletion')
+  await changeLanguage('ru')
+  assert.match(await evaluate('document.querySelector(".profile-setup-notice").textContent'), /Завершите настройку профиля/)
+  await changeLanguage('en')
+  assert.match(await evaluate('document.querySelector(".profile-setup-notice").textContent'), /Finish setting up your profile/)
+  await changeLanguage('lv')
   assert.ok(await evaluate(`!document.querySelector('.profile-details input[placeholder="56.9496"], .profile-details input[placeholder="24.1052"]')`), 'Google onboarding hides manual coordinates')
   await noOverflow()
   await screenshot('google-provider-profile-mobile')
@@ -449,6 +473,7 @@ try {
   await click('.profile-details button[type=submit]')
   await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input:not([type=radio])") && !document.querySelector(".profile-details input[type=radio]")', 'Client profile loads after selection')
   assert.match(await evaluate('document.querySelector(".profile-role").textContent'), /Klients/)
+  assert.ok(await evaluate('!document.querySelector("#profile-deletion-title")'))
   for (const [width, height] of [[360, 800], [768, 1024], [1440, 1000]]) {
     await resize(width, height)
     await noOverflow()
@@ -494,6 +519,10 @@ try {
   await click(`${deletionSection} button`)
   await waitFor(`!!document.querySelector('${deleteSubmit}')`)
   assert.ok(await evaluate(`document.querySelector('${deleteSubmit}').disabled`))
+  await changeLanguage('en')
+  assert.match(await evaluate(`document.querySelector('${deletionDialog}').textContent`), /Enter DELETE/)
+  assert.match(await evaluate('document.querySelector(".reservation-card-history").textContent'), /Deleted provider/)
+  await changeLanguage('lv')
   await input(`${deletionDialog} input:not([type=password])`, 'DZĒST')
   await input(`${deletionDialog} input[type=password]`, 'Current123!')
   await noOverflow()
@@ -512,20 +541,24 @@ try {
   await waitFor('location.pathname === "/" && localStorage.length === 0 && document.body.innerText.includes("Jūsu konts ir veiksmīgi dzēsts.")')
 
   deletion.google = true
-  signIn.persona = signedInPersona('klients')
+  signIn.persona = signedInPersona('klients', true)
+  await changeLanguage('ru')
   await send('Page.navigate', { url: `${base}/profile?qa=google-deletion` })
   await waitFor(`!!document.querySelector('${deletionSection} button')`)
+  assert.match(await evaluate(`document.querySelector('${deletionSection}').textContent`), /Удаление аккаунта/)
   await click(`${deletionSection} button`)
   await waitFor(`!!document.querySelector('${deleteSubmit}')`)
   assert.ok(await evaluate(`!document.querySelector('${deletionDialog} input[type=password]')`))
   await click(`${deletionDialog} .v-card-text button`)
-  await waitFor(`!location.search && document.querySelector('${deletionDialog}')?.textContent.includes('Identitāte ir apstiprināta ar Google')`)
-  await input(`${deletionDialog} input`, 'DZĒST')
+  await waitFor(`!location.search && document.querySelector('${deletionDialog}')?.textContent.includes('Личность подтверждена через Google')`)
+  await input(`${deletionDialog} input`, 'УДАЛИТЬ')
   await click(deleteSubmit)
-  await waitFor('location.pathname === "/" && localStorage.length === 0 && document.body.innerText.includes("Jūsu konts ir veiksmīgi dzēsts.")')
-  assert.deepEqual(JSON.parse(writes.findLast(write => write.path === '/api/profile/me').body), { confirmation: 'DZĒST' })
+  await waitFor('location.pathname === "/" && localStorage.length === 0 && document.body.innerText.includes("Ваш аккаунт успешно удалён.")')
+  const googleDeletion = writes.findLast(write => write.path === '/api/profile/me')
+  assert.deepEqual(JSON.parse(googleDeletion.body), { confirmation: 'DZĒST' })
+  assert.equal(googleDeletion.language, 'ru')
   assert.equal(failures.length, 0, JSON.stringify(failures))
-  console.log('PASS: account deletion blockers, late conflict, archived booking display, password and incomplete Google deletion.')
+  console.log('PASS: account deletion blockers, late conflict, archived booking display, password and Google deletion after profile completion.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()

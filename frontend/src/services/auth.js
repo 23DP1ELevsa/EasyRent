@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue'
 import { startLoading } from '@/stores/loading'
+import { getLocale } from '@/stores/locale'
 
 export const googlePending = shallowRef(null)
 
@@ -40,6 +41,7 @@ async function refreshCsrf () {
 export async function apiFetch (path, { auth = true, ...options } = {}) {
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json')
+  headers.set('Accept-Language', getLocale())
   const token = auth ? getStoredToken() : ''
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)

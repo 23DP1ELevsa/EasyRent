@@ -21,7 +21,7 @@
           :aria-pressed="model.typeId === type.value"
           type="button"
           @click="model.typeId = model.typeId === type.value ? null : type.value"
-        ><v-icon size="24">{{ getTransportTypeIcon(type.title) }}</v-icon><span>{{ type.title }}</span></button>
+        ><v-icon size="24">{{ getTransportTypeIcon(type.name || type.title) }}</v-icon><span>{{ type.title }}</span></button>
       </div>
       <p v-if="typeOptions.length === 0" class="filter-hint">{{ copy.noTypes }}</p>
     </section>

@@ -349,7 +349,7 @@
             density="compact"
             item-title="title"
             item-value="value"
-            :items="vehicleTypeSelectOptions"
+            :items="typeOptions"
             :label="copy.selectVehicleType"
             variant="outlined"
           />
@@ -468,7 +468,7 @@
               {{ activeVehicle.marka }} {{ activeVehicle.modelis }}
             </div>
             <div class="text-caption opacity-70 mb-3">
-              {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
+              {{ typeLabel(activeVehicle.veids?.nosaukums) || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
             </div>
           </div>
           <div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
@@ -481,7 +481,7 @@
                     density="compact"
                     :label="copy.startDate"
                     :model-value="reservationStartDateDisplay"
-                    placeholder="DD/MM/YYYY"
+                    :placeholder="t('booking.datePlaceholder')"
                     prepend-inner-icon="mdi-calendar"
                     readonly
                     variant="outlined"
@@ -515,7 +515,7 @@
                     density="compact"
                     :label="copy.endDate"
                     :model-value="reservationEndDateDisplay"
-                    placeholder="DD/MM/YYYY"
+                    :placeholder="t('booking.datePlaceholder')"
                     prepend-inner-icon="mdi-calendar"
                     readonly
                     variant="outlined"
@@ -549,7 +549,7 @@
           <div class="reservation-summary mt-2">
             <div><strong>{{ copy.period }}:</strong> {{ reservationPeriodText }}</div>
             <div><strong>{{ copy.billableDays }}:</strong> {{ reservationBillableDays }}</div>
-            <div><strong>{{ copy.pricePerDay }}:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+            <div><strong>{{ copy.pricePerDay }}:</strong> {{ formatPrice(activeVehicle?.dienas_nomas_cena) }}</div>
             <div><strong>{{ copy.total }}:</strong> {{ reservationTotal }}</div>
           </div>
         </v-card-text>
@@ -713,7 +713,7 @@
             </div>
           </div>
           <v-chip v-if="reviewStats.count > 0" color="amber" size="small" variant="tonal">
-            ★ {{ reviewStats.average.toFixed(1) }} ({{ reviewStats.count }})
+            ★ {{ formatRating(reviewStats.average) }} ({{ reviewStats.count }})
           </v-chip>
         </v-card-title>
         <v-divider />
@@ -820,10 +820,12 @@
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
   import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, pointsInMapBounds, sortRentalVehicles } from '@/utils/rentalFilters'
+  import { useVehicleLabels } from '@/utils/vehicleLabels'
   import 'leaflet/dist/leaflet.css'
 
   const router = useRouter()
-  const { t, getIntlLocale, getDatePickerLocale } = useLocale()
+  const { t, getIntlLocale, getDatePickerLocale, formatPrice, formatRating } = useLocale()
+  const { attributeLabel, attributeOptions, typeLabel } = useVehicleLabels()
   const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
   const copy = computed(() => t('map'))
   const datePickerLocale = computed(() => getDatePickerLocale())
@@ -1208,9 +1210,9 @@
     nosaukums: '',
   })
 
-  const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
-  const gearboxOptions = ['Automāts', 'Mehānika', '-']
-  const fuelOptions = ['Benzīns', 'Dīzelis', 'Elektro', '-']
+  const statusOptions = computed(() => attributeOptions(['pieejams', 'aiznemts', 'neaktivs']))
+  const gearboxOptions = computed(() => attributeOptions(['Automāts', 'Mehānika', '-']))
+  const fuelOptions = computed(() => attributeOptions(['Benzīns', 'Dīzelis', 'Elektro', '-']))
 
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 
@@ -1222,8 +1224,9 @@
     user.value?.pakalpojumuSniedzejs?.sniedzejs_id || user.value?.pakalpojumu_sniedzejs?.sniedzejs_id || null,
   )
 
-  const typeOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
-  const vehicleTypeSelectOptions = computed(() => transportTypes.value.map(type => ({ title: type.nosaukums, value: type.veids_id })))
+  const typeOptions = computed(() => transportTypes.value.map(type => ({
+    title: typeLabel(type.nosaukums), name: type.nosaukums, value: type.veids_id,
+  })))
   const selectedVehicleTypeToEdit = computed(() => transportTypes.value.find(type => type.veids_id === editingVehicleTypeId.value) || null)
   const publicGearboxOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'atrumkarba'))
   const publicFuelOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'degvielas_veids'))
@@ -1248,15 +1251,15 @@
     for (const vehicle of vehicles) {
       const value = normalizeVehicleField(vehicle?.[fieldName])
       if (!value || map.has(value)) continue
-      map.set(value, { title: value, value })
+      map.set(value, { title: attributeLabel(value), value })
     }
     return Array.from(map.values())
   }
 
   function buildVehicleDetails (vehicle) {
     return [
-      { label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba), isRegistration: false },
-      { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids), isRegistration: false },
+      { label: copy.value.vehicleFields.gearbox, value: attributeLabel(normalizeVehicleField(vehicle?.atrumkarba)), isRegistration: false },
+      { label: copy.value.vehicleFields.fuel, value: attributeLabel(normalizeVehicleField(vehicle?.degvielas_veids)), isRegistration: false },
       { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs), isRegistration: true },
     ].filter(detail => detail.value)
   }
@@ -1418,17 +1421,17 @@
 
   const reservationPeriodText = computed(() => {
     if (!reservation.value.startAt || !reservation.value.endAt) {
-      return 'Norādiet periodu no/līdz.'
+      return t('booking.selectPeriod')
     }
     const { start, end } = getReservationRange()
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return 'Norādiet derīgu periodu no/līdz.'
+      return t('booking.invalidPeriod')
     }
     if (start <= new Date()) {
-      return 'Sākuma laikam jābūt nākotnē.'
+      return t('booking.startInFuture')
     }
     if (end <= start) {
-      return 'Beigu laikam jābūt pēc sākuma laika.'
+      return t('booking.endAfterStart')
     }
     return `${formatDateTime(start)} → ${formatDateTime(end)}`
   })
@@ -1461,11 +1464,6 @@
   let disposed = false
   const geocodeController = new AbortController()
   const attemptedGeocodes = new Set()
-
-  function formatPrice (value) {
-    const num = Number(value || 0)
-    return `${num.toFixed(2)} €`
-  }
 
   function formatDateTime (value) {
     const date = value instanceof Date ? value : new Date(value)
@@ -1655,9 +1653,9 @@
 
   function reviewerName (review) {
     const persona = review?.klients?.persona
-    if (!persona) return 'Klients'
+    if (!persona) return t('profile.roles.client')
     const fullName = `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
-    return fullName || 'Klients'
+    return fullName || t('profile.roles.client')
   }
 
   function formatReviewDate (value) {
@@ -2217,7 +2215,11 @@
   function initMap () {
     if (mapInstance || disposed) return
     mapInstance = L.map('map', { zoomControl: false }).setView([56.8796, 24.6032], 7)
-    L.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
+    L.control.zoom({
+      position: 'bottomright',
+      zoomInTitle: t('mapControls.zoomIn'),
+      zoomOutTitle: t('mapControls.zoomOut'),
+    }).addTo(mapInstance)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -2359,6 +2361,15 @@
 
   watch(points, resolveMissingPointCoords)
   watch([mappablePoints, copy], renderMarkers)
+  watch(copy, () => {
+    for (const [selector, key] of [['.leaflet-control-zoom-in', 'zoomIn'], ['.leaflet-control-zoom-out', 'zoomOut']]) {
+      const control = mapViewport.value?.querySelector(selector)
+      if (!control) continue
+      const label = t(`mapControls.${key}`)
+      control.title = label
+      control.setAttribute('aria-label', label)
+    }
+  })
 
   watch(filteredPoints, () => {
     if (selectedPointId.value !== null && !selectedPoint.value) selectedPointId.value = null

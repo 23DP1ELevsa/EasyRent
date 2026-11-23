@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'providerSubject' => 'EasyRent: new paid reservation and invoice',
+    'clientSubject' => 'EasyRent: your reservation invoice',
+    'title' => 'EasyRent invoice',
+    'providerTitle' => 'New paid reservation',
+    'clientTitle' => 'Your reservation invoice',
+    'providerIntro' => 'The reservation has been paid. The invoice and booking details are below.',
+    'clientIntro' => 'Thank you for your payment. Your invoice and booking details are below.',
+    'number' => 'Invoice number',
+    'transactionNumber' => 'Transaction number',
+    'reservationId' => 'Reservation ID',
+    'amount' => 'Amount',
+    'paidAt' => 'Payment date',
+    'reservedAt' => 'Booked at',
+    'startAt' => 'Rental start',
+    'endAt' => 'Rental end',
+    'vehicle' => 'Vehicle',
+    'vehicleType' => 'Vehicle type',
+    'registrationNumber' => 'Registration number',
+    'client' => 'Client',
+    'provider' => 'Provider',
+    'footer' => 'This message was generated automatically by EasyRent.',
+];

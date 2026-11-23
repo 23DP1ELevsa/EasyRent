@@ -27,7 +27,7 @@
                 <span>{{ copy.stats.availableNow }}</span>
               </div>
               <div class="metric-pill">
-                <strong>{{ vehicles.length > 0 ? formatPrice(Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0)))) : '0.00 €' }}</strong>
+                <strong>{{ formatPrice(vehicles.length > 0 ? Math.min(...vehicles.map(vehicle => Number(vehicle.dienas_nomas_cena || 0))) : 0) }}</strong>
                 <span>{{ copy.stats.startingPrice }}</span>
               </div>
             </div>
@@ -195,7 +195,7 @@
                   {{ vehicle.marka }} {{ vehicle.modelis }}
                 </div>
                 <div class="vehicle-card__type">
-                  {{ vehicle.veids?.nosaukums || copy.typeNotProvided }}
+                  {{ typeLabel(vehicle.veids?.nosaukums) || copy.typeNotProvided }}
                 </div>
                 <div class="vehicle-card__details mb-2">
                   <div
@@ -222,7 +222,7 @@
                     size="small"
                   />
                   <span class="text-caption opacity-80">
-                    {{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
+                    {{ formatRating(vehicle.videjais_vertejums) }} ({{ Number(vehicle.atsauksmju_skaits || 0) }})
                   </span>
                 </div>
                 <div class="vehicle-card__actions">
@@ -270,7 +270,7 @@
                 {{ activeVehicle.marka }} {{ activeVehicle.modelis }}
               </div>
               <div class="text-caption opacity-70 mb-3">
-                {{ activeVehicle.veids?.nosaukums || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / dienā
+                {{ typeLabel(activeVehicle.veids?.nosaukums) || '—' }} • {{ formatPrice(activeVehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
               </div>
             </div>
             <div class="text-body-2 mb-2">{{ copy.selectPeriod }}</div>
@@ -283,7 +283,7 @@
                       density="compact"
                       :label="copy.startDate"
                       :model-value="reservationStartDateDisplay"
-                      placeholder="DD/MM/YYYY"
+                      :placeholder="t('booking.datePlaceholder')"
                       prepend-inner-icon="mdi-calendar"
                       readonly
                       variant="outlined"
@@ -317,7 +317,7 @@
                       density="compact"
                       :label="copy.endDate"
                       :model-value="reservationEndDateDisplay"
-                      placeholder="DD/MM/YYYY"
+                      :placeholder="t('booking.datePlaceholder')"
                       prepend-inner-icon="mdi-calendar"
                       readonly
                       variant="outlined"
@@ -351,7 +351,7 @@
             <div class="reservation-summary mt-2">
               <div><strong>{{ copy.period }}:</strong> {{ reservationPeriodText }}</div>
               <div><strong>{{ copy.billableDays }}:</strong> {{ reservationBillableDays }}</div>
-              <div><strong>{{ copy.pricePerDay }}:</strong> {{ activeVehicle ? formatPrice(activeVehicle.dienas_nomas_cena) : '0.00 €' }}</div>
+              <div><strong>{{ copy.pricePerDay }}:</strong> {{ formatPrice(activeVehicle?.dienas_nomas_cena) }}</div>
               <div><strong>{{ copy.total }}:</strong> {{ reservationTotal }}</div>
             </div>
           </v-card-text>
@@ -402,7 +402,7 @@
               density="compact"
               item-title="title"
               item-value="value"
-              :items="gearboxOptions"
+              :items="editGearboxOptions"
               :label="copy.vehicleFields.gearbox"
               variant="outlined"
             />
@@ -411,7 +411,7 @@
               density="compact"
               item-title="title"
               item-value="value"
-              :items="fuelOptions"
+              :items="editFuelOptions"
               :label="copy.vehicleFields.fuel"
               variant="outlined"
             />
@@ -482,7 +482,7 @@
               </div>
             </div>
             <v-chip v-if="reviewStats.count > 0" color="amber" size="small" variant="tonal">
-              ★ {{ reviewStats.average.toFixed(1) }} ({{ reviewStats.count }})
+              ★ {{ formatRating(reviewStats.average) }} ({{ reviewStats.count }})
             </v-chip>
           </v-card-title>
           <v-divider />
@@ -583,11 +583,13 @@ import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useLoadingState } from '@/stores/loading'
 import { useNotifications } from '@/stores/notifications'
 import { apiFetch, syncCurrentUser } from '@/services/auth'
-  import { getVehicleImage } from '@/utils/vehicleVisuals'
+import { useVehicleLabels } from '@/utils/vehicleLabels'
+import { getVehicleImage } from '@/utils/vehicleVisuals'
 
 const route = useRoute()
 const router = useRouter()
-const { t, getIntlLocale, getDatePickerLocale } = useLocale()
+const { t, getIntlLocale, getDatePickerLocale, formatPrice, formatRating } = useLocale()
+const { attributeLabel, attributeOptions, typeLabel } = useVehicleLabels()
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
 const copy = computed(() => t('company'))
@@ -913,9 +915,9 @@ const vehicleSorting = ref({
 const sortOptions = computed(() => copy.value.sortOptions)
 const typeOptions = computed(() => {
   const source = transportTypes.value.length ? transportTypes.value : vehicleTypeOptions.value
-  return source.map(type => ({ title: type.nosaukums || type.title, value: type.veids_id || type.value }))
+  return source.map(type => ({ title: typeLabel(type.nosaukums || type.title), value: type.veids_id || type.value }))
 })
-const statusOptions = ['pieejams', 'aiznemts', 'neaktivs']
+const statusOptions = computed(() => attributeOptions(['pieejams', 'aiznemts', 'neaktivs']))
 
 // Kompānijas transporta saraksts ar filtru un kārtošanas loģiku.
 const vehicles = computed(() =>
@@ -928,7 +930,7 @@ const vehicleTypeOptions = computed(() => {
     const typeId = vehicle.veids_id
     if (!typeId || map.has(typeId)) return
     map.set(typeId, {
-      title: vehicle.veids?.nosaukums || `Veids #${typeId}`,
+      title: typeLabel(vehicle.veids?.nosaukums) || t('vehicle.typeWithId', { id: typeId }),
       value: typeId,
     })
   })
@@ -940,7 +942,7 @@ const gearboxOptions = computed(() => {
   vehicles.value.forEach(vehicle => {
     const value = normalizeVehicleField(vehicle.atrumkarba)
     if (!value || map.has(value)) return
-    map.set(value, { title: value, value })
+    map.set(value, { title: attributeLabel(value), value })
   })
   return Array.from(map.values())
 })
@@ -950,10 +952,13 @@ const fuelOptions = computed(() => {
   vehicles.value.forEach(vehicle => {
     const value = normalizeVehicleField(vehicle.degvielas_veids)
     if (!value || map.has(value)) return
-    map.set(value, { title: value, value })
+    map.set(value, { title: attributeLabel(value), value })
   })
   return Array.from(map.values())
 })
+
+const editGearboxOptions = computed(() => attributeOptions(['Automāts', 'Mehānika', '-']))
+const editFuelOptions = computed(() => attributeOptions(['Benzīns', 'Dīzelis', 'Elektro', '-']))
 
 const filteredSortedVehicles = computed(() => {
   const q = vehicleFilters.value.q.trim().toLowerCase()
@@ -1060,20 +1065,20 @@ const isReservationFormValid = computed(() => {
 
 const reservationPeriodText = computed(() => {
   if (!reservation.value.startAt || !reservation.value.endAt) {
-    return 'Norādiet periodu no/līdz.'
+    return t('booking.selectPeriod')
   }
 
   const { start, end } = getReservationRange()
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return 'Norādiet derīgu periodu no/līdz.'
+    return t('booking.invalidPeriod')
   }
 
   if (start <= new Date()) {
-    return 'Sākuma laikam jābūt nākotnē.'
+    return t('booking.startInFuture')
   }
 
   if (end <= start) {
-    return 'Beigu laikam jābūt pēc sākuma laika.'
+    return t('booking.endAfterStart')
   }
 
   return `${formatDateTime(start)} → ${formatDateTime(end)}`
@@ -1088,21 +1093,16 @@ const company = computed(() => {
   const phone = typeof persona?.kontakttalrunis === 'string' ? persona.kontakttalrunis.trim() : ''
   const name = persona
     ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
-    : `Pakalpojumu sniedzējs #${sniedzejs.sniedzejs_id}`
+    : t('company.providerWithId', { id: sniedzejs.sniedzejs_id })
   const address = formatCompanyAddress(sniedzejs)
 
   return {
     name,
-    address: address || 'Nav norādīta adrese',
-    city: sniedzejs.pilseta || 'Nav norādīta pilsēta',
+    address: address || t('map.addressMissing'),
+    city: sniedzejs.pilseta || t('map.cityMissing'),
     phone,
   }
 })
-
-function formatPrice(value) {
-  const num = Number(value || 0)
-  return `${num.toFixed(2)} €`
-}
 
 function normalizeVehicleField(value) {
   if (value === null || value === undefined) return ''
@@ -1112,8 +1112,8 @@ function normalizeVehicleField(value) {
 
 function buildVehicleDetails(vehicle) {
   return [
-    { label: copy.value.vehicleFields.gearbox, value: normalizeVehicleField(vehicle?.atrumkarba) },
-    { label: copy.value.vehicleFields.fuel, value: normalizeVehicleField(vehicle?.degvielas_veids) },
+    { label: copy.value.vehicleFields.gearbox, value: attributeLabel(normalizeVehicleField(vehicle?.atrumkarba)) },
+    { label: copy.value.vehicleFields.fuel, value: attributeLabel(normalizeVehicleField(vehicle?.degvielas_veids)) },
     { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
   ].filter(detail => detail.value)
 }
@@ -1124,9 +1124,9 @@ function isOwnVehicle(vehicle) {
 
 function reviewerName(review) {
   const persona = review?.klients?.persona
-  if (!persona) return 'Klients'
+  if (!persona) return t('profile.roles.client')
   const fullName = `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
-  return fullName || 'Klients'
+  return fullName || t('profile.roles.client')
 }
 
 function formatReviewDate(value) {
@@ -1479,12 +1479,12 @@ function resetVehicleSorting() {
 // Izveido rezervāciju un atver apmaksas izvēli.
 async function createReservation() {
   if (!activeVehicle.value || !user.value?.klients?.klients_id) {
-    reservationError.value = 'Nav klienta datu.'
+    reservationError.value = t('map.messages.clientDataMissing')
     return
   }
 
   if (!isReservationFormValid.value) {
-    reservationError.value = 'Lūdzu, izvēlieties periodu nākotnē (beigu laiks pēc sākuma laika).'
+    reservationError.value = t('map.messages.invalidPeriod')
     return
   }
 
@@ -1515,7 +1515,7 @@ async function createReservation() {
 
     const result = await response.json()
     if (!response.ok) {
-      reservationError.value = result?.message || 'Neizdevās izveidot rezervāciju.'
+      reservationError.value = result?.message || t('map.messages.createReservationFailed')
       return
     }
 
@@ -1523,7 +1523,7 @@ async function createReservation() {
     reservationDialog.value = false
     paymentDialog.value = true
   } catch {
-    reservationError.value = 'Kļūda: Neizdevās izveidot rezervāciju.'
+    reservationError.value = t('map.messages.createReservationError')
   } finally {
     reservationLoading.value = false
   }
@@ -1545,18 +1545,18 @@ async function confirmPayment() {
 
     const result = await response.json()
     if (!response.ok) {
-      paymentError.value = result?.message || 'Maksājums neizdevās.'
+      paymentError.value = result?.message || t('map.messages.paymentFailed')
       return
     }
 
-    paymentSuccess.value = 'Apmaksāts veiksmīgi!'
+    paymentSuccess.value = t('map.messages.paymentSuccess')
     pendingReservation.value = result.rezervacija
     upsertReservationInTransportState(result.rezervacija)
     await loadTransport()
 
     paymentDialog.value = false
   } catch {
-    paymentError.value = 'Kļūda: Neizdevās apstrādāt maksājumu.'
+    paymentError.value = t('map.messages.paymentProcessingError')
   } finally {
     paymentLoading.value = false
   }
@@ -1570,7 +1570,7 @@ function payLater() {
 
 async function loadTransport() {
   if (!Number.isFinite(companyId.value) || companyId.value <= 0) {
-    errorText.value = 'Nederīgs kompānijas ID.'
+    errorText.value = copy.value.invalidId
     return
   }
 
@@ -1583,17 +1583,17 @@ async function loadTransport() {
     const data = await response.json()
 
     if (!response.ok) {
-      errorText.value = data?.message || 'Neizdevās ielādēt kompānijas transportu.'
+      errorText.value = data?.message || t('map.messages.loadTransportFailed')
       return
     }
 
     transportItems.value = data
 
     if (!vehicles.value.length) {
-      errorText.value = 'Kompānija nav atrasta vai tai nav transporta.'
+      errorText.value = copy.value.notFound
     }
   } catch {
-    errorText.value = 'Kļūda: Neizdevās ielādēt kompānijas transportu.'
+    errorText.value = t('map.messages.loadTransportError')
   } finally {
     loading.value = false
   }

@@ -147,6 +147,10 @@ class AccountDeletionTest extends TestCase
         $this->getJson("/api/rezervacijas/$id/invoice")->assertOk()
             ->assertHeader('Content-Disposition', 'attachment; filename="EasyRent-'.$id.'.html"')
             ->assertSee($financialData['rekins'])->assertSee('Volkswagen Golf')->assertSee($first->epasts);
+        foreach (['lv' => 'Rēķina numurs', 'en' => 'Invoice number', 'ru' => 'Номер счёта'] as $locale => $label) {
+            $this->getJson("/api/rezervacijas/$id/invoice", ['Accept-Language' => $locale])
+                ->assertOk()->assertHeader('Content-Language', $locale)->assertSee($label);
+        }
         $this->getJson('/api/profile/'.$first->getKey())->assertForbidden();
         if ($firstRole === 'pakalpojumu_sniedzejs') {
             $this->getJson('/api/transport?sniedzejs_id='.$provider->pakalpojumuSniedzejs->getKey())->assertOk()->assertExactJson([]);

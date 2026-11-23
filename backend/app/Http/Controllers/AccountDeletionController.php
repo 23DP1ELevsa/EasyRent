@@ -34,16 +34,16 @@ class AccountDeletionController extends Controller
             'confirmation' => ['required', 'string', 'in:DZĒST'],
             'password' => ['nullable', 'string', 'max:1024'],
         ], [
-            'confirmation.required' => 'Ievadiet DZĒST, lai apstiprinātu konta dzēšanu.',
-            'confirmation.in' => 'Ievadiet DZĒST, lai apstiprinātu konta dzēšanu.',
-            'confirmation.string' => 'Ievadiet DZĒST, lai apstiprinātu konta dzēšanu.',
-            'password.string' => 'Ievadiet derīgu paroli.',
-            'password.max' => 'Ievadiet derīgu paroli.',
+            'confirmation.required' => __('app.deletionConfirm'),
+            'confirmation.in' => __('app.deletionConfirm'),
+            'confirmation.string' => __('app.deletionConfirm'),
+            'password.string' => __('app.passwordInvalid'),
+            'password.max' => __('app.passwordInvalid'),
         ]);
 
         $blocked = DB::transaction(function () use ($request, $data, $google) {
             $persona = Persona::whereKey($request->user()->getKey())->lockForUpdate()->first();
-            abort_unless($persona, 401, 'Nepieciešama autentifikācija.');
+            abort_unless($persona, 401, __('app.authenticationRequired'));
 
             $eligibility = $this->eligibility($persona);
             if (! $eligibility['can_delete']) {
@@ -52,10 +52,10 @@ class AccountDeletionController extends Controller
 
             if ($persona->parole !== null) {
                 if (! isset($data['password']) || ! Hash::check($data['password'], $persona->parole)) {
-                    throw ValidationException::withMessages(['password' => 'Ievadiet pareizu pašreizējo paroli.']);
+                    throw ValidationException::withMessages(['password' => __('app.deletionPassword')]);
                 }
             } elseif (! $google->deletionConfirmed($request, $persona)) {
-                throw ValidationException::withMessages(['google' => 'Vēlreiz apstipriniet savu identitāti ar Google.']);
+                throw ValidationException::withMessages(['google' => __('app.deletionGoogle')]);
             }
 
             $this->archiveInvoices($persona);
@@ -72,8 +72,8 @@ class AccountDeletionController extends Controller
         if ($blocked !== null) {
             return response()->json($blocked + [
                 'message' => $blocked['blocking_reservations_count'] > 0
-                    ? 'Jums ir aktīvas vai gaidāmas rezervācijas.'
-                    : 'Jums ir nenokārtotas maksājumu saistības.',
+                    ? __('app.deletionReservations')
+                    : __('app.deletionPayments'),
             ], 409)->header('Cache-Control', 'no-store');
         }
 

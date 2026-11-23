@@ -27,8 +27,8 @@ class ReservationInvoiceMail extends Mailable
 
         $mail = $this
             ->subject($this->recipientType === 'provider'
-                ? 'EasyRent: jauna apmaksāta rezervācija un rēķins'
-                : 'EasyRent: jūsu rezervācijas rēķins')
+                ? __('invoice.providerSubject')
+                : __('invoice.clientSubject'))
             ->view('emails.reservation-invoice')
             ->with(ReservationInvoice::viewData($this->rezervacija, $this->maksajums, $this->recipientType));
 

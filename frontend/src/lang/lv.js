@@ -1,4 +1,31 @@
 export default {
+  common: {
+    cancel: 'Atcelt', continue: 'Turpināt', required: 'Šis lauks ir obligāts.', networkError: 'Neizdevās sazināties ar EasyRent. Mēģiniet vēlreiz.',
+    logoutError: 'Neizdevās izrakstīties. Mēģiniet vēlreiz.', retryLater: 'Pārāk daudz mēģinājumu. Lūdzu, uzgaidiet un mēģiniet vēlreiz.',
+  },
+  google: {
+    continue: 'Turpināt ar Google', orEmail: 'vai ar e-pastu', link: 'Piesaistīt Google kontu',
+    linkIntro: 'Lai piesaistītu Google kontu, apstipriniet sava esošā EasyRent konta paroli.', password: 'EasyRent parole',
+    linkError: 'Neizdevās piesaistīt Google kontu.', cancelLinkError: 'Neizdevās atcelt Google konta piesaisti. Mēģiniet vēlreiz.',
+    errors: {
+      cancelled: 'Google autorizācija tika atcelta. Varat mēģināt vēlreiz.',
+      failed: 'Neizdevās sazināties ar Google. Lūdzu, mēģiniet vēlreiz.',
+      invalid: 'Google autorizācijas sesija nav derīga vai ir beigusies. Mēģiniet vēlreiz.',
+      unavailable: 'Pieslēgšanās ar Google pašlaik nav pieejama.',
+      conflict: 'Ar šo e-pastu jau ir saistīts cits EasyRent konts. Izmantojiet savu ierasto pieslēgšanās veidu.',
+    },
+  },
+  booking: {
+    selectPeriod: 'Norādiet periodu no/līdz.', invalidPeriod: 'Norādiet derīgu periodu no/līdz.',
+    startInFuture: 'Sākuma laikam jābūt nākotnē.', endAfterStart: 'Beigu laikam jābūt pēc sākuma laika.', datePlaceholder: 'DD/MM/GGGG',
+  },
+  mapControls: { zoomIn: 'Tuvināt', zoomOut: 'Tālināt' },
+  vehicle: {
+    name: 'Transportlīdzeklis', typeWithId: 'Veids #{id}', automatic: 'Automāts', manual: 'Mehānika',
+    petrol: 'Benzīns', diesel: 'Dīzelis', electric: 'Elektro', other: 'Nav norādīts',
+    car: 'Automašīna', suv: 'SUV', truck: 'Kravas auto', van: 'Furgons', bus: 'Mikroautobuss', motorcycle: 'Motocikls',
+    bicycle: 'Velosipēds', boat: 'Laiva', jetSki: 'Ūdens motocikls', atv: 'Kvadracikls', trailer: 'Piekabe', scooter: 'Skrejritenis',
+  },
   app: {
     loading: 'Ielādē…',
     brandSubtitle: 'Transporta noma Latvijā',
@@ -111,6 +138,7 @@ export default {
     },
   },
   company: {
+    providerWithId: 'Pakalpojumu sniedzējs #{id}', invalidId: 'Nederīgs kompānijas ID.', notFound: 'Kompānija nav atrasta vai tai nav transporta.',
     backToMap: 'Atpakaļ uz karti', loadingCompany: 'Ielādē kompāniju...', vehiclesTitle: 'Transports', noVehicles: 'Šai kompānijai pašlaik nav pieejama transporta.', closeFilters: 'Aizvērt filtrus', filters: 'Filtri', closeSorting: 'Aizvērt kārtošanu', sort: 'Kārtot', clear: 'Notīrīt', sortBy: 'Kārtot pēc', resetSorting: 'Atiestatīt kārtošanu', noVehiclesByFilter: 'Pēc izvēlētajiem filtriem transports netika atrasts.', typeNotProvided: 'Transporta veids nav norādīts', available: 'Pieejams', notAvailable: 'Nav pieejams', reviews: 'Atsauksmes', reserve: 'Rezervēt', edit: 'Rediģēt', reservationTitle: 'Rezervācija', selectPeriod: 'Izvēlieties nomas periodu.', startDate: 'No datuma', startTime: 'No laika', endDate: 'Līdz datumam', endTime: 'Līdz laikam', timezone: 'Laika josla', period: 'Periods', billableDays: 'Apmaksas dienas', pricePerDay: 'Cena par dienu', total: 'Kopā', cancel: 'Atcelt', paymentTitle: 'Apmaksa', paymentPrompt: 'Izvēlieties, vai rezervāciju apmaksāt tagad vai vēlāk.', reservationAmount: 'Rezervācijas summa', payLater: 'Maksāšu vēlāk', payNow: 'Apmaksāt', loginToReserve: 'Lūdzu, pieslēdzieties, lai rezervētu.', clientOnly: 'Rezervācijas pieejamas tikai klientiem.', invalidReservationTime: 'Kļūda: Neizdevās apstrādāt rezervācijas laiku.', perDay: 'dienā', phoneLabel: 'Kontakttālrunis', close: 'Aizvērt', delete: 'Dzēst', save: 'Saglabāt', editVehicleTitle: 'Rediģēt transportu', deleteVehicleTitle: 'Dzēst transportlīdzekli', deleteVehicleConfirm: 'Vai tiešām vēlaties dzēst šo transportlīdzekli?', reviewClientOnly: 'Atsauksmes var pievienot tikai autorizēti klienti.', reviewProviderBlocked: 'Pakalpojumu sniedzējs atsauksmes pievienot nevar.', reviewEditOwn: 'Rediģēt savu atsauksmi', reviewAdd: 'Pievienot atsauksmi', reviewComment: 'Komentārs', reviewSaveChanges: 'Saglabāt izmaiņas', reviewAll: 'Visas atsauksmes', reviewLoading: 'Ielādē atsauksmes...', reviewEmpty: 'Šim transportlīdzeklim vēl nav atsauksmju.', reviewNoComment: 'Komentārs nav pievienots.', login: 'Pieslēgties',
     stats: { totalVehicles: 'Kopējais transports', availableNow: 'Pieejami šobrīd', startingPrice: 'Sākuma cena dienā' },
     filterLabels: { search: 'Meklēt pēc markas vai modeļa', type: 'Transporta veids', gearbox: 'Ātrumkārba', fuel: 'Degvielas veids', minPrice: 'Cena no (€)', maxPrice: 'Cena līdz (€)', onlyAvailable: 'Tikai pieejamie' },
@@ -119,6 +147,32 @@ export default {
     messages: { reviewLoadFailed: 'Neizdevās ielādēt atsauksmes.', reviewLoadError: 'Kļūda: Neizdevās ielādēt atsauksmes.', reviewOnlyClients: 'Atsauksmi drīkst pievienot tikai autorizēts klients.', reviewRatingRequired: 'Lūdzu, izvēlieties vērtējumu no 1 līdz 5 zvaigznēm.', reviewSaveFailed: 'Neizdevās saglabāt atsauksmi.', reviewSaved: 'Atsauksme saglabāta.', reviewSaveError: 'Kļūda: Neizdevās saglabāt atsauksmi.', saveFailed: 'Neizdevās saglabāt.', saveError: 'Kļūda: Neizdevās saglabāt.', providerMissing: 'Nav pieejami pakalpojumu sniedzēja dati.', deleteVehicleFailed: 'Neizdevās dzēst transportlīdzekli.', vehicleDeleted: 'Transportlīdzeklis dzēsts.', deleteVehicleError: 'Kļūda: Neizdevās dzēst transportlīdzekli.' },
   },
   profile: {
+    setup: {
+      title: 'Pabeidziet sava profila izveidi', intro: 'Lai izmantotu visas EasyRent iespējas, lūdzu, aizpildiet obligāto informāciju savā profilā.',
+      missing: 'Vēl jāaizpilda {fields}.', chooseRole: 'Izvēlieties konta veidu', chooseRoleError: 'Izvēlieties konta veidu.',
+      roleError: 'Neizdevās saglabāt konta veidu. Mēģiniet vēlreiz.', saveAndContinue: 'Saglabāt un turpināt', completed: 'Profils veiksmīgi aizpildīts!',
+    },
+    deletion: {
+      title: 'Konta dzēšana', intro: 'Ja vairs nevēlaties izmantot EasyRent, varat dzēst savu kontu. Konta dzēšana neietekmēs citu lietotāju rezervāciju vēsturi.',
+      blocked: 'Kontu pašlaik nevar dzēst', blockedReservations: 'Jums ir aktīvas vai gaidāmas rezervācijas. Kontu varēs dzēst pēc visu rezervāciju pabeigšanas un nenokārtoto saistību atrisināšanas.',
+      reservationCount: 'Aktīvo un gaidāmo rezervāciju skaits: {count}',
+      paymentCount: 'Nenokārtoto maksājumu skaits: {count}. Kontu varēs dzēst pēc maksājumu saistību nokārtošanas.',
+      viewReservations: 'Skatīt rezervācijas', delete: 'Dzēst kontu', checkAgain: 'Pārbaudīt vēlreiz',
+      confirmTitle: 'Vai tiešām vēlaties dzēst savu kontu?',
+      confirmIntro: 'Šī darbība ir neatgriezeniska. Jūs zaudēsiet piekļuvi savam kontam. Iepriekšējo rezervāciju un maksājumu vēsture tiks saglabāta atbilstoši piemērojamajiem datu glabāšanas noteikumiem.',
+      phrase: 'DZĒST', phraseLabel: 'Ievadiet {phrase}', password: 'Pašreizējā parole', deletePermanently: 'Neatgriezeniski dzēst kontu',
+      googleConfirmed: 'Identitāte ir apstiprināta ar Google.', googleConfirm: 'Apstiprināt identitāti ar Google', googleUnavailable: 'Google apstiprināšana pašlaik nav pieejama.',
+      googleMismatch: 'Atlasiet šim EasyRent kontam piesaistīto Google kontu.', googleIncomplete: 'Google apstiprināšana netika pabeigta. Mēģiniet vēlreiz.',
+      googleStartError: 'Neizdevās sākt Google apstiprināšanu.', checkError: 'Neizdevās pārbaudīt, vai kontu var dzēst. Mēģiniet vēlreiz.',
+      success: 'Jūsu konts ir veiksmīgi dzēsts.', error: 'Neizdevās dzēst kontu. Mēģiniet vēlreiz.',
+      deletedClient: 'Dzēsts lietotājs', deletedProvider: 'Dzēsts pakalpojumu sniedzējs',
+    },
+    invoice: { download: 'Lejupielādēt rēķinu', error: 'Neizdevās lejupielādēt rēķinu.' },
+    editErrors: {
+      checkFields: 'Lūdzu, izlabojiet formā norādītās kļūdas.', missingUser: 'Lietotāja dati nav ielādēti pareizi. Atsvaidziniet lapu.',
+      geocodeAddress: 'Norādiet vismaz ielu un pilsētu, lai atrastu koordinātes.', geocodeFailed: 'Neizdevās atrast koordinātes no adreses.',
+      field: 'Kļūda šajā laukā.', invalidResponse: 'Servera atbilde nav pareiza.',
+    },
     roles: { client: 'Klients', provider: 'Pakalpojumu sniedzējs' },
     stats: { activePaid: 'Apmaksātās aktīvās rezervācijas', accountStatus: 'Konta statuss', unpaid: 'Neapmaksātās rezervācijas', city: 'Pilsēta', primaryContact: 'Primārais kontakts', bookedNow: 'Rezervēts šobrīd', awaitingPayment: 'Gaida apmaksu' },
     actions: { save: 'Saglabāt', logout: 'Izlogoties', back: 'Atpakaļ' },

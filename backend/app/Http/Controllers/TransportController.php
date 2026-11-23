@@ -55,7 +55,7 @@ class TransportController extends Controller
             ->find($id);
         
         if (!$transport) {
-            return response()->json(['error' => 'Nav atrasts'], 404)->header('Cache-Control', 'no-store');
+            return response()->json(['error' => __('app.notFound')], 404)->header('Cache-Control', 'no-store');
         }
 
         return response()->json($transport)->header('Cache-Control', 'no-store');
@@ -107,7 +107,7 @@ class TransportController extends Controller
         $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
 
         if (!$transport) {
-            return response()->json(['error' => 'Nav atrasts'], 404);
+            return response()->json(['error' => __('app.notFound')], 404);
         }
 
         $data = $request->validate([
@@ -122,7 +122,7 @@ class TransportController extends Controller
         ]);
 
         if ((int) $provider->sniedzejs_id !== (int) $transport->sniedzejs_id) {
-            return response()->json(['message' => 'Nav atļauts mainīt cita sniedzēja transportu'], 403);
+            return response()->json(['message' => __('app.vehicleEditForbidden')], 403);
         }
 
         if ($request->hasAny(['marka', 'modelis', 'atrumkarba', 'degvielas_veids', 'dienas_nomas_cena', 'statuss', 'veids_id', 'registracijas_numurs'])) {
@@ -151,11 +151,11 @@ class TransportController extends Controller
         $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
 
         if (!$transport) {
-            return response()->json(['error' => 'Nav atrasts'], 404);
+            return response()->json(['error' => __('app.notFound')], 404);
         }
 
         if ((int) $provider->sniedzejs_id !== (int) $transport->sniedzejs_id) {
-            return response()->json(['message' => 'Nav atļauts dzēst cita sniedzēja transportu.'], 403);
+            return response()->json(['message' => __('app.vehicleDeleteForbidden')], 403);
         }
 
         $hasActiveReservations = Rezervacija::where('transportlidzeklis_id', $transport->transportlidzeklis_id)
@@ -164,7 +164,7 @@ class TransportController extends Controller
 
         if ($hasActiveReservations) {
             return response()->json([
-                'message' => 'Transportlīdzekli nevar dzēst, kamēr tam ir aktīva vai gaidāma rezervācija.',
+                'message' => __('app.vehicleHasBooking'),
             ], 409);
         }
 
@@ -174,7 +174,7 @@ class TransportController extends Controller
             $transport->delete();
         }
 
-        return response()->json(['message' => 'Transportlīdzeklis dzēsts.']);
+        return response()->json(['message' => __('app.vehicleDeleted')]);
     }
 
     private function availability(): \Closure
@@ -192,7 +192,7 @@ class TransportController extends Controller
 
         if ($street === '' || $houseNo === '' || $city === '') {
             throw ValidationException::withMessages([
-                'adrese' => ['Lai pievienotu transportu, profilā jānorāda pilna adrese (iela, mājas numurs, pilsēta).'],
+                'adrese' => [__('app.vehicleAddressRequired')],
             ]);
         }
 
@@ -209,11 +209,11 @@ class TransportController extends Controller
         $persona = Persona::whereKey($request->user()->getKey())->lockForUpdate()->first();
 
         if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         if ($persona->loma !== 'pakalpojumu_sniedzejs' || !$persona->pakalpojumuSniedzejs) {
-            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+            return response()->json(['message' => __('app.providerOnly')], 403);
         }
 
         return $persona->pakalpojumuSniedzejs;

@@ -187,6 +187,7 @@ class AuthContactAndReviewTest extends TestCase
 
     public function test_client_can_update_only_their_own_review(): void
     {
+        $this->withHeader('Accept-Language', 'lv');
         $author = $this->createClientPersona(['epasts' => 'author@example.com'], ['lietotajvards' => 'author_client']);
         $otherClient = $this->createClientPersona(['epasts' => 'other-reviewer@example.com'], ['lietotajvards' => 'other_client']);
         $provider = $this->createProviderPersona();
@@ -224,6 +225,23 @@ class AuthContactAndReviewTest extends TestCase
         ])
             ->assertForbidden()
             ->assertJsonPath('message', 'Nav atļauts rediģēt cita klienta atsauksmi.');
+    }
+
+    public function test_api_messages_and_validation_follow_accept_language(): void
+    {
+        foreach ([
+            ['ru-RU', 'ru', 'Неверная электронная почта или пароль.', 'Поле «электронная почта» обязательно.', 'Войдите в аккаунт.'],
+            ['en-GB', 'en', 'The email or password is incorrect.', 'The email field is required.', 'Please sign in.'],
+            ['fr-FR', 'lv', 'Nepareizs e-pasts vai parole', 'Lauks “e-pasts” ir obligāts.', 'Nepieciešama autentifikācija.'],
+        ] as [$requested, $locale, $credentials, $required, $signIn]) {
+            $headers = ['Accept-Language' => $requested];
+            $this->postJson('/api/auth/login', ['email' => 'unknown@example.com', 'password' => 'Password123!'], $headers)
+                ->assertUnprocessable()->assertJsonPath('message', $credentials)->assertHeader('Content-Language', $locale);
+            $this->postJson('/api/auth/login', ['password' => 'Password123!'], $headers)
+                ->assertUnprocessable()->assertJsonPath('errors.email.0', $required);
+            $this->getJson('/api/profile/deletion-check', $headers)
+                ->assertUnauthorized()->assertJsonPath('message', $signIn);
+        }
     }
 
     private function createClientPersona(array $personaOverrides = [], array $clientOverrides = []): Persona

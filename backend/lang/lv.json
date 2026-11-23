@@ -1,0 +1,5 @@
+{
+    "The given data was invalid.": "Ievadītie dati nav derīgi.",
+    "(and :count more error)": "(un vēl :count kļūda)",
+    "(and :count more errors)": "(un vēl :count kļūdas)"
+}

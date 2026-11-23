@@ -42,7 +42,7 @@ class Persona extends Authenticatable
         sort($ids, SORT_NUMERIC);
 
         foreach ($ids as $id) {
-            abort_unless(static::whereKey($id)->lockForUpdate()->first(), 409, 'Viens no rezervācijas dalībnieku kontiem vairs nav aktīvs.');
+            abort_unless(static::whereKey($id)->lockForUpdate()->first(), 409, __('app.inactiveParticipant'));
         }
     }
 

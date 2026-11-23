@@ -54,10 +54,10 @@
           </v-alert>
 
           <v-form v-if="linkEmail" @submit.prevent="linkGoogle">
-            <p class="mb-4">Lai piesaistītu Google kontu, apstipriniet sava esošā EasyRent konta paroli.</p>
+            <p class="mb-4">{{ t('google.linkIntro') }}</p>
             <v-text-field
               autocomplete="username"
-              label="E-pasts"
+              :label="copy.fields.email"
               :model-value="linkEmail"
               readonly
               type="email"
@@ -67,7 +67,7 @@
               v-model="linkPassword"
               autocomplete="current-password"
               :error-messages="linkPasswordError"
-              label="EasyRent parole"
+              :label="t('google.password')"
               required
               type="password"
               variant="outlined"
@@ -79,14 +79,14 @@
               :loading="loading"
               rounded="xl"
               type="submit"
-            >Piesaistīt Google kontu</v-btn>
+            >{{ t('google.link') }}</v-btn>
             <v-btn
               block
               class="mt-2"
               :disabled="loading"
               variant="text"
               @click="cancelLink"
-            >Atcelt</v-btn>
+            >{{ t('common.cancel') }}</v-btn>
           </v-form>
 
           <template v-else>
@@ -122,9 +122,9 @@
                 <path d="M10.53 28.59a14.42 14.42 0 0 1 0-9.18l-7.98-6.19a24 24 0 0 0 0 21.56l7.98-6.19z" fill="#FBBC05" />
                 <path d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6C30.03 37.65 27.26 38.5 24 38.5c-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" fill="#34A853" />
               </svg>
-              Turpināt ar Google
+              {{ t('google.continue') }}
             </v-btn>
-            <div class="google-divider"><span>vai ar e-pastu</span></div>
+            <div class="google-divider"><span>{{ t('google.orEmail') }}</span></div>
           </template>
 
           <div v-if="!linkEmail && tab === 'login'">
@@ -357,7 +357,7 @@
   const route = useRoute()
   const router = useRouter()
   const { notifyError, notifySuccess } = useNotifications()
-  const { t } = useLocale()
+  const { locale, t } = useLocale()
   const copy = computed(() => t('auth'))
 
   const tab = ref('login')
@@ -371,17 +371,11 @@
   const linkEmail = computed(() => route.query.google === 'link' && googlePending.value?.purpose === 'link'
     ? googlePending.value.epasts
     : '')
-  const googleErrors = {
-    cancelled: 'Google autorizācija tika atcelta. Varat mēģināt vēlreiz.',
-    failed: 'Neizdevās sazināties ar Google. Lūdzu, mēģiniet vēlreiz.',
-    invalid: 'Google autorizācijas sesija nav derīga vai ir beigusies. Mēģiniet vēlreiz.',
-    unavailable: 'Pieslēgšanās ar Google pašlaik nav pieejama.',
-    conflict: 'Ar šo e-pastu jau ir saistīts cits EasyRent konts. Izmantojiet savu ierasto pieslēgšanās veidu.',
-  }
   const googleError = computed(() => {
+    const errors = t('google.errors')
     const status = route.query.google
-    return (status === 'link' && !linkEmail.value ? googleErrors.invalid : null)
-      || (Object.hasOwn(googleErrors, status) ? googleErrors[status] : '')
+    if (status === 'link' && !linkEmail.value) return errors.invalid
+    return typeof status === 'string' && Object.hasOwn(errors, status) ? errors[status] : ''
   })
 
   function resetGoogleLoading () {
@@ -393,8 +387,9 @@
 
   function startGoogle () {
     googleLoading.value = true
-    const role = tab.value === 'register' ? `?role=${encodeURIComponent(reg.value.loma)}` : ''
-    window.location.assign(`/oauth/google/start${role}`)
+    const query = new URLSearchParams({ lang: locale.value })
+    if (tab.value === 'register') query.set('role', reg.value.loma)
+    window.location.assign(`/oauth/google/start?${query}`)
   }
 
   async function linkGoogle () {
@@ -412,8 +407,8 @@
         linkPasswordError.value = result.errors?.password?.[0] || ''
         if (!linkPasswordError.value) {
           errorText.value = response.status === 429
-            ? 'Pārāk daudz mēģinājumu. Lūdzu, uzgaidiet un mēģiniet vēlreiz.'
-            : result.message || 'Neizdevās piesaistīt Google kontu.'
+            ? t('common.retryLater')
+            : result.message || t('google.linkError')
         }
         return
       }
@@ -421,7 +416,7 @@
       linkPassword.value = ''
       emit('auth-success', { google: true })
     } catch {
-      errorText.value = 'Neizdevās sazināties ar EasyRent. Mēģiniet vēlreiz.'
+      errorText.value = t('common.networkError')
     } finally {
       loading.value = false
     }
@@ -432,14 +427,14 @@
     try {
       const response = await apiFetch('/oauth/google/cancel', { method: 'POST' })
       if (!response.ok) {
-        throw new Error('Neizdevās atcelt Google konta piesaisti.')
+        throw new Error(t('google.cancelLinkError'))
       }
       linkPassword.value = ''
       linkPasswordError.value = ''
       errorText.value = ''
       await router.replace({ query: {} })
     } catch {
-      errorText.value = 'Neizdevās atcelt Google konta piesaisti. Mēģiniet vēlreiz.'
+      errorText.value = t('google.cancelLinkError')
     } finally {
       loading.value = false
     }

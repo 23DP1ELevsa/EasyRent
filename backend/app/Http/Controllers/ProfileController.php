@@ -32,20 +32,20 @@ class ProfileController extends Controller
             $persona = DB::transaction(function () use ($request, $personaId) {
                 $persona = Persona::whereKey($personaId)->lockForUpdate()->firstOrFail();
                 if ($request->exists('loma')) {
-                    throw ValidationException::withMessages(['loma' => 'Lomu mainīt nevar.']);
+                    throw ValidationException::withMessages(['loma' => __('app.profileRoleFixed')]);
                 }
                 if ($request->exists('email') || ($request->exists('epasts') && $persona->epasts !== null)) {
-                    throw ValidationException::withMessages(['epasts' => 'E-pastu mainīt nevar.']);
+                    throw ValidationException::withMessages(['epasts' => __('app.profileEmailFixed')]);
                 }
 
                 return $this->saveProfile($request->all(), $persona);
             }, 3);
         } catch (UniqueConstraintViolationException $exception) {
             if ($request->filled('epasts') && Persona::forEmail($request->string('epasts')->value())->exists()) {
-                throw ValidationException::withMessages(['epasts' => 'E-pasts jau ir reģistrēts.']);
+                throw ValidationException::withMessages(['epasts' => __('app.emailTaken')]);
             }
             if ($request->filled('lietotajvards') && Klients::where('lietotajvards', $request->input('lietotajvards'))->exists()) {
-                throw ValidationException::withMessages(['lietotajvards' => 'Lietotājvārds jau ir aizņemts.']);
+                throw ValidationException::withMessages(['lietotajvards' => __('app.usernameTaken')]);
             }
             throw $exception;
         }
@@ -55,7 +55,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'persona' => $persona->profileData(),
-            'message' => 'Profils atjaunināts',
+            'message' => __('app.profileUpdated'),
         ])->header('Cache-Control', 'no-store');
     }
 
@@ -81,7 +81,7 @@ class ProfileController extends Controller
             $rules['kontakttalrunis'][] = 'regex:/^\+?[0-9 \-()]+$/D';
             $rules['bankas_konts'][] = function (string $field, mixed $value, \Closure $fail) {
                 if (is_string($value) && ! $this->validIban($value)) {
-                    $fail('Ievadiet derīgu bankas konta numuru (IBAN).');
+                    $fail(__('app.invalidIban'));
                 }
             };
         } else {
@@ -95,7 +95,7 @@ class ProfileController extends Controller
             }
             $rules['epasts'] = ['email', 'max:255', function (string $field, mixed $value, \Closure $fail) {
                 if (is_string($value) && Persona::forEmail($value)->exists()) {
-                    $fail('E-pasts jau ir reģistrēts.');
+                    $fail(__('app.emailTaken'));
                 }
             }];
         }
@@ -137,33 +137,8 @@ class ProfileController extends Controller
         unset($fieldRules);
 
         $data = Validator::make($input, $rules, [
-            'required' => 'Lauks “:attribute” ir obligāts.',
-            'string' => 'Laukā “:attribute” jāievada teksts.',
-            'email' => 'Ievadiet derīgu e-pasta adresi.',
-            'max.string' => 'Laukā “:attribute” drīkst ievadīt līdz :max rakstzīmēm.',
-            'min.string' => 'Laukā “:attribute” jāievada vismaz :min rakstzīmes.',
-            'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
-            'kontakttalrunis.regex' => 'Ievadiet derīgu tālruņa numuru.',
-            'numeric' => 'Laukā “:attribute” jāievada skaitlis.',
-            'between.numeric' => 'Laukā “:attribute” jāievada skaitlis no :min līdz :max.',
-            'password.mixed' => 'Parolei jāsatur lielie un mazie burti.',
-            'password.symbols' => 'Parolei jāsatur vismaz viens speciālais simbols.',
-        ], [
-            'vards' => 'Vārds',
-            'uzvards' => 'Uzvārds',
-            'epasts' => 'E-pasts',
-            'kontakttalrunis' => 'Tālrunis',
-            'bankas_konts' => 'IBAN',
-            'lietotajvards' => 'Lietotājvārds',
-            'registracijas_numurs' => 'Reģistrācijas numurs',
-            'iela' => 'Iela',
-            'majas_numurs' => 'Mājas numurs',
-            'dzivokla_numurs' => 'Dzīvokļa numurs',
-            'pilseta' => 'Pilsēta',
-            'pasta_indekss' => 'Pasta indekss',
-            'latitude' => 'Platums',
-            'longitude' => 'Garums',
-            'password' => 'Parole',
+            'lietotajvards.unique' => __('app.usernameTaken'),
+            'kontakttalrunis.regex' => __('app.invalidPhone'),
         ])->validate();
 
         $personalFields = ['vards', 'uzvards', 'epasts', 'kontakttalrunis', 'bankas_konts', 'password'];
@@ -205,6 +180,6 @@ class ProfileController extends Controller
 
     private function authorizeProfile(Request $request, string $personaId): void
     {
-        abort_unless((string) $request->user()->getKey() === ltrim($personaId, '0'), 403, 'Nav atļauts piekļūt cita lietotāja profilam.');
+        abort_unless((string) $request->user()->getKey() === ltrim($personaId, '0'), 403, __('app.profileForbidden'));
     }
 }

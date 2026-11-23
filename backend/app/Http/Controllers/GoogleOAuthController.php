@@ -73,8 +73,8 @@ class GoogleOAuthController extends Controller
     public function startDeletion(Request $request, GoogleOAuth $google): JsonResponse
     {
         $persona = Auth::guard('web')->user();
-        abort_unless($persona?->google_id, 403, 'Lai apstiprinātu dzēšanu, pierakstieties ar piesaistīto Google kontu.');
-        abort_unless($google->configured(), 503, 'Google apstiprināšana pašlaik nav pieejama.');
+        abort_unless($persona?->google_id, 403, __('app.googleDeletionSignIn'));
+        abort_unless($google->configured(), 503, __('app.googleDeletionUnavailable'));
 
         return response()->json([
             'authorization_url' => $google->start($request, null, (int) $persona->getKey()),
@@ -86,8 +86,8 @@ class GoogleOAuthController extends Controller
         $data = $request->validate([
             'loma' => ['required', Rule::in(self::ROLES)],
         ], [
-            'loma.required' => 'Izvēlieties konta veidu.',
-            'loma.in' => 'Izvēlieties klienta vai pakalpojumu sniedzēja kontu.',
+            'loma.required' => __('app.chooseRole'),
+            'loma.in' => __('app.invalidRole'),
         ]);
 
         $pending = $this->requirePending($request, 'role');
@@ -103,15 +103,15 @@ class GoogleOAuthController extends Controller
         $data = $request->validate([
             'password' => ['required', 'string', 'max:255'],
         ], [
-            'password.required' => 'Ievadiet sava EasyRent konta paroli.',
-            'password.string' => 'Ievadiet derīgu paroli.',
-            'password.max' => 'Ievadiet derīgu paroli.',
+            'password.required' => __('app.googleLinkPasswordRequired'),
+            'password.string' => __('app.passwordInvalid'),
+            'password.max' => __('app.passwordInvalid'),
         ]);
 
         $limitKey = 'google-link:'.$pending['persona_id'];
         if (RateLimiter::tooManyAttempts($limitKey, 5)) {
             return response()->json([
-                'message' => 'Pārāk daudz mēģinājumu. Lūdzu, uzgaidiet un mēģiniet vēlreiz.',
+                'message' => __('app.retryLater'),
             ], 429)->header('Retry-After', RateLimiter::availableIn($limitKey));
         }
         RateLimiter::hit($limitKey);
@@ -122,7 +122,7 @@ class GoogleOAuthController extends Controller
                 if (! $persona || ! $persona->parole || strcasecmp($persona->epasts ?? '', $identity['epasts']) !== 0
                     || ($persona->google_id !== null && $persona->google_id !== $identity['google_id'])
                     || ! Hash::check($data['password'], $persona->parole)) {
-                    throw ValidationException::withMessages(['password' => 'Konta paroli neizdevās apstiprināt.']);
+                    throw ValidationException::withMessages(['password' => __('app.googleLinkWrongPassword')]);
                 }
 
                 $persona->forceFill(['google_id' => $identity['google_id']])->save();
@@ -132,7 +132,7 @@ class GoogleOAuthController extends Controller
         } catch (UniqueConstraintViolationException) {
             $request->session()->forget(GoogleOAuth::PENDING);
 
-            return response()->json(['message' => 'Šis Google konts jau ir piesaistīts citam EasyRent kontam.'], 409);
+            return response()->json(['message' => __('app.googleLinkedElsewhere')], 409);
         }
 
         RateLimiter::clear($limitKey);
@@ -229,7 +229,7 @@ class GoogleOAuthController extends Controller
     private function requirePending(Request $request, string $purpose): array
     {
         $pending = GoogleOAuth::pending($request);
-        abort_unless(($pending['purpose'] ?? null) === $purpose, 410, 'Google autorizācijas sesija ir beigusies. Mēģiniet vēlreiz.');
+        abort_unless(($pending['purpose'] ?? null) === $purpose, 410, __('app.googleSessionExpired'));
 
         return $pending;
     }

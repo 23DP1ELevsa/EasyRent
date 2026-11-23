@@ -158,9 +158,9 @@
 </template>
 
 <script setup>
-  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { useDisplay, useTheme } from 'vuetify'
+  import { useDisplay, useLocale as useVuetifyLocale, useTheme } from 'vuetify'
   import AppFooter from '@/components/AppFooter.vue'
   import BrandLogo from '@/components/BrandLogo.vue'
   import LoadingScreen from '@/components/LoadingScreen.vue'
@@ -176,6 +176,11 @@
   const { isLoading } = useLoading()
   const { mdAndUp } = useDisplay()
   const { locale, supportedLanguages, setLocale, t } = useLocale()
+  const { current: vuetifyLocale } = useVuetifyLocale()
+  watch(locale, language => {
+    document.documentElement.lang = language
+    vuetifyLocale.value = language
+  }, { immediate: true })
   const drawer = ref(false)
   const user = ref(null)
   const profileLocked = computed(() => user.value?.profile_completed === false || googlePending.value?.purpose === 'role')
@@ -306,7 +311,7 @@
 
   async function logout () {
     if (!await logoutRequest()) {
-      notifyError('Neizdevās izrakstīties. Mēģiniet vēlreiz.')
+      notifyError(t('common.logoutError'))
       return
     }
     drawer.value = false

@@ -56,7 +56,7 @@ class TransportVeidsController extends Controller
         $veids = TransportliedzieklsVeids::find($id);
 
         if (!$veids) {
-            return response()->json(['message' => 'Transporta veids nav atrasts.'], 404);
+            return response()->json(['message' => __('app.typeMissing')], 404);
         }
 
         $data = $request->validate([
@@ -96,11 +96,11 @@ class TransportVeidsController extends Controller
         $persona = $request->user();
 
         if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         if ($persona->loma !== 'pakalpojumu_sniedzejs') {
-            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+            return response()->json(['message' => __('app.providerOnly')], 403);
         }
 
         return null;

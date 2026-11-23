@@ -36,19 +36,19 @@
           class="profile-setup-notice"
           color="primary"
           icon="mdi-account-alert-outline"
-          title="Pabeidziet sava profila izveidi"
+          :title="copy.setup.title"
           variant="tonal"
         >
-          <p>Lai izmantotu visas EasyRent iespējas, lūdzu, aizpildiet obligāto informāciju savā profilā.</p>
-          <p v-if="missingLabels.length > 0" class="mt-2">Vēl jāaizpilda {{ missingLabels.join(', ') }}.</p>
+          <p>{{ copy.setup.intro }}</p>
+          <p v-if="missingLabels.length > 0" class="mt-2">{{ t('profile.setup.missing', { fields: missingLabels.join(', ') }) }}</p>
         </v-alert>
 
         <v-card v-if="rolePending" class="surface profile-details" elevation="0">
           <v-card-text class="pa-6">
             <v-form @submit.prevent="chooseGoogleRole">
-              <v-radio-group v-model="selectedRole" :error-messages="roleError" label="Izvēlieties konta veidu">
-                <v-radio label="Klients" value="klients" />
-                <v-radio label="Pakalpojumu sniedzējs" value="pakalpojumu_sniedzejs" />
+              <v-radio-group v-model="selectedRole" :error-messages="roleError" :label="copy.setup.chooseRole">
+                <v-radio :label="copy.roles.client" value="klients" />
+                <v-radio :label="copy.roles.provider" value="pakalpojumu_sniedzejs" />
               </v-radio-group>
               <v-btn
                 color="primary"
@@ -56,7 +56,7 @@
                 rounded="xl"
                 size="large"
                 type="submit"
-              >Turpināt</v-btn>
+              >{{ t('common.continue') }}</v-btn>
             </v-form>
           </v-card-text>
         </v-card>
@@ -307,7 +307,7 @@
                     type="submit"
                   >
                     <v-icon start>mdi-check</v-icon>
-                    {{ profileIncomplete ? 'Saglabāt un turpināt' : copy.actions.save }}
+                    {{ profileIncomplete ? copy.setup.saveAndContinue : copy.actions.save }}
                   </v-btn>
                 </v-col>
 
@@ -327,23 +327,23 @@
               </v-row>
             </v-form>
 
-            <v-divider class="my-6" />
-            <section aria-labelledby="profile-deletion-title">
-              <h3 id="profile-deletion-title" class="section-title mb-3">Konta dzēšana</h3>
-              <p class="mb-4">Ja vairs nevēlaties izmantot EasyRent, varat dzēst savu kontu. Konta dzēšana neietekmēs citu lietotāju rezervāciju vēsturi.</p>
+            <section v-if="!profileIncomplete" aria-labelledby="profile-deletion-title">
+              <v-divider class="my-6" />
+              <h3 id="profile-deletion-title" class="section-title mb-3">{{ copy.deletion.title }}</h3>
+              <p class="mb-4">{{ copy.deletion.intro }}</p>
               <v-alert
                 v-if="deletionBlock"
                 class="mb-4"
-                title="Kontu pašlaik nevar dzēst"
+                :title="copy.deletion.blocked"
                 type="warning"
                 variant="tonal"
               >
                 <template v-if="deletionBlock.blocking_reservations_count">
-                  <p>Jums ir aktīvas vai gaidāmas rezervācijas. Kontu varēs dzēst pēc visu rezervāciju pabeigšanas un nenokārtoto saistību atrisināšanas.</p>
-                  <p class="mt-2">Aktīvo un gaidāmo rezervāciju skaits: {{ deletionBlock.blocking_reservations_count }}</p>
+                  <p>{{ copy.deletion.blockedReservations }}</p>
+                  <p class="mt-2">{{ t('profile.deletion.reservationCount', { count: deletionBlock.blocking_reservations_count }) }}</p>
                 </template>
-                <p v-if="deletionBlock.blocking_payments_count" class="mt-2">Nenokārtoto maksājumu skaits: {{ deletionBlock.blocking_payments_count }}. Kontu varēs dzēst pēc maksājumu saistību nokārtošanas.</p>
-                <v-btn v-if="showReservationsSection" class="mt-2" href="#profile-reservations" variant="text">Skatīt rezervācijas</v-btn>
+                <p v-if="deletionBlock.blocking_payments_count" class="mt-2">{{ t('profile.deletion.paymentCount', { count: deletionBlock.blocking_payments_count }) }}</p>
+                <v-btn v-if="showReservationsSection" class="mt-2" href="#profile-reservations" variant="text">{{ copy.deletion.viewReservations }}</v-btn>
               </v-alert>
               <v-alert v-if="deletionError && !deletionDialog" class="mb-4" type="error" variant="tonal">{{ deletionError }}</v-alert>
               <v-btn
@@ -354,7 +354,7 @@
                 variant="outlined"
                 @click="openDeletion"
               >
-                Dzēst kontu
+                {{ copy.deletion.delete }}
               </v-btn>
               <v-btn
                 v-if="deletionBlock"
@@ -362,21 +362,21 @@
                 :loading="checkingDeletion"
                 variant="text"
                 @click="checkDeletion"
-              >Pārbaudīt vēlreiz</v-btn>
+              >{{ copy.deletion.checkAgain }}</v-btn>
             </section>
 
-            <v-dialog v-model="deletionDialog" max-width="540" :persistent="deletingAccount">
+            <v-dialog v-if="!profileIncomplete" v-model="deletionDialog" max-width="540" :persistent="deletingAccount">
               <v-card class="profile-confirmation">
-                <v-card-title class="font-weight-bold text-wrap">Vai tiešām vēlaties dzēst savu kontu?</v-card-title>
+                <v-card-title class="font-weight-bold text-wrap">{{ copy.deletion.confirmTitle }}</v-card-title>
                 <v-form @submit.prevent="deleteAccount">
                   <v-card-text class="pa-4">
-                    <p class="mb-4">Šī darbība ir neatgriezeniska. Jūs zaudēsiet piekļuvi savam kontam. Iepriekšējo rezervāciju un maksājumu vēsture tiks saglabāta atbilstoši piemērojamajiem datu glabāšanas noteikumiem.</p>
+                    <p class="mb-4">{{ copy.deletion.confirmIntro }}</p>
                     <v-alert v-if="deletionError" class="mb-4" type="error" variant="tonal">{{ deletionError }}</v-alert>
                     <v-text-field
                       v-model="deletionPhrase"
                       autocomplete="off"
                       :disabled="deletingAccount"
-                      label="Ievadiet DZĒST"
+                      :label="t('profile.deletion.phraseLabel', { phrase: copy.deletion.phrase })"
                       variant="outlined"
                     />
                     <v-text-field
@@ -384,20 +384,20 @@
                       v-model="deletionPassword"
                       autocomplete="current-password"
                       :disabled="deletingAccount"
-                      label="Pašreizējā parole"
+                      :label="copy.deletion.password"
                       type="password"
                       variant="outlined"
                     />
                     <v-alert v-else-if="deletionCheck?.google_confirmed" type="success" variant="tonal">
-                      Identitāte ir apstiprināta ar Google.
+                      {{ copy.deletion.googleConfirmed }}
                     </v-alert>
                     <v-btn v-else-if="deletionCheck?.google_available" :loading="startingGoogleDeletion" variant="outlined" @click="startGoogleDeletion">
-                      Apstiprināt identitāti ar Google
+                      {{ copy.deletion.googleConfirm }}
                     </v-btn>
-                    <p v-else>Google apstiprināšana pašlaik nav pieejama.</p>
+                    <p v-else>{{ copy.deletion.googleUnavailable }}</p>
                   </v-card-text>
                   <v-card-actions class="px-4 pb-4 flex-wrap ga-2 justify-end">
-                    <v-btn :disabled="deletingAccount" variant="text" @click="deletionDialog = false">Atcelt</v-btn>
+                    <v-btn :disabled="deletingAccount" variant="text" @click="deletionDialog = false">{{ t('common.cancel') }}</v-btn>
                     <v-btn
                       color="error"
                       :disabled="!canSubmitDeletion"
@@ -405,7 +405,7 @@
                       type="submit"
                       variant="flat"
                     >
-                      Neatgriezeniski dzēst kontu
+                      {{ copy.deletion.deletePermanently }}
                     </v-btn>
                   </v-card-actions>
                 </v-form>
@@ -466,7 +466,7 @@
                       <div class="reservation-card-price">
                         <div class="reservation-card-amount font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
                         <v-chip color="success" size="small" variant="tonal">{{ copy.reservations.paid }}</v-chip>
-                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">Lejupielādēt rēķinu</v-btn>
+                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">{{ copy.invoice.download }}</v-btn>
                       </div>
                     </div>
                   </v-card-text>
@@ -568,7 +568,7 @@
                         <v-chip :color="item.apmaksas_statuss === 'apmaksata' ? 'success' : 'warning'" size="small" variant="tonal">
                           {{ item.apmaksas_statuss === 'apmaksata' ? copy.reservations.paid : copy.reservations.unpaidStatus }}
                         </v-chip>
-                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">Lejupielādēt rēķinu</v-btn>
+                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">{{ copy.invoice.download }}</v-btn>
                       </div>
                     </div>
                   </v-card-text>
@@ -611,22 +611,23 @@
 <script setup>
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import lv from '@/lang/lv'
   import { accountHome, AUTH_ROUTE, HOME_ROUTE } from '@/router/paths'
   import { apiFetch, clearAuthSession, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
+  import { useVehicleLabels } from '@/utils/vehicleLabels'
 
   const router = useRouter()
   const route = useRoute()
-  const { t, getIntlLocale } = useLocale()
+  const { t, getIntlLocale, formatPrice } = useLocale()
+  const { attributeLabel, typeLabel } = useVehicleLabels()
   const { notifyError, notifySuccess } = useNotifications()
   const persona = ref(null)
   const rolePending = computed(() => googlePending.value?.purpose === 'role' ? googlePending.value : null)
   const profileIncomplete = computed(() => persona.value?.profile_completed === false)
   const canEnterEmail = computed(() => profileIncomplete.value && !persona.value.epasts)
-  const copy = computed(() => profileIncomplete.value || rolePending.value ? lv.profile : t('profile'))
+  const copy = computed(() => t('profile'))
   const selectedRole = ref(null)
   const roleError = ref('')
   const isClient = computed(() => loma.value === 'klients')
@@ -659,7 +660,7 @@
   const startingGoogleDeletion = ref(false)
   const deletionBlock = computed(() => deletionCheck.value?.can_delete === false ? deletionCheck.value : null)
   const canSubmitDeletion = computed(() => deletionCheck.value?.can_delete
-    && deletionPhrase.value === 'DZĒST'
+    && deletionPhrase.value === copy.value.deletion.phrase
     && (deletionCheck.value.confirmation_method === 'password' ? Boolean(deletionPassword.value) : deletionCheck.value.google_confirmed))
 
   watch(deletionDialog, open => {
@@ -743,8 +744,8 @@
     return profileIncomplete.value && (field !== 'epasts' || canEnterEmail.value) ? `${label} *` : label
   }
 
-  const requiredRule = value => !!String(value ?? '').trim() || 'Šis lauks ir obligāts.'
-  const validEmailRule = value => /.+@.+\..+/.test(value || '') || 'Ievadiet derīgu e-pasta adresi.'
+  const requiredRule = value => !!String(value ?? '').trim() || t('common.required')
+  const validEmailRule = value => /.+@.+\..+/.test(value || '') || t('auth.messages.emailInvalid')
 
   function profileRules (rules) {
     return profileIncomplete.value ? [requiredRule, ...rules] : rules
@@ -752,7 +753,7 @@
 
   async function chooseGoogleRole () {
     if (!selectedRole.value) {
-      roleError.value = 'Izvēlieties konta veidu.'
+      roleError.value = copy.value.setup.chooseRoleError
       return
     }
     loading.value = true
@@ -772,9 +773,9 @@
         await router.replace({ path: AUTH_ROUTE, query: { google: 'invalid' } })
         return
       }
-      roleError.value = result.errors?.loma?.[0] || 'Neizdevās saglabāt konta veidu. Mēģiniet vēlreiz.'
+      roleError.value = result.errors?.loma?.[0] || copy.value.setup.roleError
     } catch {
-      roleError.value = 'Neizdevās sazināties ar EasyRent. Mēģiniet vēlreiz.'
+      roleError.value = t('common.networkError')
     } finally {
       loading.value = false
     }
@@ -988,11 +989,11 @@
     deletionError.value = ''
     try {
       const response = await apiFetch('/api/profile/deletion-check', { cache: 'no-store' })
-      if (!response.ok) throw new Error('Neizdevās pārbaudīt konta dzēšanas iespēju.')
+      if (!response.ok) throw new Error(copy.value.deletion.checkError)
       deletionCheck.value = await response.json()
       return deletionCheck.value
     } catch {
-      deletionError.value = 'Neizdevās pārbaudīt, vai kontu var dzēst. Mēģiniet vēlreiz.'
+      deletionError.value = copy.value.deletion.checkError
       return null
     } finally {
       checkingDeletion.value = false
@@ -1004,6 +1005,8 @@
   }
 
   async function initializeDeletion () {
+    if (profileIncomplete.value) return
+
     const { delete_google: callback, ...query } = route.query
     const eligibility = await checkDeletion()
     if (!callback) return
@@ -1014,8 +1017,8 @@
     deletionDialog.value = true
     if (!eligibility.google_confirmed) {
       deletionError.value = callback === 'mismatch'
-        ? 'Atlasiet šim EasyRent kontam piesaistīto Google kontu.'
-        : 'Google apstiprināšana netika pabeigta. Mēģiniet vēlreiz.'
+        ? copy.value.deletion.googleMismatch
+        : copy.value.deletion.googleIncomplete
     }
   }
 
@@ -1026,12 +1029,12 @@
       const response = await apiFetch('/oauth/google/deletion', { auth: false, method: 'POST' })
       const data = await response.json().catch(() => ({}))
       if (!response.ok || !data.authorization_url) {
-        deletionError.value = data.message || 'Neizdevās sākt Google apstiprināšanu.'
+        deletionError.value = data.message || copy.value.deletion.googleStartError
         return
       }
       window.location.assign(data.authorization_url)
     } catch {
-      deletionError.value = 'Neizdevās sākt Google apstiprināšanu.'
+      deletionError.value = copy.value.deletion.googleStartError
     } finally {
       startingGoogleDeletion.value = false
     }
@@ -1045,14 +1048,15 @@
       const response = await apiFetch('/api/profile/me', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: deletionPhrase.value, password: deletionPassword.value || undefined }),
+        // The API expects the same confirmation value for every interface language.
+        body: JSON.stringify({ confirmation: 'DZĒST', password: deletionPassword.value || undefined }),
       })
       if (response.status === 204) {
         localStorage.clear()
         clearAuthSession({ emitLogout: false })
         await router.replace(HOME_ROUTE)
         window.scrollTo({ top: 0 })
-        notifySuccess('Jūsu konts ir veiksmīgi dzēsts.')
+        notifySuccess(copy.value.deletion.success)
         return
       }
 
@@ -1063,9 +1067,9 @@
         return
       }
       if (data.errors?.google) deletionCheck.value.google_confirmed = false
-      deletionError.value = data.message || 'Neizdevās dzēst kontu. Mēģiniet vēlreiz.'
+      deletionError.value = data.message || copy.value.deletion.error
     } catch {
-      deletionError.value = 'Neizdevās dzēst kontu. Mēģiniet vēlreiz.'
+      deletionError.value = copy.value.deletion.error
     } finally {
       deletionPassword.value = ''
       deletingAccount.value = false
@@ -1075,7 +1079,7 @@
   async function downloadInvoice (id) {
     try {
       const response = await apiFetch(`/api/rezervacijas/${id}/invoice`, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Neizdevās lejupielādēt rēķinu.')
+      if (!response.ok) throw new Error(copy.value.invoice.error)
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement('a')
       link.href = url
@@ -1083,7 +1087,7 @@
       link.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch {
-      notifyError('Neizdevās lejupielādēt rēķinu.')
+      notifyError(copy.value.invoice.error)
     }
   }
 
@@ -1171,11 +1175,6 @@
     return date.toLocaleString(getIntlLocale())
   }
 
-  function formatPrice (value) {
-    const num = Number(value || 0)
-    return `${num.toFixed(2)} €`
-  }
-
   function normalizeVehicleField (value) {
     if (value === null || value === undefined) return ''
     const normalized = String(value).trim()
@@ -1188,16 +1187,16 @@
     if (!vehicle && !snapshot) return ''
 
     return [
-      [copy.value.vehicleFields.type, snapshot ? snapshot.veids : vehicle?.veids?.nosaukums],
-      [copy.value.vehicleFields.gearbox, normalizeVehicleField((snapshot || vehicle)?.atrumkarba)],
-      [copy.value.vehicleFields.fuel, normalizeVehicleField((snapshot || vehicle)?.degvielas_veids)],
+      [copy.value.vehicleFields.type, typeLabel(snapshot ? snapshot.veids : vehicle?.veids?.nosaukums)],
+      [copy.value.vehicleFields.gearbox, attributeLabel(normalizeVehicleField((snapshot || vehicle)?.atrumkarba))],
+      [copy.value.vehicleFields.fuel, attributeLabel(normalizeVehicleField((snapshot || vehicle)?.degvielas_veids))],
       [copy.value.vehicleFields.registrationNumber, normalizeVehicleField(vehicle?.registracijas_numurs)],
     ].filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`).join(' • ')
   }
 
   function reservationVehicleName (item) {
     const vehicle = item.transporta_snapshot || item.transportlidzeklis
-    return [vehicle?.marka, vehicle?.modelis].filter(Boolean).join(' ') || 'Transportlīdzeklis'
+    return [vehicle?.marka, vehicle?.modelis].filter(Boolean).join(' ') || t('vehicle.name')
   }
 
   function reservationBookedAt (item) {
@@ -1206,14 +1205,14 @@
 
   function reservationCounterpartyName (item) {
     if (isProvider.value) {
-      if (item?.klients?.persona_deleted) return 'Dzēsts lietotājs'
+      if (item?.klients?.persona_deleted) return copy.value.deletion.deletedClient
       const clientPersona = item?.klients?.persona
       const fullName = `${clientPersona?.vards || ''} ${clientPersona?.uzvards || ''}`.trim()
       return fullName || copy.value.roles.client
     }
 
     const provider = item?.transportlidzeklis?.sniedzejs
-    if (provider?.persona_deleted) return 'Dzēsts pakalpojumu sniedzējs'
+    if (provider?.persona_deleted) return copy.value.deletion.deletedProvider
     const providerPersona = provider?.persona
     const fullName = `${providerPersona?.vards || ''} ${providerPersona?.uzvards || ''}`.trim()
     return fullName || copy.value.roles.provider
@@ -1283,7 +1282,7 @@
 
     const valid = await formRef.value?.validate()
     if (!valid?.valid) {
-      errorText.value = 'Lūdzu, izlabojiet formā norādītās kļūdas'
+      errorText.value = copy.value.editErrors.checkFields
       return
     }
 
@@ -1293,7 +1292,7 @@
       const wasIncomplete = profileIncomplete.value
 
       if (!user?.persona_id) {
-        throw new Error('Lietotāja dati nav ielādēti pareizi. Atsvaidziniet lapu.')
+        throw new Error(copy.value.editErrors.missingUser)
       }
 
       // Build update payload with only changed fields
@@ -1325,7 +1324,7 @@
         const shouldGeocode = (needsCoords || addressChanged) && !coordsChanged
         if (shouldGeocode) {
           if (!hasMinimalAddress()) {
-            geocodeError.value = 'Norādi vismaz ielu un pilsētu, lai automātiski atrastu koordinātes.'
+            geocodeError.value = copy.value.editErrors.geocodeAddress
             return
           } else {
             const address = buildFullAddress()
@@ -1335,7 +1334,7 @@
               form.value.longitude = coords.lng
               geocodeError.value = ''
             } else if (address && !wasIncomplete) {
-              geocodeError.value = 'Neizdevās atrast koordinātes no adreses.'
+              geocodeError.value = copy.value.editErrors.geocodeFailed
               return
             }
           }
@@ -1365,23 +1364,23 @@
           // Map server errors to individual fields
           Object.keys(result.errors).forEach(field => {
             const errorMessages = Array.isArray(result.errors[field]) ? result.errors[field] : [result.errors[field]]
-            fieldErrors.value[field] = errorMessages[0] || 'Kļūda šajā laukā'
+            fieldErrors.value[field] = errorMessages[0] || copy.value.editErrors.field
           })
-          errorText.value = 'Lūdzu, labojiet norādītās kļūdas apakšā'
+          errorText.value = copy.value.editErrors.checkFields
           return
         }
-        throw new Error(result?.message || `Kļūda (${response.status}): Neizdevās savienot ar serveri`)
+        throw new Error(result?.message || t('common.networkError'))
       }
 
       if (!result?.persona) {
-        throw new Error('Servera atbilde nav pareiza.')
+        throw new Error(copy.value.editErrors.invalidResponse)
       }
 
       persona.value = result.persona
       setAuthSession({ persona: result.persona })
 
       if (wasIncomplete && result.persona.profile_completed) {
-        notifySuccess('Profils veiksmīgi aizpildīts!')
+        notifySuccess(copy.value.setup.completed)
         await router.replace(accountHome(result.persona))
         return
       }
@@ -1402,7 +1401,7 @@
         }
       }
     } catch (error) {
-      errorText.value = error?.message || 'Kļūda: Neizdevās savienot ar serveri'
+      errorText.value = error?.message || t('common.networkError')
     } finally {
       loading.value = false
     }
@@ -1411,7 +1410,7 @@
   // Notīra sesiju un pārvirza uz sākumlapu.
   async function logout () {
     if (!await logoutRequest()) {
-      errorText.value = 'Neizdevās izrakstīties. Mēģiniet vēlreiz.'
+      errorText.value = t('common.logoutError')
     }
   }
 </script>

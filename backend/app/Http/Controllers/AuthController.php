@@ -37,20 +37,20 @@ class AuthController extends Controller
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ], [
-            'email.unique' => 'E-pasts jau ir reģistrēts.',
-            'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
-            'name.required' => 'Vārds un uzvārds ir obligāts.',
-            'password.required' => 'Parole ir obligāta.',
-            'password.min' => 'Parolei jābūt vismaz 8 simbolu garai.',
-            'password.mixed' => 'Parolei jāsatur vismaz viens lielais burts.',
-            'password.symbols' => 'Parolei jāsatur vismaz viens speciālais simbols.',
-            'kontakttalrunis.required' => 'Tālrunis ir obligāts.',
-            'bankas_konts.required' => 'Banka konta numurs (IBAN) ir obligāts.',
+            'email.unique' => __('app.emailTaken'),
+            'lietotajvards.unique' => __('app.usernameTaken'),
+            'name.required' => __('app.nameRequired'),
+            'password.required' => __('app.passwordRequired'),
+            'password.min' => __('app.passwordMin'),
+            'password.mixed' => __('app.passwordUppercase'),
+            'password.symbols' => __('app.passwordSymbol'),
+            'kontakttalrunis.required' => __('app.phoneRequired'),
+            'bankas_konts.required' => __('app.ibanRequired'),
         ]);
 
         $data['email'] = strtolower($data['email']);
         if (Persona::forEmail($data['email'])->exists()) {
-            throw ValidationException::withMessages(['email' => 'E-pasts jau ir reģistrēts.']);
+            throw ValidationException::withMessages(['email' => __('app.emailTaken')]);
         }
 
         $nameParts = explode(' ', trim($data['name']), 2);
@@ -110,10 +110,10 @@ class AuthController extends Controller
             }, 3);
         } catch (UniqueConstraintViolationException $exception) {
             if (Persona::forEmail($data['email'])->exists()) {
-                throw ValidationException::withMessages(['email' => 'E-pasts jau ir reģistrēts.']);
+                throw ValidationException::withMessages(['email' => __('app.emailTaken')]);
             }
             if ($data['loma'] === 'klients' && Klients::where('lietotajvards', $data['lietotajvards'])->exists()) {
-                throw ValidationException::withMessages(['lietotajvards' => 'Lietotājvārds jau ir aizņemts.']);
+                throw ValidationException::withMessages(['lietotajvards' => __('app.usernameTaken')]);
             }
             throw $exception;
         }
@@ -131,7 +131,7 @@ class AuthController extends Controller
         $persona = Persona::forEmail($data['email'])->first();
 
         if (!$persona?->parole || !Hash::check($data['password'], $persona->parole)) {
-            return response()->json(['message' => 'Nepareizs e-pasts vai parole'], 422);
+            return response()->json(['message' => __('app.invalidCredentials')], 422);
         }
 
         return $this->issueToken($request, $persona);
@@ -141,7 +141,7 @@ class AuthController extends Controller
     {
         $persona = $request->user('sanctum');
         if (!$persona && !GoogleOAuth::pending($request)) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         $token = $persona?->currentAccessToken();
@@ -174,7 +174,7 @@ class AuthController extends Controller
     {
         [$persona, $token] = DB::transaction(function () use ($persona) {
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
-            abort_unless($active, 401, 'Nepieciešama autentifikācija.');
+            abort_unless($active, 401, __('app.authenticationRequired'));
             $active->tokens()->delete();
 
             return [$active, $active->createToken('frontend')->plainTextToken];

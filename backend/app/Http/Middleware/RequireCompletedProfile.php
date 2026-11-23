@@ -17,7 +17,7 @@ class RequireCompletedProfile
         if ($persona?->profile_completed === false || ($pending['purpose'] ?? null) === 'role') {
             return response()->json([
                 'code' => 'profile_incomplete',
-                'message' => 'Lūdzu, pabeidziet sava profila izveidi.',
+                'message' => __('app.profileIncomplete'),
             ], 403)->header('Cache-Control', 'no-store');
         }
 

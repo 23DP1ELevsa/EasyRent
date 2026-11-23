@@ -17,11 +17,11 @@
         type="button"
         @click="$emit('reviews')"
       >
-        <v-icon color="amber-darken-2" size="17">mdi-star</v-icon>{{ Number(vehicle.videjais_vertejums || 0).toFixed(1) }} <span>({{ vehicle.atsauksmju_skaits }})</span>
+        <v-icon color="amber-darken-2" size="17">mdi-star</v-icon>{{ formatRating(vehicle.videjais_vertejums) }} <span>({{ vehicle.atsauksmju_skaits }})</span>
       </button>
     </div>
     <div class="rental-vehicle__body">
-      <div class="rental-vehicle__type">{{ vehicle.veids?.nosaukums || '—' }}</div>
+      <div class="rental-vehicle__type">{{ typeLabel(vehicle.veids?.nosaukums) || '—' }}</div>
       <h3>{{ vehicle.marka }} {{ vehicle.modelis }}</h3>
       <button class="rental-vehicle__provider" type="button" @click="$emit('select-provider')">
         <v-icon size="16">mdi-storefront-outline</v-icon>{{ provider?.name }}
@@ -50,6 +50,7 @@
 <script setup>
   import { computed } from 'vue'
   import { useLocale } from '@/stores/locale'
+  import { useVehicleLabels } from '@/utils/vehicleLabels'
   import { getVehicleImage } from '@/utils/vehicleVisuals'
 
   const props = defineProps({
@@ -63,9 +64,10 @@
     showDetails: { type: Boolean, default: true },
   })
   defineEmits(['details', 'reviews', 'reserve', 'edit', 'select-provider'])
-  const { t, getIntlLocale } = useLocale()
+  const { t, formatPrice, formatRating } = useLocale()
+  const { typeLabel } = useVehicleLabels()
   const visibleDetails = computed(() => props.showDetails ? props.details.filter(detail => !detail.isRegistration).slice(0, 2) : props.details)
-  const price = computed(() => new Intl.NumberFormat(getIntlLocale(), { style: 'currency', currency: 'EUR' }).format(Number(props.vehicle.dienas_nomas_cena || 0)))
+  const price = computed(() => formatPrice(props.vehicle.dienas_nomas_cena))
 </script>
 
 <style scoped>

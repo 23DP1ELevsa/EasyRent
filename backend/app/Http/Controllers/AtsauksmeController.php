@@ -65,7 +65,7 @@ class AtsauksmeController extends Controller
 
         $klients = $this->resolveAuthorizedClient($request);
         if (!$klients) {
-            return response()->json(['message' => 'Atsauksmi drīkst pievienot tikai autorizēts klients.'], 403);
+            return response()->json(['message' => __('app.reviewSignInToAdd')], 403);
         }
 
         $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($data['transportlidzeklis_id']);
@@ -89,7 +89,7 @@ class AtsauksmeController extends Controller
         $statusCode = $review->wasRecentlyCreated ? 201 : 200;
 
         return response()->json([
-            'message' => $review->wasRecentlyCreated ? 'Atsauksme pievienota.' : 'Atsauksme atjaunināta.',
+            'message' => $review->wasRecentlyCreated ? __('app.reviewAdded') : __('app.reviewUpdated'),
             'atsauksme' => $review->load(['klients.persona', 'transportlidzeklis']),
         ], $statusCode);
     }
@@ -103,16 +103,16 @@ class AtsauksmeController extends Controller
 
         $klients = $this->resolveAuthorizedClient($request);
         if (!$klients) {
-            return response()->json(['message' => 'Atsauksmi drīkst rediģēt tikai autorizēts klients.'], 403);
+            return response()->json(['message' => __('app.reviewSignInToEdit')], 403);
         }
 
         $review = Atsauksme::find($id);
         if (!$review) {
-            return response()->json(['message' => 'Atsauksme nav atrasta.'], 404);
+            return response()->json(['message' => __('app.reviewNotFound')], 404);
         }
 
         if ((int) $review->klients_id !== (int) $klients->klients_id) {
-            return response()->json(['message' => 'Nav atļauts rediģēt cita klienta atsauksmi.'], 403);
+            return response()->json(['message' => __('app.reviewEditForbidden')], 403);
         }
 
         $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($review->transportlidzeklis_id);
@@ -127,7 +127,7 @@ class AtsauksmeController extends Controller
         }, 3);
 
         return response()->json([
-            'message' => 'Atsauksme atjaunināta.',
+            'message' => __('app.reviewUpdated'),
             'atsauksme' => $review->refresh()->load(['klients.persona', 'transportlidzeklis']),
         ]);
     }

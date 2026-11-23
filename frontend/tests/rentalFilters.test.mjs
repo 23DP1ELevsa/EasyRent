@@ -90,3 +90,15 @@ test('all new catalog labels and sorting options exist in LV/RU/EN', () => {
     assert.equal(locale.map.sortOptions.length, 5)
   }
 })
+
+test('all three dictionaries have the same entries and interpolation parameters', () => {
+  const entries = (dictionary, prefix = '') => Object.entries(dictionary).flatMap(([key, value]) => {
+    const path = `${prefix}${key}`
+    if (typeof value !== 'string') return entries(value, `${path}.`)
+    assert.ok(value.trim(), path)
+    const parameters = [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort()
+    return [[path, parameters]]
+  })
+  assert.deepEqual(new Map(entries(en)), new Map(entries(lv)))
+  assert.deepEqual(new Map(entries(ru)), new Map(entries(lv)))
+})

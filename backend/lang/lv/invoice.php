@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'providerSubject' => 'EasyRent: jauna apmaksāta rezervācija un rēķins',
+    'clientSubject' => 'EasyRent: jūsu rezervācijas rēķins',
+    'title' => 'EasyRent rēķins',
+    'providerTitle' => 'Jauna apmaksāta rezervācija',
+    'clientTitle' => 'Jūsu rezervācijas rēķins',
+    'providerIntro' => 'Pakalpojums ir apmaksāts. Zemāk ir rēķina un rezervācijas detaļas.',
+    'clientIntro' => 'Paldies par apmaksu. Zemāk ir jūsu rēķina un rezervācijas detaļas.',
+    'number' => 'Rēķina numurs',
+    'transactionNumber' => 'Transakcijas numurs',
+    'reservationId' => 'Rezervācijas ID',
+    'amount' => 'Summa',
+    'paidAt' => 'Apmaksas datums',
+    'reservedAt' => 'Rezervēts',
+    'startAt' => 'Nomas sākums',
+    'endAt' => 'Nomas beigas',
+    'vehicle' => 'Transportlīdzeklis',
+    'vehicleType' => 'Transporta veids',
+    'registrationNumber' => 'Reģistrācijas numurs',
+    'client' => 'Klients',
+    'provider' => 'Pakalpojumu sniedzējs',
+    'footer' => 'Šī vēstule ir ģenerēta automātiski no EasyRent sistēmas.',
+];

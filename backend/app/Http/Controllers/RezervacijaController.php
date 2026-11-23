@@ -46,7 +46,7 @@ class RezervacijaController extends Controller
         $persona = $request->user();
 
         if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         $party = fn ($query) => $query->withTrashed()->select('persona_id', 'vards', 'uzvards', 'deleted_at');
@@ -76,7 +76,7 @@ class RezervacijaController extends Controller
                 $transportQuery->where('sniedzejs_id', $sniedzejs->sniedzejs_id);
             });
         } else {
-            return response()->json(['message' => 'Šī darbība nav pieejama šai lomai.'], 403);
+            return response()->json(['message' => __('app.roleForbidden')], 403);
         }
 
         $reservations = $query->get()->each(function (Rezervacija $reservation) {
@@ -112,12 +112,12 @@ class RezervacijaController extends Controller
         $end = $this->parseClientDateTime($data['beigu_laiks'], $request);
 
         return $this->withLockedVehicle($klients, $data['transportlidzeklis_id'], function (Transportlidzeklis $transport) use ($klients, $start, $end) {
-            abort_if($transport->archived_at || $transport->statuss !== 'pieejams', 409, 'Transportlīdzeklis nav pieejams.');
-            abort_if($start->lessThanOrEqualTo(Carbon::now()), 422, 'Sākuma laikam jābūt nākotnē.');
-            abort_if($end->lessThanOrEqualTo($start), 422, 'Beigu laikam jābūt pēc sākuma laika.');
+            abort_if($transport->archived_at || $transport->statuss !== 'pieejams', 409, __('app.vehicleUnavailable'));
+            abort_if($start->lessThanOrEqualTo(Carbon::now()), 422, __('app.bookingStartInFuture'));
+            abort_if($end->lessThanOrEqualTo($start), 422, __('app.bookingEndAfterStart'));
 
             $conflict = $transport->rezervacijas()->where('sakuma_laiks', '<', $end)->where('beigu_laiks', '>', $start)->exists();
-            abort_if($conflict, 409, 'Transportlīdzeklis vairs nav pieejams izvēlētajā laikā.');
+            abort_if($conflict, 409, __('app.vehicleTimeConflict'));
 
             $days = max(1, (int) ceil($start->diffInSeconds($end) / 86400));
             $reservation = $transport->rezervacijas()->create([
@@ -145,13 +145,13 @@ class RezervacijaController extends Controller
         }
 
         $reservation = Rezervacija::findOrFail($id);
-        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, 'Nav atļauts apmaksāt šo rezervāciju.');
+        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, __('app.bookingPayForbidden'));
 
         [$rezervacija, $maksajums] = $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
             $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
-            abort_if($reservation->apmaksas_statuss === 'apmaksata', 409, 'Rezervācija jau apmaksāta.');
-            abort_if($reservation->maksajumi()->exists(), 409, 'Rezervācijai jau ir maksājuma ieraksts.');
-            abort_if(now()->greaterThanOrEqualTo($reservation->sakuma_laiks), 409, 'Rezervācijas apmaksas termiņš ir beidzies.');
+            abort_if($reservation->apmaksas_statuss === 'apmaksata', 409, __('app.bookingAlreadyPaid'));
+            abort_if($reservation->maksajumi()->exists(), 409, __('app.bookingPaymentExists'));
+            abort_if(now()->greaterThanOrEqualTo($reservation->sakuma_laiks), 409, __('app.bookingPaymentExpired'));
 
             $payment = $reservation->maksajumi()->create([
                 'summa' => $reservation->kopa_summa,
@@ -185,7 +185,7 @@ class RezervacijaController extends Controller
             'pakalpojumu_sniedzejs' => (int) $persona->pakalpojumuSniedzejs?->getKey() === (int) $reservation->transportlidzeklis->sniedzejs_id,
             default => false,
         };
-        abort_unless($participant, 404, 'Rēķins nav atrasts.');
+        abort_unless($participant, 404, __('app.invoiceNotFound'));
 
         $payment = $reservation->maksajumi()->where('statuss', 'apstiprinats')->whereNotNull('rekins')->firstOrFail();
         $data = ReservationInvoice::viewData($reservation, $payment, $persona->loma === 'klients' ? 'client' : 'provider');
@@ -206,14 +206,14 @@ class RezervacijaController extends Controller
         }
 
         $reservation = Rezervacija::findOrFail($id);
-        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, 'Nav atļauts atcelt šo rezervāciju.');
+        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, __('app.bookingCancelForbidden'));
 
         return $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
             $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
-            abort_if($reservation->apmaksas_statuss === 'apmaksata' || $reservation->maksajumi()->exists(), 409, 'Rezervāciju ar maksājuma ierakstu atcelt nevar.');
+            abort_if($reservation->apmaksas_statuss === 'apmaksata' || $reservation->maksajumi()->exists(), 409, __('app.bookingHasPayment'));
             $reservation->delete();
 
-            return response()->json(['message' => 'Rezervācija atcelta.']);
+            return response()->json(['message' => __('app.bookingCanceled')]);
         });
     }
 
@@ -233,16 +233,16 @@ class RezervacijaController extends Controller
         $persona = $request->user();
 
         if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         if ($persona->loma !== 'klients') {
-            return response()->json(['message' => 'Šī darbība pieejama tikai klientam.'], 403);
+            return response()->json(['message' => __('app.clientOnly')], 403);
         }
 
         $klients = $persona->klients;
         if (!$klients) {
-            return response()->json(['message' => 'Klienta profils nav atrasts.'], 403);
+            return response()->json(['message' => __('app.clientMissing')], 403);
         }
 
         return $klients;
@@ -253,16 +253,16 @@ class RezervacijaController extends Controller
         $persona = $request->user();
 
         if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+            return response()->json(['message' => __('app.authenticationRequired')], 401);
         }
 
         if ($persona->loma !== 'pakalpojumu_sniedzejs') {
-            return response()->json(['message' => 'Šī darbība pieejama tikai pakalpojumu sniedzējam.'], 403);
+            return response()->json(['message' => __('app.providerOnly')], 403);
         }
 
         $sniedzejs = $persona->pakalpojumuSniedzejs ?? $persona->pakalpojumu_sniedzejs;
         if (!$sniedzejs) {
-            return response()->json(['message' => 'Pakalpojumu sniedzēja profils nav atrasts.'], 403);
+            return response()->json(['message' => __('app.providerMissing')], 403);
         }
 
         return $sniedzejs;
