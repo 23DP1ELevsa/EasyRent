@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Persona;
 use App\Models\Klients;
-use App\Models\PakalpojumuSniedzejs;
+use App\Support\GoogleOAuth;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Sanctum\TransientToken;
 
 class AuthController extends Controller
 {
@@ -43,27 +48,15 @@ class AuthController extends Controller
             'bankas_konts.required' => 'Banka konta numurs (IBAN) ir obligāts.',
         ]);
 
-        // Pēc validācijas — saglabāt datus (validācija jau pārbaudīta)
+        $data['email'] = strtolower($data['email']);
+        if (Persona::forEmail($data['email'])->exists()) {
+            throw ValidationException::withMessages(['email' => 'E-pasts jau ir reģistrēts.']);
+        }
+
         $nameParts = explode(' ', trim($data['name']), 2);
-        $vards = $nameParts[0];
-        $uzvards = $nameParts[1] ?? '';
+        $roleFields = ['lietotajvards' => $data['lietotajvards'] ?? null];
 
-        $persona = Persona::create([
-            'vards' => $vards,
-            'uzvards' => $uzvards,
-            'epasts' => $data['email'],
-            'parole' => Hash::make($data['password']),
-            'loma' => $data['loma'],
-            'kontakttalrunis' => $data['kontakttalrunis'] ?? null,
-            'bankas_konts' => $data['bankas_konts'] ?? null,
-        ]);
-
-        if ($data['loma'] === 'klients') {
-            Klients::create([
-                'persona_id' => $persona->persona_id,
-                'lietotajvards' => $data['lietotajvards'],
-            ]);
-        } else {
+        if ($data['loma'] === 'pakalpojumu_sniedzejs') {
             $apartmentNumber = $this->normalizeOptionalString($data['dzivokla_numurs'] ?? null);
 
             $coords = [
@@ -86,8 +79,7 @@ class AuthController extends Controller
             ]);
             }
 
-            PakalpojumuSniedzejs::create([
-                'persona_id' => $persona->persona_id,
+            $roleFields = [
                 'registracijas_numurs' => $data['registracijas_numurs'],
                 'iela' => $data['iela'],
                 'majas_numurs' => $data['majas_numurs'],
@@ -96,58 +88,106 @@ class AuthController extends Controller
                 'pasta_indekss' => $data['pasta_indekss'],
                 'latitude' => $coords['lat'],
                 'longitude' => $coords['lng'],
-            ]);
+            ];
         }
 
-        $persona->tokens()->delete();
-        $token = $persona->createToken('frontend')->plainTextToken;
+        try {
+            $persona = DB::transaction(function () use ($data, $nameParts, $roleFields) {
+                $persona = Persona::create([
+                    'vards' => $nameParts[0],
+                    'uzvards' => $nameParts[1] ?? '',
+                    'epasts' => $data['email'],
+                    'parole' => Hash::make($data['password']),
+                    'loma' => $data['loma'],
+                    'kontakttalrunis' => $data['kontakttalrunis'],
+                    'bankas_konts' => $data['bankas_konts'],
+                ]);
 
-        return response()->json([
-            'persona' => $persona->load($data['loma'] === 'klients' ? 'klients' : 'pakalpojumuSniedzejs'),
-            'token' => $token,
-        ], 201);
+                $relation = $persona->loma === 'klients' ? $persona->klients() : $persona->pakalpojumuSniedzejs();
+                $relation->create($roleFields);
+
+                return $persona;
+            }, 3);
+        } catch (UniqueConstraintViolationException $exception) {
+            if (Persona::forEmail($data['email'])->exists()) {
+                throw ValidationException::withMessages(['email' => 'E-pasts jau ir reģistrēts.']);
+            }
+            if ($data['loma'] === 'klients' && Klients::where('lietotajvards', $data['lietotajvards'])->exists()) {
+                throw ValidationException::withMessages(['lietotajvards' => 'Lietotājvārds jau ir aizņemts.']);
+            }
+            throw $exception;
+        }
+
+        return $this->issueToken($request, $persona, 201);
     }
 
     public function login(Request $request)
     {
         $data = $request->validate([
             'email' => ['required','email'],
-            'password' => ['required'],
+            'password' => ['required', 'string'],
         ]);
 
-        $persona = Persona::where('epasts', $data['email'])->first();
+        $persona = Persona::forEmail($data['email'])->first();
 
-        if (!$persona || !Hash::check($data['password'], $persona->parole)) {
+        if (!$persona?->parole || !Hash::check($data['password'], $persona->parole)) {
             return response()->json(['message' => 'Nepareizs e-pasts vai parole'], 422);
         }
 
-        $persona->tokens()->delete();
-        $token = $persona->createToken('frontend')->plainTextToken;
-
-        // Lai atgrieztu arī klients/pakalpojumu sniedzējs datus, jānosaka attiecība
-        $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
-
-        return response()->json([
-            'persona' => $persona->load($relation),
-            'token' => $token,
-        ]);
+        return $this->issueToken($request, $persona);
     }
 
     public function logout(Request $request)
     {
-        $request->user()?->currentAccessToken()?->delete();
+        $persona = $request->user('sanctum');
+        if (!$persona && !GoogleOAuth::pending($request)) {
+            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        }
+
+        $token = $persona?->currentAccessToken();
+        if ($token && !($token instanceof TransientToken)) {
+            $token->delete();
+        }
+        $this->clearWebSession($request);
 
         return response()->json(['message' => 'OK']);
     }
 
     public function me(Request $request)
     {
-        $persona = $request->user();
-        $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
+        $persona = $request->user('sanctum');
+        $pending = GoogleOAuth::pending($request);
+        $googlePending = $pending ? [
+            'purpose' => $pending['purpose'],
+            'vards' => $pending['identity']['vards'],
+            'uzvards' => $pending['identity']['uzvards'],
+            'epasts' => $pending['identity']['epasts'],
+        ] : null;
 
         return response()->json([
-            'persona' => $persona->load($relation),
-        ]);
+            'persona' => $persona?->profileData(),
+            'google_pending' => $googlePending,
+        ], $persona || $pending ? 200 : 401)->header('Cache-Control', 'no-store');
+    }
+
+    private function issueToken(Request $request, Persona $persona, int $status = 200)
+    {
+        $this->clearWebSession($request);
+        $persona->tokens()->delete();
+
+        return response()->json([
+            'persona' => $persona->profileData(),
+            'token' => $persona->createToken('frontend')->plainTextToken,
+        ], $status)->header('Cache-Control', 'no-store');
+    }
+
+    private function clearWebSession(Request $request): void
+    {
+        if ($request->hasSession()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
     }
 
     private function geocodeAddress(array $parts, array $fallbackParts = []): array

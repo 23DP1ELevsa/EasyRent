@@ -38,6 +38,21 @@ let sequence = 0
 const pending = new Map()
 const failures = []
 const writes = []
+const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, lastProfile: null }
+const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
+const providerRole = 'pakalpojumu_sniedzejs'
+function signedInPersona (role, completed = false) {
+  return {
+    ...googleIdentity,
+    loma: role,
+    persona_id: 99,
+    profile_completed: completed,
+    profile_missing_fields: ['kontakttalrunis', 'bankas_konts', ...(role === 'klients'
+      ? ['lietotajvards']
+      : ['registracijas_numurs', 'iela', 'majas_numurs', 'pilseta', 'pasta_indekss'])],
+    ...(role === 'klients' ? { klients: { klients_id: 99 } } : { pakalpojumu_sniedzejs: { sniedzejs_id: 99 } }),
+  }
+}
 const types = ['Automašīna', 'Motocikls', 'Kvadracikls', 'Laiva', 'Velosipēds', 'Furgons'].map((nosaukums, index) => ({ veids_id: index + 1, nosaukums }))
 const providerCoordinates = [[56.95, 24.1], [56.96, 24.12], [56.94, 24.09], [56.58, 21.08], [56.59, 21.09], [56.6, 21.1], [56.61, 21.11]]
 const vehicles = Array.from({ length: 12 }, (_, index) => ({
@@ -82,17 +97,53 @@ socket.addEventListener('message', async event => {
     try {
       const url = new URL(request.url)
       let result = {}
+      let responseCode = 200
+      const responseHeaders = [{ name: 'Content-Type', value: 'application/json' }]
       if (request.method !== 'GET' && request.method !== 'OPTIONS') {
         writes.push({ method: request.method, path: url.pathname, body: request.postData })
       }
-      if (url.pathname === '/api/transport/veidi') {
+      if (url.pathname === '/api/auth/me') {
+        result = { persona: signIn.persona, google_pending: signIn.pending }
+        responseCode = signIn.persona || signIn.pending ? 200 : 401
+      } else if (url.pathname === '/oauth/google/start') {
+        signIn.selectedRole = url.searchParams.get('role')
+        let destination = '/profile?google=ok'
+        if (signIn.scenario === 'cancelled') {
+          destination = '/auth?google=cancelled'
+        } else if (signIn.scenario === 'returning') {
+          signIn.persona = signedInPersona(providerRole, true)
+        } else if (signIn.selectedRole) {
+          signIn.persona = signedInPersona(signIn.selectedRole)
+        } else {
+          signIn.pending = { ...googleIdentity, purpose: 'role' }
+          destination = '/profile?google=role'
+        }
+        responseCode = 302
+        responseHeaders.push({ name: 'Location', value: destination })
+      } else if (url.pathname === '/oauth/google/role') {
+        signIn.persona = signedInPersona(JSON.parse(request.postData).loma)
+        signIn.pending = null
+        result = { next: '/profile?google=ok' }
+      } else if (url.pathname === '/api/profile/99') {
+        signIn.lastProfile = JSON.parse(request.postData)
+        signIn.persona = { ...signIn.persona, ...signIn.lastProfile, profile_completed: true, profile_missing_fields: [] }
+        result = { persona: signIn.persona }
+      } else if (url.pathname === '/api/auth/logout') {
+        signIn.persona = null
+        signIn.pending = null
+      } else if (url.hostname === 'nominatim.openstreetmap.org') {
+        result = []
+        responseHeaders.push({ name: 'Access-Control-Allow-Origin', value: '*' })
+      } else if (url.pathname === '/sanctum/csrf-cookie') {
+        responseCode = 204
+      } else if (url.pathname === '/api/transport/veidi') {
         result = types
       } else if (url.pathname === '/api/transport') {
         result = vehicles
       } else if (url.pathname.startsWith('/api/atsauksmes')) {
         result = []
       }
-      await send('Fetch.fulfillRequest', { requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' }, { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' }, { name: 'Access-Control-Allow-Headers', value: '*' }], body: Buffer.from(JSON.stringify(result)).toString('base64') })
+      await send('Fetch.fulfillRequest', { requestId, responseCode, responseHeaders, body: responseCode === 204 ? '' : Buffer.from(JSON.stringify(result)).toString('base64') })
     } catch (error) {
       failures.push(String(error))
       await send('Fetch.failRequest', { requestId, errorReason: 'Failed' })
@@ -157,7 +208,10 @@ async function noOverflow () {
 try {
   await send('Page.enable')
   await send('Runtime.enable')
-  await send('Fetch.enable', { patterns: [{ urlPattern: '*127.0.0.1:8000/api/*' }] })
+  await send('Fetch.enable', {
+    patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*']
+      .map(urlPattern => ({ urlPattern })),
+  })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.clear(); localStorage.setItem(\'easy-rent-locale\', \'en\');' })
   await resize(1440, 1000)
   await send('Page.navigate', { url: `${base}/map` })
@@ -307,6 +361,83 @@ try {
   assert.equal(failures.length, 0, JSON.stringify(failures))
   assert.equal(writes.length, 0, 'Read-only UI checks do not perform backend mutations')
   console.log('PASS: map markers/selection, 4/3/2/1-column grids, draft/apply/reset/Escape/outside click, focus, view persistence, details, provider forms/permissions, mobile sheets, LV/RU/EN, light/dark, no overflow or runtime exceptions.')
+
+  await resize(390, 844)
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('!!document.querySelector(".google-sign-in")')
+  assert.match(await evaluate('document.querySelector(".google-sign-in").textContent'), /Turpināt ar Google/)
+  await noOverflow()
+  await click('.auth-tabs [role=tab]:nth-child(2)')
+  await click('.auth-role-options button:nth-child(2)')
+  await click('.google-sign-in')
+  await waitFor('location.pathname === "/profile" && !location.search && !!document.querySelector(".profile-details input")', 'Provider lands in profile')
+  assert.equal(signIn.selectedRole, providerRole)
+  assert.match(await evaluate('document.querySelector(".profile-name").textContent'), /Anna Ozola/)
+  assert.match(await evaluate('document.querySelector(".profile-email").textContent'), /anna@example.com/)
+  assert.match(await evaluate('document.querySelector(".profile-content .v-alert").textContent'), /Pabeidziet sava profila izveidi/)
+  assert.ok(await evaluate(`!document.querySelector('.nav-link[href="/map"]') && !document.querySelector('.profile-reservations')`))
+  await noOverflow()
+  await screenshot('google-provider-profile-mobile')
+  await send('Page.navigate', { url: `${base}/map` })
+  await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input")', 'Direct map URL returns to profile')
+  await click('button[type=submit]')
+  await waitFor('document.querySelector(".profile-details").textContent.includes("Šis lauks ir obligāts.")', 'Field validation is visible')
+  assert.equal(signIn.lastProfile, null)
+
+  for (const [label, value] of [
+    ['Kontakttālrunis *', '+371 20000000'],
+    ['IBAN *', 'LV80BANK0000435195001'],
+    ['Reģistrācijas numurs *', 'REG-99'],
+    ['Iela *', 'Brīvības iela'],
+    ['Mājas numurs *', '10'],
+    ['Pilsēta *', 'Rīga'],
+    ['Pasta indekss *', 'LV-1010'],
+  ]) {
+    const fieldId = await evaluate(`(() => {
+      const fields = [...document.querySelectorAll('.profile-details .v-input')];
+      const field = fields.find(item => item.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)});
+      return field?.querySelector('input')?.id;
+    })()`)
+    assert.ok(fieldId, `Missing profile field ${label}`)
+    await input(`input[id="${fieldId}"]`, value)
+  }
+  await click('button[type=submit]')
+  await waitFor('location.pathname === "/map" && !!document.querySelector(".map-workspace")', 'Provider can open map after completion')
+  assert.equal(signIn.lastProfile.iela, 'Brīvības iela')
+  await waitFor('document.body.innerText.includes("Profils veiksmīgi aizpildīts!")', 'Completion notification is visible')
+
+  signIn.persona = null
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('!!document.querySelector(".google-sign-in")')
+  await click('.google-sign-in')
+  await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input[type=radio]")', 'Unknown role is chosen inside the profile')
+  assert.equal(signIn.selectedRole, null)
+  await click('.profile-details input[value="klients"]')
+  await click('.profile-details button[type=submit]')
+  await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input:not([type=radio])") && !document.querySelector(".profile-details input[type=radio]")', 'Client profile loads after selection')
+  assert.match(await evaluate('document.querySelector(".profile-role").textContent'), /Klients/)
+  for (const [width, height] of [[360, 800], [768, 1024], [1440, 1000]]) {
+    await resize(width, height)
+    await noOverflow()
+  }
+  await click('.profile-hero__logout')
+  await waitFor('location.pathname === "/" && !localStorage.getItem("user")', 'Logout works before completion')
+
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('!!document.querySelector(".google-sign-in")')
+  signIn.scenario = 'returning'
+  await click('.google-sign-in')
+  await waitFor('location.pathname === "/map" && !!document.querySelector(".map-workspace")', 'Completed provider goes straight to the map')
+  assert.ok(await evaluate('!document.querySelector(".profile-content")'))
+
+  signIn.persona = null
+  signIn.scenario = 'cancelled'
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('!!document.querySelector(".google-sign-in")')
+  await click('.google-sign-in')
+  await waitFor('document.querySelector(".auth-feedback")?.textContent.includes("Google autorizācija tika atcelta")')
+  assert.equal(failures.length, 0, JSON.stringify(failures))
+  console.log('PASS: Google entry, role selection, profile guard, required-field feedback, provider completion, logout, returning account, cancellation and responsive profile.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()

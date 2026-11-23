@@ -3,21 +3,18 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
-import AuthPage from '@/components/AuthPage.vue'
-import { HOME_ROUTE } from '@/router/paths'
-import { getStoredUser } from '@/services/auth'
+  import { useRouter } from 'vue-router'
+  import AuthPage from '@/components/AuthPage.vue'
+  import { accountHome, HOME_ROUTE, PROFILE_ROUTE } from '@/router/paths'
+  import { getStoredUser } from '@/services/auth'
 
-const router = useRouter()
+  const router = useRouter()
 
-function handleAuthSuccess() {
-  const userData = getStoredUser()
-
-  if (userData) {
-    window.dispatchEvent(new CustomEvent('user-updated', { detail: userData }))
+  function handleAuthSuccess ({ google = false } = {}) {
+    const userData = getStoredUser()
+    const home = google ? accountHome(userData) : HOME_ROUTE
+    const destination = userData?.profile_completed === false ? PROFILE_ROUTE : home
+    router.replace(destination)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-
-  router.push(HOME_ROUTE)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
 </script>

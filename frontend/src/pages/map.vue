@@ -815,7 +815,7 @@
   import RentalSlideOver from '@/components/RentalSlideOver.vue'
   import RentalVehicleCard from '@/components/RentalVehicleCard.vue'
   import { AUTH_ROUTE, buildCompanyRoute } from '@/router/paths'
-  import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
+  import { apiFetch, syncCurrentUser } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -824,7 +824,6 @@
 
   const router = useRouter()
   const { t, getIntlLocale, getDatePickerLocale } = useLocale()
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
   const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
   const copy = computed(() => t('map'))
   const datePickerLocale = computed(() => getDatePickerLocale())
@@ -1705,7 +1704,7 @@
     reviewError.value = ''
 
     try {
-      const response = await fetch(`${API_BASE}/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
+      const response = await apiFetch(`/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
       const result = await response.json()
 
       if (!response.ok) {
@@ -1755,19 +1754,19 @@
         komentars: (reviewForm.value.komentars || '').trim() || null,
       }
 
-      let url = `${API_BASE}/api/atsauksmes`
+      let url = `/api/atsauksmes`
       let method = 'POST'
 
       if (ownReview.value?.atsauksme_id) {
-        url = `${API_BASE}/api/atsauksmes/${ownReview.value.atsauksme_id}`
+        url = `/api/atsauksmes/${ownReview.value.atsauksme_id}`
         method = 'PUT'
       } else {
         payload.transportlidzeklis_id = reviewVehicle.value.transportlidzeklis_id
       }
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
@@ -1829,9 +1828,9 @@
         return
       }
 
-      const response = await fetch(`${API_BASE}/api/rezervacijas`, {
+      const response = await apiFetch(`/api/rezervacijas`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-Timezone': userTimezone }),
+        headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
         body: JSON.stringify({
           transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
           sakuma_laiks: startApi,
@@ -1864,9 +1863,9 @@
     paymentSuccess.value = ''
 
     try {
-      const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
+      const response = await apiFetch(`/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
       })
 
       const result = await response.json()
@@ -1920,9 +1919,9 @@
     paymentError.value = ''
 
     try {
-      const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
+      const response = await apiFetch(`/api/rezervacijas/${pendingReservation.value.rezervacija_id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
       })
       const data = await response.json()
       if (!response.ok) {
@@ -1962,9 +1961,9 @@
     editLoading.value = true
     editError.value = ''
     try {
-      const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+      const response = await apiFetch(`/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
         method: 'PUT',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           veids_id: editVehicle.value.veids_id,
           marka: editVehicle.value.marka,
@@ -2015,9 +2014,9 @@
     editError.value = ''
 
     try {
-      const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+      const response = await apiFetch(`/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
       })
 
       const result = await response.json()
@@ -2065,9 +2064,9 @@
         statuss: newVehicle.value.statuss,
       }
 
-      const response = await fetch(`${API_BASE}/api/transport`, {
+      const response = await apiFetch(`/api/transport`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
@@ -2109,9 +2108,9 @@
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/transport/veidi`, {
+      const response = await apiFetch(`/api/transport/veidi`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nosaukums }),
       })
 
@@ -2149,9 +2148,9 @@
     vehicleTypeSuccess.value = ''
 
     try {
-      const response = await fetch(`${API_BASE}/api/transport/veidi/${editingVehicleTypeId.value}`, {
+      const response = await apiFetch(`/api/transport/veidi/${editingVehicleTypeId.value}`, {
         method: 'PUT',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nosaukums }),
       })
 
@@ -2176,7 +2175,7 @@
     loading.value = true
     errorText.value = ''
     try {
-      const response = await fetch(`${API_BASE}/api/transport`)
+      const response = await apiFetch(`/api/transport`)
       const data = await response.json()
       if (!response.ok) {
         errorText.value = data?.message || copy.value.messages.loadTransportFailed
@@ -2192,7 +2191,7 @@
 
   async function loadTypes () {
     try {
-      const response = await fetch(`${API_BASE}/api/transport/veidi`)
+      const response = await apiFetch(`/api/transport/veidi`)
       const data = await response.json()
       if (response.ok) {
         transportTypes.value = data

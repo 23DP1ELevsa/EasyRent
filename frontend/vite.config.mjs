@@ -4,13 +4,12 @@ import Vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite'
 import VueRouter from 'unplugin-vue-router/vite'
 // Utilities
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 import { VitePWA } from 'vite-plugin-pwa'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
-// https://vitejs.dev/config/
-export default defineConfig({
+const config = {
   plugins: [
     VueRouter(),
     Vue({
@@ -58,6 +57,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,svg,woff2}'],
+        navigateFallbackDenylist: [/^\/(?:api|oauth|sanctum)(?:\/|$)/],
       },
       devOptions: {
         enabled: false,
@@ -91,4 +91,19 @@ export default defineConfig({
   server: {
     port: 3000,
   },
+}
+
+export default defineConfig(({ mode }) => {
+  const { VITE_API_BASE_URL } = loadEnv(mode, process.cwd())
+  const proxy = VITE_API_BASE_URL
+    ? Object.fromEntries(['/api', '/oauth', '/sanctum'].map(prefix => [
+        prefix, { target: VITE_API_BASE_URL, changeOrigin: true },
+      ]))
+    : undefined
+
+  return {
+    ...config,
+    server: { ...config.server, proxy },
+    preview: { proxy },
+  }
 })

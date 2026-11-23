@@ -582,10 +582,9 @@ import { useLocale } from '@/stores/locale'
 import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useLoadingState } from '@/stores/loading'
 import { useNotifications } from '@/stores/notifications'
-import { getAuthHeaders, syncCurrentUser } from '@/services/auth'
+import { apiFetch, syncCurrentUser } from '@/services/auth'
   import { getVehicleImage } from '@/utils/vehicleVisuals'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const route = useRoute()
 const router = useRouter()
 const { t, getIntlLocale, getDatePickerLocale } = useLocale()
@@ -1290,9 +1289,9 @@ async function saveVehicle() {
   editError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+    const response = await apiFetch(`/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
       method: 'PUT',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         veids_id: editVehicle.value.veids_id,
         marka: editVehicle.value.marka,
@@ -1345,9 +1344,9 @@ async function confirmDeleteVehicle() {
   editError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE}/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
+    const response = await apiFetch(`/api/transport/${editVehicle.value.transportlidzeklis_id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
     })
 
     const result = await response.json()
@@ -1377,7 +1376,7 @@ async function loadVehicleReviews(transportlidzeklisId) {
   reviewError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE}/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
+    const response = await apiFetch(`/api/atsauksmes?transportlidzeklis_id=${transportlidzeklisId}`)
     const result = await response.json()
 
     if (!response.ok) {
@@ -1427,19 +1426,19 @@ async function submitReview() {
       komentars: (reviewForm.value.komentars || '').trim() || null,
     }
 
-    let url = `${API_BASE}/api/atsauksmes`
+    let url = `/api/atsauksmes`
     let method = 'POST'
 
     if (ownReview.value?.atsauksme_id) {
-      url = `${API_BASE}/api/atsauksmes/${ownReview.value.atsauksme_id}`
+      url = `/api/atsauksmes/${ownReview.value.atsauksme_id}`
       method = 'PUT'
     } else {
       payload.transportlidzeklis_id = reviewVehicle.value.transportlidzeklis_id
     }
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method,
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
 
@@ -1504,9 +1503,9 @@ async function createReservation() {
       return
     }
 
-    const response = await fetch(`${API_BASE}/api/rezervacijas`, {
+    const response = await apiFetch(`/api/rezervacijas`, {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-Timezone': userTimezone }),
+      headers: { 'Content-Type': 'application/json', 'X-Timezone': userTimezone },
       body: JSON.stringify({
         transportlidzeklis_id: activeVehicle.value.transportlidzeklis_id,
         sakuma_laiks: startApi,
@@ -1539,9 +1538,9 @@ async function confirmPayment() {
 
   // Apstrādā rezervācijas apmaksu un sinhronizē lokālos datus.
   try {
-    const response = await fetch(`${API_BASE}/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
+    const response = await apiFetch(`/api/rezervacijas/${pendingReservation.value.rezervacija_id}/pay`, {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
     })
 
     const result = await response.json()
@@ -1580,7 +1579,7 @@ async function loadTransport() {
 
   // Ielādē izvēlētās kompānijas transportu.
   try {
-    const response = await fetch(`${API_BASE}/api/transport`)
+    const response = await apiFetch(`/api/transport`)
     const data = await response.json()
 
     if (!response.ok) {
@@ -1603,7 +1602,7 @@ async function loadTransport() {
 async function loadTransportTypes() {
   transportTypesLoading.value = true
   try {
-    const response = await fetch(`${API_BASE}/api/transport/veidi`)
+    const response = await apiFetch(`/api/transport/veidi`)
     const data = await response.json()
 
     if (!response.ok) {

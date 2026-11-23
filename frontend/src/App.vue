@@ -38,10 +38,22 @@
           <span class="utility-tagline d-none d-sm-flex"><v-icon size="15">mdi-map-marker-outline</v-icon>{{ t('app.brandSubtitle') }}</span>
         </div>
         <div class="navigation-bar">
-          <RouterLink aria-label="EasyRent" class="brand-wrap" :to="HOME_ROUTE" @click="scrollToTop"><BrandLogo /></RouterLink>
+          <RouterLink aria-label="EasyRent" class="brand-wrap" :to="profileLocked ? PROFILE_ROUTE : HOME_ROUTE" @click="scrollToTop"><BrandLogo /></RouterLink>
           <nav :aria-label="t('app.nav.menu')" class="desktop-nav d-none d-md-flex">
-            <RouterLink class="nav-link" :class="{ 'is-active': route.path === HOME_ROUTE }" :to="HOME_ROUTE" @click="scrollToTop">{{ t('app.nav.home') }}</RouterLink>
-            <RouterLink class="nav-link" :class="{ 'is-active': route.path === MAP_ROUTE || route.path.startsWith('/company/') }" :to="MAP_ROUTE" @click="scrollToTop">{{ t('app.nav.map') }}</RouterLink>
+            <RouterLink
+              v-if="!profileLocked"
+              class="nav-link"
+              :class="{ 'is-active': route.path === HOME_ROUTE }"
+              :to="HOME_ROUTE"
+              @click="scrollToTop"
+            >{{ t('app.nav.home') }}</RouterLink>
+            <RouterLink
+              v-if="!profileLocked"
+              class="nav-link"
+              :class="{ 'is-active': route.path === MAP_ROUTE || route.path.startsWith('/company/') }"
+              :to="MAP_ROUTE"
+              @click="scrollToTop"
+            >{{ t('app.nav.map') }}</RouterLink>
             <template v-if="user">
               <v-menu location="bottom end">
                 <template #activator="{ props }">
@@ -58,7 +70,7 @@
               </v-menu>
             </template>
             <v-btn
-              v-else
+              v-else-if="!profileLocked"
               class="auth-btn"
               color="primary"
               rounded="pill"
@@ -91,13 +103,25 @@
       </div>
       <v-divider />
       <v-list class="drawer-links" density="comfortable" nav>
-        <v-list-item :active="route.path === HOME_ROUTE" prepend-icon="mdi-home-outline" :title="t('app.nav.home')" @click="goHomeFromDrawer" />
-        <v-list-item :active="route.path === MAP_ROUTE" prepend-icon="mdi-map-outline" :title="t('app.nav.map')" @click="goMapFromDrawer" />
+        <v-list-item
+          v-if="!profileLocked"
+          :active="route.path === HOME_ROUTE"
+          prepend-icon="mdi-home-outline"
+          :title="t('app.nav.home')"
+          @click="goHomeFromDrawer"
+        />
+        <v-list-item
+          v-if="!profileLocked"
+          :active="route.path === MAP_ROUTE"
+          prepend-icon="mdi-map-outline"
+          :title="t('app.nav.map')"
+          @click="goMapFromDrawer"
+        />
         <template v-if="user">
           <v-list-item :active="route.path === PROFILE_ROUTE" prepend-icon="mdi-account-circle-outline" :title="t('app.auth.profile')" @click="goProfileFromDrawer" />
           <v-list-item prepend-icon="mdi-logout" :title="t('app.auth.logout')" @click="logout" />
         </template>
-        <v-list-item v-else prepend-icon="mdi-login" :title="t('app.auth.loginRegister')" @click="goAuthFromDrawer" />
+        <v-list-item v-else-if="!profileLocked" prepend-icon="mdi-login" :title="t('app.auth.loginRegister')" @click="goAuthFromDrawer" />
       </v-list>
       <div class="drawer-preferences">
         <div class="drawer-language__label">{{ t('app.language.select') }}</div>
@@ -115,7 +139,7 @@
       </div>
     </v-navigation-drawer>
 
-    <v-main class="app-main"><RouterView /><AppFooter v-if="route.path !== MAP_ROUTE" /></v-main>
+    <v-main class="app-main"><RouterView /><AppFooter v-if="!profileLocked && route.path !== MAP_ROUTE" /></v-main>
 
     <v-snackbar
       v-model="notificationVisible"
@@ -141,7 +165,7 @@
   import BrandLogo from '@/components/BrandLogo.vue'
   import LoadingScreen from '@/components/LoadingScreen.vue'
   import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
-  import { getStoredUser, logoutRequest, syncCurrentUser } from '@/services/auth'
+  import { getStoredUser, googlePending, logoutRequest, syncCurrentUser } from '@/services/auth'
   import { useLoading } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -154,6 +178,7 @@
   const { locale, supportedLanguages, setLocale, t } = useLocale()
   const drawer = ref(false)
   const user = ref(null)
+  const profileLocked = computed(() => user.value?.profile_completed === false || googlePending.value?.purpose === 'role')
   const themeMode = ref('light')
   const mobileLocale = computed({
     get: () => locale.value,
@@ -162,7 +187,7 @@
   const themeIcon = computed(() => themeMode.value === 'dark' ? 'mdi-weather-sunny' : 'mdi-weather-night')
   const themeToggleLabel = computed(() => themeMode.value === 'dark' ? t('app.theme.light') : t('app.theme.dark'))
   const themeModeClass = computed(() => `theme-${themeMode.value}`)
-  const { notificationState, setNotificationVisible } = useNotifications()
+  const { notificationState, notifyError, setNotificationVisible } = useNotifications()
   const notificationVisible = computed({
     get: () => notificationState.visible,
     set: value => setNotificationVisible(value),
@@ -206,18 +231,40 @@
     navigateTo(HOME_ROUTE)
   }
 
-  onMounted(async () => {
+  function redirectLockedProfile () {
+    if (profileLocked.value && route.path !== PROFILE_ROUTE) {
+      router.replace(PROFILE_ROUTE)
+    }
+  }
+
+  function handleAuthStorage (event) {
+    if (event.key === 'user') {
+      syncUserFromStorage()
+      redirectLockedProfile()
+    }
+  }
+
+  async function handlePageRestore (event) {
+    if (event.persisted) {
+      user.value = await syncCurrentUser()
+      redirectLockedProfile()
+    }
+  }
+
+  onMounted(() => {
     syncUserFromStorage()
     applyTheme(localStorage.getItem('theme-mode') || 'light')
-    user.value = await syncCurrentUser()
-
     window.addEventListener('user-updated', handleUserUpdated)
     window.addEventListener('user-logged-out', handleUserLoggedOut)
+    window.addEventListener('storage', handleAuthStorage)
+    window.addEventListener('pageshow', handlePageRestore)
   })
 
   onBeforeUnmount(() => {
     window.removeEventListener('user-updated', handleUserUpdated)
     window.removeEventListener('user-logged-out', handleUserLoggedOut)
+    window.removeEventListener('storage', handleAuthStorage)
+    window.removeEventListener('pageshow', handlePageRestore)
   })
 
   function goHome () {
@@ -255,10 +302,11 @@
   }
 
   async function logout () {
-    await logoutRequest()
-    user.value = null
+    if (!await logoutRequest()) {
+      notifyError('Neizdevās izrakstīties. Mēģiniet vēlreiz.')
+      return
+    }
     drawer.value = false
-    goHome()
   }
 
   function getUserDisplayName () {

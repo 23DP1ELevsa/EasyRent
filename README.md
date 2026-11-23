@@ -159,6 +159,7 @@ Pēc tam atver `http://localhost:4173` un pārbaudi pārlūkā instalēšanas ie
 ## Drošības piezīmes
 
 - API autentificētie maršruti izmanto `Bearer` tokenus ar Laravel Sanctum.
+- Google pierakstīšanās izmanto Laravel Sanctum sesiju. [Google OAuth iestatīšana un pārbaude Railway](docs/google-oauth.md).
 - Lietotāja profils, rezervācijas, atsauksmju rediģēšana un pakalpojumu sniedzēja CRUD darbības ir aizsargātas ar autentifikāciju.
 - Paroles tiek glabātas tikai hashētā veidā.
 - Kontaktforma un autentifikācijas maršruti ir ierobežoti ar `throttle` middleware.

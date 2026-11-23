@@ -18,7 +18,13 @@
             </div>
           </div>
 
-          <v-tabs v-model="tab" class="auth-tabs" color="primary" grow>
+          <v-tabs
+            v-if="!linkEmail"
+            v-model="tab"
+            class="auth-tabs"
+            color="primary"
+            grow
+          >
             <v-tab value="login">{{ copy.tabs.login }}</v-tab>
             <v-tab value="register">{{ copy.tabs.register }}</v-tab>
           </v-tabs>
@@ -37,7 +43,91 @@
             variant="tonal"
           >{{ okText }}</v-alert>
 
-          <div v-if="tab === 'login'">
+          <v-alert
+            v-if="googleError"
+            class="auth-feedback"
+            role="alert"
+            type="error"
+            variant="tonal"
+          >
+            {{ googleError }}
+          </v-alert>
+
+          <v-form v-if="linkEmail" @submit.prevent="linkGoogle">
+            <p class="mb-4">Lai piesaistītu Google kontu, apstipriniet sava esošā EasyRent konta paroli.</p>
+            <v-text-field
+              autocomplete="username"
+              label="E-pasts"
+              :model-value="linkEmail"
+              readonly
+              type="email"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="linkPassword"
+              autocomplete="current-password"
+              :error-messages="linkPasswordError"
+              label="EasyRent parole"
+              required
+              type="password"
+              variant="outlined"
+            />
+            <v-btn
+              block
+              class="submit-btn"
+              color="primary"
+              :loading="loading"
+              rounded="xl"
+              type="submit"
+            >Piesaistīt Google kontu</v-btn>
+            <v-btn
+              block
+              class="mt-2"
+              :disabled="loading"
+              variant="text"
+              @click="cancelLink"
+            >Atcelt</v-btn>
+          </v-form>
+
+          <template v-else>
+            <div v-if="tab === 'register'" class="auth-role-picker">
+              <p>{{ copy.fields.role }}</p>
+              <v-btn-toggle v-model="reg.loma" class="auth-role-options" mandatory @update:model-value="updateRegFields">
+                <v-btn v-for="role in lomas" :key="role.value" :value="role.value" variant="outlined">
+                  <v-icon start>{{ role.value === 'klients' ? 'mdi-account-outline' : 'mdi-domain' }}</v-icon>
+                  {{ role.title }}
+                </v-btn>
+              </v-btn-toggle>
+            </div>
+
+            <v-btn
+              block
+              class="submit-btn google-sign-in"
+              :disabled="loading"
+              :loading="googleLoading"
+              rounded="xl"
+              type="button"
+              variant="outlined"
+              @click="startGoogle"
+            >
+              <svg
+                aria-hidden="true"
+                class="mr-3"
+                height="18"
+                viewBox="0 0 48 48"
+                width="18"
+              >
+                <path d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" fill="#EA4335" />
+                <path d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.25 5.48-4.76 7.18l7.73 6c4.51-4.18 7.07-10.36 7.07-17.65z" fill="#4285F4" />
+                <path d="M10.53 28.59a14.42 14.42 0 0 1 0-9.18l-7.98-6.19a24 24 0 0 0 0 21.56l7.98-6.19z" fill="#FBBC05" />
+                <path d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6C30.03 37.65 27.26 38.5 24 38.5c-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" fill="#34A853" />
+              </svg>
+              Turpināt ar Google
+            </v-btn>
+            <div class="google-divider"><span>vai ar e-pastu</span></div>
+          </template>
+
+          <div v-if="!linkEmail && tab === 'login'">
             <v-form ref="loginForm" @submit.prevent="submitLogin">
               <v-text-field
                 v-model="login.email"
@@ -74,17 +164,8 @@
             </v-form>
           </div>
 
-          <div v-else>
+          <div v-else-if="!linkEmail">
             <v-form ref="regForm" @submit.prevent="submitRegister">
-              <div class="auth-role-picker">
-                <p>{{ copy.fields.role }}</p>
-                <v-btn-toggle v-model="reg.loma" class="auth-role-options" mandatory @update:model-value="updateRegFields">
-                  <v-btn v-for="role in lomas" :key="role.value" :value="role.value" variant="outlined">
-                    <v-icon start>{{ role.value === 'klients' ? 'mdi-account-outline' : 'mdi-domain' }}</v-icon>
-                    {{ role.title }}
-                  </v-btn>
-                </v-btn-toggle>
-              </div>
               <v-row class="register-grid" dense>
                 <v-col cols="12" md="6">
                   <v-text-field
@@ -265,13 +346,16 @@
 </template>
 
 <script setup>
-  import { computed, ref, watch } from 'vue'
-  import { getApiBase, setAuthSession } from '@/services/auth'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import { apiFetch, googlePending, setAuthSession } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
 
   const emit = defineEmits(['auth-success'])
+  const route = useRoute()
+  const router = useRouter()
   const { notifyError, notifySuccess } = useNotifications()
   const { t } = useLocale()
   const copy = computed(() => t('auth'))
@@ -281,6 +365,85 @@
   useLoadingState(loading)
   const errorText = ref('')
   const okText = ref('')
+  const googleLoading = ref(false)
+  const linkPassword = ref('')
+  const linkPasswordError = ref('')
+  const linkEmail = computed(() => route.query.google === 'link' && googlePending.value?.purpose === 'link'
+    ? googlePending.value.epasts
+    : '')
+  const googleErrors = {
+    cancelled: 'Google autorizācija tika atcelta. Varat mēģināt vēlreiz.',
+    failed: 'Neizdevās sazināties ar Google. Lūdzu, mēģiniet vēlreiz.',
+    invalid: 'Google autorizācijas sesija nav derīga vai ir beigusies. Mēģiniet vēlreiz.',
+    unavailable: 'Pieslēgšanās ar Google pašlaik nav pieejama.',
+    conflict: 'Ar šo e-pastu jau ir saistīts cits EasyRent konts. Izmantojiet savu ierasto pieslēgšanās veidu.',
+  }
+  const googleError = computed(() => {
+    const status = route.query.google
+    return (status === 'link' && !linkEmail.value ? googleErrors.invalid : null)
+      || (Object.hasOwn(googleErrors, status) ? googleErrors[status] : '')
+  })
+
+  function resetGoogleLoading () {
+    googleLoading.value = false
+  }
+
+  onMounted(() => window.addEventListener('pageshow', resetGoogleLoading))
+  onBeforeUnmount(() => window.removeEventListener('pageshow', resetGoogleLoading))
+
+  function startGoogle () {
+    googleLoading.value = true
+    const role = tab.value === 'register' ? `?role=${encodeURIComponent(reg.value.loma)}` : ''
+    window.location.assign(`/oauth/google/start${role}`)
+  }
+
+  async function linkGoogle () {
+    loading.value = true
+    errorText.value = ''
+    linkPasswordError.value = ''
+    try {
+      const response = await apiFetch('/oauth/google/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: linkPassword.value }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        linkPasswordError.value = result.errors?.password?.[0] || ''
+        if (!linkPasswordError.value) {
+          errorText.value = response.status === 429
+            ? 'Pārāk daudz mēģinājumu. Lūdzu, uzgaidiet un mēģiniet vēlreiz.'
+            : result.message || 'Neizdevās piesaistīt Google kontu.'
+        }
+        return
+      }
+      setAuthSession({ token: null, persona: result.persona })
+      linkPassword.value = ''
+      emit('auth-success', { google: true })
+    } catch {
+      errorText.value = 'Neizdevās sazināties ar EasyRent. Mēģiniet vēlreiz.'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function cancelLink () {
+    loading.value = true
+    try {
+      const response = await apiFetch('/oauth/google/cancel', { method: 'POST' })
+      if (!response.ok) {
+        throw new Error('Neizdevās atcelt Google konta piesaisti.')
+      }
+      linkPassword.value = ''
+      linkPasswordError.value = ''
+      errorText.value = ''
+      await router.replace({ query: {} })
+    } catch {
+      errorText.value = 'Neizdevās atcelt Google konta piesaisti. Mēģiniet vēlreiz.'
+    } finally {
+      loading.value = false
+    }
+  }
 
   watch(errorText, value => {
     if (value) notifyError(value)
@@ -474,8 +637,6 @@
       return
     }
     try {
-      const API = getApiBase()
-
       const payload = {
         name: reg.value.name,
         kontakttalrunis: reg.value.kontakttalrunis,
@@ -504,7 +665,8 @@
         }
       }
 
-      const r = await fetch(`${API}/api/auth/register`, {
+      const r = await apiFetch('/api/auth/register', {
+        auth: false,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -561,9 +723,8 @@
     okText.value = ''
     loading.value = true
     try {
-      const API = getApiBase()
-
-      const r = await fetch(`${API}/api/auth/login`, {
+      const r = await apiFetch('/api/auth/login', {
+        auth: false,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -633,6 +794,9 @@
 .auth-form-card :deep(.v-input__details) { padding-inline: 4px; }
 .auth-form-card :deep(.v-messages) { line-height: 1.5; }
 .submit-btn { height: 52px !important; border-radius: 12px !important; font-weight: 800; box-shadow: none !important; }
+.google-sign-in { background: #fff !important; color: #1f1f1f !important; border-color: #747775 !important; }
+.google-divider { display: flex; align-items: center; gap: 12px; margin-block: 20px; color: var(--er-text-muted); font-size: .8rem; }
+.google-divider::before, .google-divider::after { content: ''; flex: 1; border-top: 1px solid var(--er-stroke); }
 .register-grid { align-items: start; column-gap: 0; }
 .register-grid :deep(.v-input) { width: 100%; }
 @media (max-width: 1279px) {

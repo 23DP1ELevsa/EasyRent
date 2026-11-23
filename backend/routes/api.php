@@ -8,31 +8,31 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RezervacijaController;
 use App\Http\Controllers\AtsauksmeController;
+use App\Http\Middleware\RequireCompletedProfile;
 
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
-Route::post('/contact', [ContactController::class, 'send'])->middleware('throttle:5,1');
+Route::middleware(RequireCompletedProfile::class)->group(function () {
+    Route::post('/contact', [ContactController::class, 'send'])->middleware('throttle:5,1');
 
-Route::prefix('transport')->group(function () {
-    Route::get('/', [TransportController::class, 'index']);
-    Route::get('/veidi', [TransportVeidsController::class, 'index']);
-    Route::get('/{id}', [TransportController::class, 'show']);
+    Route::prefix('transport')->group(function () {
+        Route::get('/', [TransportController::class, 'index']);
+        Route::get('/veidi', [TransportVeidsController::class, 'index']);
+        Route::get('/{id}', [TransportController::class, 'show']);
+    });
+
+    Route::get('/atsauksmes', [AtsauksmeController::class, 'index']);
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', RequireCompletedProfile::class])->group(function () {
     Route::prefix('transport')->group(function () {
         Route::post('/', [TransportController::class, 'store']);
         Route::post('/veidi', [TransportVeidsController::class, 'store']);
         Route::put('/veidi/{id}', [TransportVeidsController::class, 'update']);
         Route::put('/{id}', [TransportController::class, 'update']);
         Route::delete('/{id}', [TransportController::class, 'destroy']);
-    });
-
-    Route::prefix('profile')->group(function () {
-        Route::get('/{personaId}', [ProfileController::class, 'show']);
-        Route::put('/{personaId}', [ProfileController::class, 'update']);
     });
 
     Route::prefix('rezervacijas')->group(function () {
@@ -48,15 +48,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-// Auth API (JSON)
+Route::prefix('profile')->middleware('auth:sanctum')->group(function () {
+    Route::get('/{personaId}', [ProfileController::class, 'show'])->whereNumber('personaId');
+    Route::put('/{personaId}', [ProfileController::class, 'update'])->whereNumber('personaId');
+});
+
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-    Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
-});
-
-// Atsauksmes
-Route::prefix('atsauksmes')->group(function () {
-    Route::get('/', [AtsauksmeController::class, 'index']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
 });

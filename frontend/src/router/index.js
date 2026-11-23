@@ -7,7 +7,9 @@
 // Composables
 import { createRouter, createWebHistory } from 'vue-router'
 import { routes } from 'vue-router/auto-routes'
+import { googlePending, syncCurrentUser } from '@/services/auth'
 import { startLoading } from '@/stores/loading'
+import { accountHome, AUTH_ROUTE, PROFILE_ROUTE } from './paths'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,6 +17,26 @@ const router = createRouter({
 })
 
 const navigationTasks = new WeakMap()
+router.beforeEach(async to => {
+  const googleCallback = ['ok', 'role', 'link'].includes(to.query.google)
+  const persona = await syncCurrentUser({ useBearer: !googleCallback })
+  const pending = googlePending.value
+
+  if (pending?.purpose === 'role' || persona?.profile_completed === false) {
+    if (to.path !== PROFILE_ROUTE || to.query.google) {
+      return { path: PROFILE_ROUTE, replace: true }
+    }
+    return
+  }
+
+  if (to.path === PROFILE_ROUTE && to.query.google === 'ok' && persona) {
+    return { path: accountHome(persona), replace: true }
+  }
+  if (to.path === PROFILE_ROUTE && !persona) {
+    return { path: AUTH_ROUTE, query: googleCallback ? { google: 'invalid' } : {}, replace: true }
+  }
+})
+
 router.beforeEach(to => {
   navigationTasks.set(to, startLoading())
 })

@@ -5,15 +5,15 @@
         <div class="profile-heading">
           <div class="profile-heading__main">
             <p v-if="loma" class="profile-role">{{ loma === 'klients' ? copy.roles.client : copy.roles.provider }}</p>
-            <h1 class="profile-name">{{ `${form.vards} ${form.uzvards}`.trim() || copy.page.title }}</h1>
-            <p class="profile-email">{{ email }}</p>
+            <h1 class="profile-name">{{ profileName }}</h1>
+            <p v-if="profileEmail" class="profile-email">{{ profileEmail }}</p>
           </div>
           <v-btn class="profile-hero__logout" rounded="pill" variant="outlined" @click="logout">
             <v-icon size="18" start>mdi-logout</v-icon>
             {{ copy.actions.logout }}
           </v-btn>
         </div>
-        <div class="profile-stat-grid">
+        <div v-if="showReservationsSection" class="profile-stat-grid">
           <div class="metric-pill">
             <strong>{{ loma === 'klients' ? activeReservations.length : providerActiveReservations.length }}</strong>
             <span>{{ loma === 'klients' ? copy.stats.activePaid : copy.stats.bookedNow }}</span>
@@ -30,9 +30,39 @@
       </v-container>
     </section>
     <v-container class="profile-shell profile-content">
-      <div class="profile-layout">
+      <div class="profile-layout" :class="{ 'profile-layout--setup': profileIncomplete || rolePending }">
+        <v-alert
+          v-if="profileIncomplete || rolePending"
+          class="profile-setup-notice"
+          color="primary"
+          icon="mdi-account-alert-outline"
+          title="Pabeidziet sava profila izveidi"
+          variant="tonal"
+        >
+          <p>Lai izmantotu visas EasyRent iespējas, lūdzu, aizpildiet obligāto informāciju savā profilā.</p>
+          <p v-if="missingLabels.length > 0" class="mt-2">Vēl jāaizpilda {{ missingLabels.join(', ') }}.</p>
+        </v-alert>
+
+        <v-card v-if="rolePending" class="surface profile-details" elevation="0">
+          <v-card-text class="pa-6">
+            <v-form @submit.prevent="chooseGoogleRole">
+              <v-radio-group v-model="selectedRole" :error-messages="roleError" label="Izvēlieties konta veidu">
+                <v-radio label="Klients" value="klients" />
+                <v-radio label="Pakalpojumu sniedzējs" value="pakalpojumu_sniedzejs" />
+              </v-radio-group>
+              <v-btn
+                color="primary"
+                :loading="loading"
+                rounded="xl"
+                size="large"
+                type="submit"
+              >Turpināt</v-btn>
+            </v-form>
+          </v-card-text>
+        </v-card>
+
         <!-- Edit Form Card -->
-        <v-card class="surface profile-details" elevation="0">
+        <v-card v-else-if="persona" class="surface profile-details" elevation="0">
           <v-card-title class="pa-6">
             <div>
               <h2 class="text-h5 font-weight-bold">{{ copy.page.title }}</h2>
@@ -55,7 +85,7 @@
                     density="compact"
                     :error="!!fieldErrors.vards"
                     :error-messages="fieldErrors.vards ? [fieldErrors.vards] : []"
-                    :label="copy.fields.firstName"
+                    :label="fieldLabel('vards', 'firstName')"
                     :rules="nameRules"
                     variant="outlined"
                   />
@@ -76,9 +106,12 @@
                   <v-text-field
                     v-model="email"
                     density="compact"
-                    disabled
-                    :hint="copy.hints.emailLocked"
-                    :label="copy.fields.email"
+                    :error-messages="fieldErrors.epasts"
+                    :hint="canEnterEmail ? undefined : copy.hints.emailLocked"
+                    :label="fieldLabel('epasts', 'email')"
+                    :readonly="!canEnterEmail"
+                    :rules="canEnterEmail ? [requiredRule, validEmailRule] : []"
+                    type="email"
                     variant="outlined"
                   />
                 </v-col>
@@ -89,9 +122,9 @@
                     density="compact"
                     :error="!!fieldErrors.kontakttalrunis"
                     :error-messages="fieldErrors.kontakttalrunis ? [fieldErrors.kontakttalrunis] : []"
-                    :label="copy.fields.phone"
+                    :label="fieldLabel('kontakttalrunis', 'phone')"
                     placeholder="+371 26123456"
-                    :rules="phoneRules"
+                    :rules="profileRules(phoneRules)"
                     variant="outlined"
                   />
                 </v-col>
@@ -107,9 +140,9 @@
                     density="compact"
                     :error="!!fieldErrors.bankas_konts"
                     :error-messages="fieldErrors.bankas_konts ? [fieldErrors.bankas_konts] : []"
-                    :label="copy.fields.iban"
+                    :label="fieldLabel('bankas_konts', 'iban')"
                     placeholder="LV00ABCD1234567890123"
-                    :rules="ibanRules"
+                    :rules="profileRules(ibanRules)"
                     variant="outlined"
                   />
                 </v-col>
@@ -127,7 +160,7 @@
                       density="compact"
                       :error="!!fieldErrors.lietotajvards"
                       :error-messages="fieldErrors.lietotajvards ? [fieldErrors.lietotajvards] : []"
-                      :label="copy.fields.username"
+                      :label="fieldLabel('lietotajvards', 'username')"
                       :rules="usernameRules"
                       variant="outlined"
                     />
@@ -147,8 +180,8 @@
                       density="compact"
                       :error="!!fieldErrors.registracijas_numurs"
                       :error-messages="fieldErrors.registracijas_numurs ? [fieldErrors.registracijas_numurs] : []"
-                      :label="copy.fields.registrationNumber"
-                      :rules="regNumRules"
+                      :label="fieldLabel('registracijas_numurs', 'registrationNumber')"
+                      :rules="profileRules(regNumRules)"
                       variant="outlined"
                     />
                   </v-col>
@@ -159,8 +192,8 @@
                       density="compact"
                       :error="!!fieldErrors.iela"
                       :error-messages="fieldErrors.iela ? [fieldErrors.iela] : []"
-                      :label="copy.fields.street"
-                      :rules="streetRules"
+                      :label="fieldLabel('iela', 'street')"
+                      :rules="profileRules(streetRules)"
                       variant="outlined"
                     />
                   </v-col>
@@ -171,8 +204,8 @@
                       density="compact"
                       :error="!!fieldErrors.majas_numurs"
                       :error-messages="fieldErrors.majas_numurs ? [fieldErrors.majas_numurs] : []"
-                      :label="copy.fields.houseNumber"
-                      :rules="houseNumberRules"
+                      :label="fieldLabel('majas_numurs', 'houseNumber')"
+                      :rules="profileRules(houseNumberRules)"
                       variant="outlined"
                     />
                   </v-col>
@@ -194,8 +227,8 @@
                       density="compact"
                       :error="!!fieldErrors.pilseta"
                       :error-messages="fieldErrors.pilseta ? [fieldErrors.pilseta] : []"
-                      :label="copy.fields.city"
-                      :rules="cityRules"
+                      :label="fieldLabel('pilseta', 'city')"
+                      :rules="profileRules(cityRules)"
                       variant="outlined"
                     />
                   </v-col>
@@ -206,8 +239,8 @@
                       density="compact"
                       :error="!!fieldErrors.pasta_indekss"
                       :error-messages="fieldErrors.pasta_indekss ? [fieldErrors.pasta_indekss] : []"
-                      :label="copy.fields.postalCode"
-                      :rules="postalCodeRules"
+                      :label="fieldLabel('pasta_indekss', 'postalCode')"
+                      :rules="profileRules(postalCodeRules)"
                       variant="outlined"
                     />
                   </v-col>
@@ -216,6 +249,7 @@
                     <v-text-field
                       v-model="form.latitude"
                       density="compact"
+                      :error-messages="fieldErrors.latitude"
                       :label="copy.fields.latitude"
                       placeholder="56.9496"
                       variant="outlined"
@@ -226,6 +260,7 @@
                     <v-text-field
                       v-model="form.longitude"
                       density="compact"
+                      :error-messages="fieldErrors.longitude"
                       :label="copy.fields.longitude"
                       placeholder="24.1052"
                       variant="outlined"
@@ -240,23 +275,25 @@
               </template>
 
               <!-- Password Section -->
-              <v-divider class="my-6" />
-              <div class="section-title mb-4">{{ copy.sections.password }}</div>
+              <template v-if="!profileIncomplete">
+                <v-divider class="my-6" />
+                <div class="section-title mb-4">{{ copy.sections.password }}</div>
 
-              <v-row class="mb-8" dense>
-                <v-col cols="12">
-                  <v-text-field
-                    v-model="form.password"
-                    density="compact"
-                    :error="!!fieldErrors.password"
-                    :error-messages="fieldErrors.password ? [fieldErrors.password] : []"
-                    :label="copy.fields.newPassword"
-                    :rules="passwordRules"
-                    type="password"
-                    variant="outlined"
-                  />
-                </v-col>
-              </v-row>
+                <v-row class="mb-8" dense>
+                  <v-col cols="12">
+                    <v-text-field
+                      v-model="form.password"
+                      density="compact"
+                      :error="!!fieldErrors.password"
+                      :error-messages="fieldErrors.password ? [fieldErrors.password] : []"
+                      :label="copy.fields.newPassword"
+                      :rules="passwordRules"
+                      type="password"
+                      variant="outlined"
+                    />
+                  </v-col>
+                </v-row>
+              </template>
 
               <!-- Action Buttons -->
               <v-row class="gap-3" dense>
@@ -270,11 +307,11 @@
                     type="submit"
                   >
                     <v-icon start>mdi-check</v-icon>
-                    {{ copy.actions.save }}
+                    {{ profileIncomplete ? 'Saglabāt un turpināt' : copy.actions.save }}
                   </v-btn>
                 </v-col>
 
-                <v-col cols="12" sm="auto">
+                <v-col v-if="!profileIncomplete" cols="12" sm="auto">
                   <v-btn
                     class="back-btn"
                     min-width="160"
@@ -482,24 +519,30 @@
 </template>
 
 <script setup>
-  import { ref, computed, onMounted, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
+  import lv from '@/lang/lv'
+  import { accountHome, AUTH_ROUTE, HOME_ROUTE } from '@/router/paths'
+  import { apiFetch, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
   import { useLocale } from '@/stores/locale'
-  import { HOME_ROUTE } from '@/router/paths'
   import { useLoadingState } from '@/stores/loading'
   import { useNotifications } from '@/stores/notifications'
-  import { clearAuthSession, getApiBase, getAuthHeaders, getStoredToken, setAuthSession, syncCurrentUser } from '@/services/auth'
 
   const router = useRouter()
   const { t, getIntlLocale } = useLocale()
   const { notifyError, notifySuccess } = useNotifications()
-  const copy = computed(() => t('profile'))
+  const persona = ref(null)
+  const rolePending = computed(() => googlePending.value?.purpose === 'role' ? googlePending.value : null)
+  const profileIncomplete = computed(() => persona.value?.profile_completed === false)
+  const canEnterEmail = computed(() => profileIncomplete.value && !persona.value.epasts)
+  const copy = computed(() => profileIncomplete.value || rolePending.value ? lv.profile : t('profile'))
+  const selectedRole = ref(null)
+  const roleError = ref('')
   const isClient = computed(() => loma.value === 'klients')
   const isProvider = computed(() => loma.value === 'pakalpojumu_sniedzejs')
   // Profila lapas pamatstāvoklis un UI darbību statusi.
   const formRef = ref(null)
   const loading = ref(false)
-  const profileLoading = ref(true)
   const errorText = ref('')
   const successText = ref('')
   const fieldErrors = ref({})
@@ -515,7 +558,7 @@
   const currentClientId = ref(null)
   const geocodeLoading = ref(false)
   const geocodeError = ref('')
-  useLoadingState(profileLoading, loading, reservationsLoading, geocodeLoading, () => payingReservationId.value !== null, () => cancellingReservationId.value !== null)
+  useLoadingState(loading, reservationsLoading, geocodeLoading, () => payingReservationId.value !== null, () => cancellingReservationId.value !== null)
   const initialProviderAddress = ref({
     iela: '',
     majas_numurs: '',
@@ -563,6 +606,70 @@
     password: '',
   })
 
+  const profileName = computed(() => {
+    const name = rolePending.value || form.value
+    return [name.vards, name.uzvards].filter(Boolean).join(' ') || copy.value.page.title
+  })
+  const profileEmail = computed(() => rolePending.value?.epasts || persona.value?.epasts)
+  const labelKeys = {
+    vards: 'firstName',
+    epasts: 'email',
+    kontakttalrunis: 'phone',
+    bankas_konts: 'iban',
+    lietotajvards: 'username',
+    registracijas_numurs: 'registrationNumber',
+    iela: 'street',
+    majas_numurs: 'houseNumber',
+    pilseta: 'city',
+    pasta_indekss: 'postalCode',
+  }
+  const missingLabels = computed(() => (persona.value?.profile_missing_fields || [])
+    .filter(field => !String((field === 'epasts' ? email.value : form.value[field]) ?? '').trim())
+    .map(field => copy.value.fields[labelKeys[field]])
+    .filter(Boolean))
+
+  function fieldLabel (field, key) {
+    const label = copy.value.fields[key]
+    return profileIncomplete.value && (field !== 'epasts' || canEnterEmail.value) ? `${label} *` : label
+  }
+
+  const requiredRule = value => !!String(value ?? '').trim() || 'Šis lauks ir obligāts.'
+  const validEmailRule = value => /.+@.+\..+/.test(value || '') || 'Ievadiet derīgu e-pasta adresi.'
+
+  function profileRules (rules) {
+    return profileIncomplete.value ? [requiredRule, ...rules] : rules
+  }
+
+  async function chooseGoogleRole () {
+    if (!selectedRole.value) {
+      roleError.value = 'Izvēlieties konta veidu.'
+      return
+    }
+    loading.value = true
+    roleError.value = ''
+    try {
+      const response = await apiFetch('/oauth/google/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loma: selectedRole.value }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (response.ok && result.next) {
+        window.location.replace(result.next)
+        return
+      }
+      if (response.status === 410) {
+        await router.replace({ path: AUTH_ROUTE, query: { google: 'invalid' } })
+        return
+      }
+      roleError.value = result.errors?.loma?.[0] || 'Neizdevās saglabāt konta veidu. Mēģiniet vēlreiz.'
+    } catch {
+      roleError.value = 'Neizdevās sazināties ar EasyRent. Mēģiniet vēlreiz.'
+    } finally {
+      loading.value = false
+    }
+  }
+
   // IBAN validācija bankas konta laukam.
   function ibanIsValid (iban) {
     if (!iban) return true // Optional
@@ -585,7 +692,9 @@
   // Formas validācijas noteikumi pa laukiem.
   const nameRules = [
     v => !!v || copy.value.validation.firstNameRequired,
-    v => (v && v.trim().length >= 2) || copy.value.validation.firstNameMin,
+    v => (profileIncomplete.value && v === persona.value?.vards)
+      || (v && v.trim().length >= 2)
+      || copy.value.validation.firstNameMin,
   ]
 
   const phoneRules = [
@@ -688,7 +797,7 @@
     return reservationHistory.value.slice(start, start + reservationHistoryPageSize)
   })
 
-  const showReservationsSection = computed(() => isClient.value || isProvider.value)
+  const showReservationsSection = computed(() => !!persona.value && !profileIncomplete.value && (isClient.value || isProvider.value))
   const visibleActiveReservations = computed(() => isProvider.value ? providerActiveReservations.value : activeReservations.value)
   const visiblePendingReservations = computed(() => isProvider.value ? providerPendingReservations.value : unpaidReservations.value)
   const reservationsSubtitle = computed(() => isProvider.value ? copy.value.reservations.providerSubtitle : copy.value.reservations.subtitle)
@@ -706,30 +815,20 @@
   })
 
   // Ielādē lietotāja datus no sesijas un aizpilda formu.
-  onMounted(() => {
-    void initializeProfile().finally(() => {
-      profileLoading.value = false
-    })
-  })
+  onMounted(initializeProfile)
 
-  async function initializeProfile () {
-    const token = getStoredToken()
+  function initializeProfile () {
+    if (rolePending.value) return
 
-    if (!token) {
-      errorText.value = copy.value.validation.loginRequired
-      setTimeout(() => router.push(HOME_ROUTE), 2000)
-      return
-    }
-
-    const userData = await syncCurrentUser()
-
+    const userData = getStoredUser()
     if (!userData) {
       errorText.value = copy.value.validation.loginRequired
       setTimeout(() => router.push(HOME_ROUTE), 2000)
       return
     }
 
-    email.value = userData.epasts
+    persona.value = userData
+    email.value = userData.epasts || ''
     loma.value = userData.loma
 
     form.value.vards = userData.vards || ''
@@ -740,7 +839,9 @@
     if (userData.loma === 'klients' && userData.klients) {
       currentClientId.value = userData.klients.klients_id
       form.value.lietotajvards = userData.klients.lietotajvards || ''
-      loadReservations(userData.klients.klients_id)
+      if (showReservationsSection.value) {
+        loadReservations(userData.klients.klients_id)
+      }
     } else if (userData.loma === 'pakalpojumu_sniedzejs') {
       const sniedzejs = userData.pakalpojumuSniedzejs || userData.pakalpojumu_sniedzejs || null
       if (sniedzejs) {
@@ -764,7 +865,9 @@
           longitude: form.value.longitude,
         }
       }
-      loadReservations()
+      if (showReservationsSection.value) {
+        loadReservations()
+      }
     }
   }
 
@@ -774,9 +877,7 @@
     reservationsLoading.value = true
     reservationsError.value = ''
     try {
-      const response = await fetch(`${getApiBase()}/api/rezervacijas`, {
-        headers: getAuthHeaders({ Accept: 'application/json' }),
-      })
+      const response = await apiFetch('/api/rezervacijas')
       const data = await response.json()
       if (!response.ok) {
         reservationsError.value = data?.message || copy.value.messages.loadReservationsFailed
@@ -797,9 +898,9 @@
     reservationsError.value = ''
     reservationsSuccess.value = ''
     try {
-      const response = await fetch(`${getApiBase()}/api/rezervacijas/${rezervacijaId}/pay`, {
+      const response = await apiFetch(`/api/rezervacijas/${rezervacijaId}/pay`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
       })
       const data = await response.json()
       if (!response.ok) {
@@ -828,9 +929,9 @@
     reservationsError.value = ''
     reservationsSuccess.value = ''
     try {
-      const response = await fetch(`${getApiBase()}/api/rezervacijas/${rezervacijaId}`, {
+      const response = await apiFetch(`/api/rezervacijas/${rezervacijaId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
       })
       const data = await response.json()
       if (!response.ok) {
@@ -927,11 +1028,13 @@
 
   async function geocodeCoordinates (address) {
     if (!address) return null
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 6000)
     geocodeLoading.value = true
     geocodeError.value = ''
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
-      const response = await fetch(url)
+      const response = await fetch(url, { signal: controller.signal })
       const data = await response.json()
       if (!Array.isArray(data) || !data.length) return null
       const result = data[0]
@@ -939,9 +1042,10 @@
         lat: result?.lat ? Number(result.lat) : null,
         lng: result?.lon ? Number(result.lon) : null,
       }
-    } catch (error) {
+    } catch {
       return null
     } finally {
+      clearTimeout(timeout)
       geocodeLoading.value = false
     }
   }
@@ -960,14 +1064,8 @@
 
     loading.value = true
     try {
-      const token = getStoredToken()
-
-      if (!token) {
-        throw new Error('Sesija beidzas. Lūdzu, piesakieties atkārtoti.')
-      }
-
-      const user = await syncCurrentUser()
-      const API_BASE = getApiBase()
+      const user = persona.value
+      const wasIncomplete = profileIncomplete.value
 
       if (!user?.persona_id) {
         throw new Error('Lietotāja dati nav ielādēti pareizi. Atsvaidziniet lapu.')
@@ -976,6 +1074,7 @@
       // Build update payload with only changed fields
       const updateData = {}
 
+      if (canEnterEmail.value) updateData.epasts = email.value
       if (form.value.vards) updateData.vards = form.value.vards
       if (form.value.uzvards) updateData.uzvards = form.value.uzvards
       if (form.value.kontakttalrunis) updateData.kontakttalrunis = form.value.kontakttalrunis
@@ -1002,7 +1101,6 @@
         if (shouldGeocode) {
           if (!hasMinimalAddress()) {
             geocodeError.value = 'Norādi vismaz ielu un pilsētu, lai automātiski atrastu koordinātes.'
-            loading.value = false
             return
           } else {
             const address = buildFullAddress()
@@ -1011,9 +1109,8 @@
               form.value.latitude = coords.lat
               form.value.longitude = coords.lng
               geocodeError.value = ''
-            } else if (address) {
+            } else if (address && !wasIncomplete) {
               geocodeError.value = 'Neizdevās atrast koordinātes no adreses.'
-              loading.value = false
               return
             }
           }
@@ -1022,11 +1119,11 @@
         if (form.value.longitude !== '') updateData.longitude = Number(form.value.longitude)
       }
 
-      const response = await fetch(`${API_BASE}/api/profile/${user.persona_id}`, {
+      const response = await apiFetch(`/api/profile/${user.persona_id}`, {
         method: 'PUT',
-        headers: getAuthHeaders({
+        headers: {
           'Content-Type': 'application/json',
-        }),
+        },
         body: JSON.stringify(updateData),
       })
 
@@ -1055,7 +1152,14 @@
         throw new Error('Servera atbilde nav pareiza.')
       }
 
-      setAuthSession({ token, persona: result.persona })
+      persona.value = result.persona
+      setAuthSession({ persona: result.persona })
+
+      if (wasIncomplete && result.persona.profile_completed) {
+        notifySuccess('Profils veiksmīgi aizpildīts!')
+        await router.replace(accountHome(result.persona))
+        return
+      }
 
       successText.value = copy.value.messages.profileUpdated
       form.value.password = ''
@@ -1080,9 +1184,10 @@
   }
 
   // Notīra sesiju un pārvirza uz sākumlapu.
-  function logout () {
-    clearAuthSession()
-    router.push(HOME_ROUTE)
+  async function logout () {
+    if (!await logoutRequest()) {
+      errorText.value = 'Neizdevās izrakstīties. Mēģiniet vēlreiz.'
+    }
   }
 </script>
 
@@ -1188,6 +1293,14 @@
   align-items: start;
   gap: 32px;
 }
+
+.profile-layout--setup {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.profile-setup-notice :deep(.v-alert__content) { color: var(--er-text); }
 
 .surface {
   min-width: 0;

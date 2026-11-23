@@ -2,155 +2,209 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Persona;
 use App\Models\Klients;
-use App\Models\PakalpojumuSniedzejs;
+use App\Models\Persona;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
-    public function show(Request $request, $personaId)
+    public function show(Request $request, string $personaId): JsonResponse
     {
-        $persona = $this->resolveAuthorizedPersona($request, $personaId);
-        if ($persona instanceof \Illuminate\Http\JsonResponse) {
-            return $persona;
-        }
+        $this->authorizeProfile($request, $personaId);
 
-        $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
-
-        return response()->json([
-            'persona' => $persona->load($relation),
-        ]);
+        return response()->json(['persona' => $request->user()->profileData()])->header('Cache-Control', 'no-store');
     }
 
-    public function update(Request $request, $personaId)
+    public function update(Request $request, string $personaId): JsonResponse
     {
-        $persona = $this->resolveAuthorizedPersona($request, $personaId);
-        if ($persona instanceof \Illuminate\Http\JsonResponse) {
-            return $persona;
+        $this->authorizeProfile($request, $personaId);
+
+        try {
+            $persona = DB::transaction(function () use ($request, $personaId) {
+                $persona = Persona::whereKey($personaId)->lockForUpdate()->firstOrFail();
+                if ($request->exists('loma')) {
+                    throw ValidationException::withMessages(['loma' => 'Lomu mainīt nevar.']);
+                }
+                if ($request->exists('email') || ($request->exists('epasts') && $persona->epasts !== null)) {
+                    throw ValidationException::withMessages(['epasts' => 'E-pastu mainīt nevar.']);
+                }
+
+                return $this->saveProfile($request->all(), $persona);
+            }, 3);
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($request->filled('epasts') && Persona::forEmail($request->string('epasts')->value())->exists()) {
+                throw ValidationException::withMessages(['epasts' => 'E-pasts jau ir reģistrēts.']);
+            }
+            if ($request->filled('lietotajvards') && Klients::where('lietotajvards', $request->input('lietotajvards'))->exists()) {
+                throw ValidationException::withMessages(['lietotajvards' => 'Lietotājvārds jau ir aizņemts.']);
+            }
+            throw $exception;
         }
 
-        // Check if trying to change loma or email
-        if ($request->has('loma')) {
-            return response()->json([
-                'message' => 'Lomu mainīt nevar',
-                'errors' => ['loma' => ['Lomu mainīt nevar.']]
-            ], 422);
-        }
+        // Keep Sanctum's authenticated session user in sync when the password changes.
+        $request->user()->setRawAttributes($persona->getAttributes(), true);
 
-        if ($request->has('epasts') || $request->has('email')) {
-            return response()->json([
-                'message' => 'E-pastu mainīt nevar',
-                'errors' => ['epasts' => ['E-pastu mainīt nevar.']]
-            ], 422);
-        }
+        return response()->json([
+            'persona' => $persona->profileData(),
+            'message' => 'Profils atjaunināts',
+        ])->header('Cache-Control', 'no-store');
+    }
 
-        // Build validation rules dynamically
+    private function saveProfile(array $input, Persona $persona): Persona
+    {
+        $onboarding = ! $persona->profile_completed;
+        $google = $persona->google_id !== null;
+        $relation = match ($persona->loma) {
+            'klients' => $persona->klients(),
+            'pakalpojumu_sniedzejs' => $persona->pakalpojumuSniedzejs(),
+            default => null,
+        };
+        $roleProfile = $relation?->first();
         $rules = [
-            'vards' => ['sometimes', 'string', 'min:2', 'max:50'],
-            'uzvards' => ['sometimes', 'string', 'max:50'],
-            'kontakttalrunis' => ['sometimes', 'nullable', 'string', 'min:6', 'max:20'],
-            'bankas_konts' => ['sometimes', 'nullable', 'string', 'min:15', 'max:34'],
-            'password' => ['sometimes', 'string', Password::min(8)->mixedCase()->symbols()],
-            'registracijas_numurs' => ['sometimes', 'string', 'max:20'],
-            'iela' => ['sometimes', 'string', 'max:150'],
-            'majas_numurs' => ['sometimes', 'string', 'max:20'],
-            'dzivokla_numurs' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'pilseta' => ['sometimes', 'string', 'max:100'],
-            'pasta_indekss' => ['sometimes', 'string', 'max:20'],
-            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+            'vards' => $google ? ['string', 'max:50'] : ['string', 'min:2', 'max:50'],
+            'uzvards' => ['nullable', 'string', 'max:50'],
+            'kontakttalrunis' => ['string', 'min:6', 'max:20'],
+            'bankas_konts' => ['string', 'min:15', 'max:34'],
+            'password' => ['string', Password::min(8)->mixedCase()->symbols()],
         ];
 
-        // Add unique rule for lietotajvards only for klients
+        if ($google) {
+            $rules['kontakttalrunis'][] = 'regex:/^\+?[0-9 \-()]+$/D';
+            $rules['bankas_konts'][] = function (string $field, mixed $value, \Closure $fail) {
+                if (is_string($value) && ! $this->validIban($value)) {
+                    $fail('Ievadiet derīgu bankas konta numuru (IBAN).');
+                }
+            };
+        } else {
+            $rules['kontakttalrunis'][] = 'nullable';
+            $rules['bankas_konts'][] = 'nullable';
+        }
+
+        if ($persona->epasts === null && $onboarding) {
+            if (isset($input['epasts']) && is_string($input['epasts'])) {
+                $input['epasts'] = strtolower($input['epasts']);
+            }
+            $rules['epasts'] = ['email', 'max:255', function (string $field, mixed $value, \Closure $fail) {
+                if (is_string($value) && Persona::forEmail($value)->exists()) {
+                    $fail('E-pasts jau ir reģistrēts.');
+                }
+            }];
+        }
+
         if ($persona->loma === 'klients') {
-            $klients = Klients::where('persona_id', $persona->persona_id)->first();
             $rules['lietotajvards'] = [
-                'sometimes',
-                'string',
-                'max:30',
-                Rule::unique('klients', 'lietotajvards')->ignore($klients?->klients_id, 'klients_id')
+                'string', 'max:30',
+                Rule::unique('klients', 'lietotajvards')->ignore($roleProfile?->getKey(), 'klients_id'),
+            ];
+            if ($google) {
+                $rules['lietotajvards'][] = 'min:3';
+            }
+        } elseif ($persona->loma === 'pakalpojumu_sniedzejs') {
+            $rules += [
+                'registracijas_numurs' => ['string', 'max:20'],
+                'iela' => ['string', 'max:150'],
+                'majas_numurs' => ['string', 'max:20'],
+                'dzivokla_numurs' => ['nullable', 'string', 'max:20'],
+                'pilseta' => ['string', 'max:100'],
+                'pasta_indekss' => ['string', 'max:20'],
+                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             ];
         }
 
-        $data = $request->validate($rules, [
+        $required = $persona->requiredProfileFields();
+        if ($onboarding) {
+            $input += Arr::only($persona->getAttributes() + ($roleProfile?->getAttributes() ?? []), $required);
+        }
+        foreach ($rules as $field => &$fieldRules) {
+            if ($onboarding && in_array($field, $required, true)) {
+                array_unshift($fieldRules, 'bail', 'required');
+            } elseif ($google && in_array($field, $required, true)) {
+                array_unshift($fieldRules, 'sometimes', 'bail', 'required');
+            } else {
+                array_unshift($fieldRules, 'sometimes', 'bail');
+            }
+        }
+        unset($fieldRules);
+
+        $data = Validator::make($input, $rules, [
+            'required' => 'Lauks “:attribute” ir obligāts.',
+            'string' => 'Laukā “:attribute” jāievada teksts.',
+            'email' => 'Ievadiet derīgu e-pasta adresi.',
+            'max.string' => 'Laukā “:attribute” drīkst ievadīt līdz :max rakstzīmēm.',
+            'min.string' => 'Laukā “:attribute” jāievada vismaz :min rakstzīmes.',
             'lietotajvards.unique' => 'Lietotājvārds jau ir aizņemts.',
-            'kontakttalrunis.min' => 'Tālrunim jābūt vismaz 6 simbolu garam.',
-            'kontakttalrunis.max' => 'Tālruņa garums nedrīkst pārsniegt 20 simbolus.',
-            'bankas_konts.min' => 'IBAN jābūt vismaz 15 simbolu garam.',
-            'bankas_konts.max' => 'IBAN nedrīkst būt garāks par 34 simboliem.',
-            'password.min' => 'Parolei jābūt vismaz 8 simbolu garai.',
-            'password.mixed' => 'Parolei jāsatur vismaz viens lielais burts.',
+            'kontakttalrunis.regex' => 'Ievadiet derīgu tālruņa numuru.',
+            'numeric' => 'Laukā “:attribute” jāievada skaitlis.',
+            'between.numeric' => 'Laukā “:attribute” jāievada skaitlis no :min līdz :max.',
+            'password.mixed' => 'Parolei jāsatur lielie un mazie burti.',
             'password.symbols' => 'Parolei jāsatur vismaz viens speciālais simbols.',
-        ]);
+        ], [
+            'vards' => 'Vārds',
+            'uzvards' => 'Uzvārds',
+            'epasts' => 'E-pasts',
+            'kontakttalrunis' => 'Tālrunis',
+            'bankas_konts' => 'IBAN',
+            'lietotajvards' => 'Lietotājvārds',
+            'registracijas_numurs' => 'Reģistrācijas numurs',
+            'iela' => 'Iela',
+            'majas_numurs' => 'Mājas numurs',
+            'dzivokla_numurs' => 'Dzīvokļa numurs',
+            'pilseta' => 'Pilsēta',
+            'pasta_indekss' => 'Pasta indekss',
+            'latitude' => 'Platums',
+            'longitude' => 'Garums',
+            'password' => 'Parole',
+        ])->validate();
 
-        // Update persona fields (only those that are present)
-        $updateData = [];
-        if (isset($data['vards'])) $updateData['vards'] = $data['vards'];
-        if (isset($data['uzvards'])) $updateData['uzvards'] = $data['uzvards'];
-        if (isset($data['kontakttalrunis'])) $updateData['kontakttalrunis'] = $data['kontakttalrunis'];
-        if (isset($data['bankas_konts'])) $updateData['bankas_konts'] = $data['bankas_konts'];
-        if (isset($data['password'])) $updateData['parole'] = Hash::make($data['password']);
-
-        if (!empty($updateData)) {
-            $persona->update($updateData);
+        $personalFields = ['vards', 'uzvards', 'epasts', 'kontakttalrunis', 'bankas_konts', 'password'];
+        $persona->fill(array_filter(Arr::only($data, $personalFields), fn ($value) => $value !== null));
+        if (isset($data['password'])) {
+            $persona->parole = Hash::make($data['password']);
         }
 
-        // Update klients or PakalpojumuSniedzejs
-        if ($persona->loma === 'klients') {
-            $klients = Klients::where('persona_id', $persona->persona_id)->first();
-            if ($klients && isset($data['lietotajvards'])) {
-                $klients->update(['lietotajvards' => $data['lietotajvards']]);
-            }
-        } else {
-            $sniedzejs = PakalpojumuSniedzejs::where('persona_id', $persona->persona_id)->first();
-            if ($sniedzejs) {
-                $updateSniedzejs = [];
-                if (isset($data['registracijas_numurs'])) $updateSniedzejs['registracijas_numurs'] = $data['registracijas_numurs'];
-                if (isset($data['iela'])) $updateSniedzejs['iela'] = $data['iela'];
-                if (isset($data['majas_numurs'])) $updateSniedzejs['majas_numurs'] = $data['majas_numurs'];
-                if (array_key_exists('dzivokla_numurs', $data)) $updateSniedzejs['dzivokla_numurs'] = $this->normalizeOptionalString($data['dzivokla_numurs']);
-                if (isset($data['pilseta'])) $updateSniedzejs['pilseta'] = $data['pilseta'];
-                if (isset($data['pasta_indekss'])) $updateSniedzejs['pasta_indekss'] = $data['pasta_indekss'];
-                if (array_key_exists('latitude', $data)) $updateSniedzejs['latitude'] = $data['latitude'];
-                if (array_key_exists('longitude', $data)) $updateSniedzejs['longitude'] = $data['longitude'];
-                if (!empty($updateSniedzejs)) {
-                    $sniedzejs->update($updateSniedzejs);
-                }
-            }
+        $roleFields = Arr::except($data, $personalFields);
+        if ($roleProfile) {
+            $roleProfile->update($roleFields);
+        } elseif ($onboarding) {
+            $relation->create($roleFields);
         }
-
-        $relation = $persona->loma === 'klients' ? 'klients' : 'pakalpojumuSniedzejs';
-
-        return response()->json([
-            'persona' => $persona->load($relation),
-            'message' => 'Profils atjaunināts',
-        ]);
-    }
-
-    private function normalizeOptionalString(mixed $value): ?string
-    {
-        $normalized = trim((string) ($value ?? ''));
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    private function resolveAuthorizedPersona(Request $request, int|string $personaId): Persona|\Illuminate\Http\JsonResponse
-    {
-        $persona = $request->user();
-
-        if (!$persona) {
-            return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
+        if ($onboarding) {
+            $persona->profile_completed = true;
         }
-
-        if ((int) $persona->persona_id !== (int) $personaId) {
-            return response()->json(['message' => 'Nav atļauts piekļūt cita lietotāja profilam.'], 403);
-        }
+        $persona->save();
 
         return $persona;
     }
-}
 
+    private function validIban(string $iban): bool
+    {
+        $iban = strtoupper(preg_replace('/\s+/', '', $iban));
+        if (! preg_match('/^[A-Z0-9]{15,34}$/D', $iban)) {
+            return false;
+        }
+
+        $remainder = 0;
+        foreach (str_split(substr($iban, 4).substr($iban, 0, 4)) as $character) {
+            $remainder = ctype_digit($character)
+                ? ($remainder * 10 + (int) $character) % 97
+                : ($remainder * 100 + ord($character) - 55) % 97;
+        }
+
+        return $remainder === 1;
+    }
+
+    private function authorizeProfile(Request $request, string $personaId): void
+    {
+        abort_unless((string) $request->user()->getKey() === ltrim($personaId, '0'), 403, 'Nav atļauts piekļūt cita lietotāja profilam.');
+    }
+}

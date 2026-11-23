@@ -7,10 +7,6 @@ RUN npm ci --include=dev --no-audit --no-fund
 
 COPY . .
 
-# Railway passes service variables declared as build arguments to this stage.
-# Vite embeds this public API URL in the compiled frontend.
-ARG VITE_API_BASE_URL=https://easyrent-production-04d5.up.railway.app
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 FROM caddy:2-alpine AS runtime
@@ -19,6 +15,10 @@ WORKDIR /srv
 
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist/ /srv/
+
+# Existing deployments can keep their configured API URL as a build variable.
+ARG VITE_API_BASE_URL
+ENV API_UPSTREAM=${VITE_API_BASE_URL}
 
 # Railway overrides PORT at runtime; 8080 also supports local Docker runs.
 ENV PORT=8080

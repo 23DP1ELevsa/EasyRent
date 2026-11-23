@@ -1,18 +1,17 @@
+import { shallowRef } from 'vue'
 import { startLoading } from '@/stores/loading'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+export const googlePending = shallowRef(null)
 
-export function getApiBase() {
-  return API_BASE
-}
+let csrfRequest
+const userRequests = new Map()
 
-export function getStoredToken() {
+function getStoredToken () {
   return localStorage.getItem('token') || ''
 }
 
-export function getStoredUser() {
+export function getStoredUser () {
   const raw = localStorage.getItem('user')
-
   if (!raw) {
     return null
   }
@@ -25,94 +24,125 @@ export function getStoredUser() {
   }
 }
 
-export function getAuthHeaders(headers = {}) {
-  const token = getStoredToken()
-
-  if (!token) {
-    return { ...headers }
-  }
-
-  return {
-    ...headers,
-    Authorization: `Bearer ${token}`,
-  }
+function csrfCookie () {
+  const value = document.cookie.split('; ').find(cookie => cookie.startsWith('XSRF-TOKEN='))
+  return value ? decodeURIComponent(value.slice('XSRF-TOKEN='.length)) : ''
 }
 
-export function setAuthSession({ token, persona }) {
+async function refreshCsrf () {
+  csrfRequest ??= fetch('/sanctum/csrf-cookie', { cache: 'no-store' }).finally(() => {
+    csrfRequest = null
+  })
+  await csrfRequest
+}
+
+export async function apiFetch (path, { auth = true, ...options } = {}) {
+  const headers = new Headers(options.headers)
+  headers.set('Accept', 'application/json')
+  const token = auth ? getStoredToken() : ''
   if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const isWrite = !['GET', 'HEAD', 'OPTIONS'].includes((options.method || 'GET').toUpperCase())
+  if (!isWrite) {
+    return fetch(path, { ...options, headers })
+  }
+
+  if (!csrfCookie()) {
+    await refreshCsrf()
+  }
+  const send = () => {
+    const csrf = csrfCookie()
+    if (csrf) {
+      headers.set('X-XSRF-TOKEN', csrf)
+    } else {
+      headers.delete('X-XSRF-TOKEN')
+    }
+    return fetch(path, { ...options, headers })
+  }
+
+  const response = await send()
+  if (response.status !== 419) {
+    return response
+  }
+
+  await refreshCsrf()
+  return send()
+}
+
+export function setAuthSession ({ token, persona }) {
+  if (token === null) {
+    localStorage.removeItem('token')
+  } else if (token) {
     localStorage.setItem('token', token)
   }
 
   if (persona) {
+    googlePending.value = null
     localStorage.setItem('user', JSON.stringify(persona))
     window.dispatchEvent(new CustomEvent('user-updated', { detail: persona }))
   }
 }
 
-export function clearAuthSession({ emitLogout = true } = {}) {
+export function clearAuthSession ({ emitLogout = true } = {}) {
   localStorage.removeItem('user')
   localStorage.removeItem('token')
-
-  if (emitLogout) {
-    window.dispatchEvent(new CustomEvent('user-logged-out'))
-  }
+  googlePending.value = null
+  window.dispatchEvent(new CustomEvent(emitLogout ? 'user-logged-out' : 'user-updated', { detail: null }))
 }
 
-export async function syncCurrentUser() {
-  const token = getStoredToken()
-
-  if (!token) {
-    return getStoredUser()
+export function syncCurrentUser ({ useBearer = true } = {}) {
+  if (!userRequests.has(useBearer)) {
+    userRequests.set(useBearer, fetchCurrentUser(useBearer).finally(() => userRequests.delete(useBearer)))
   }
+  return userRequests.get(useBearer)
+}
 
+async function fetchCurrentUser (useBearer) {
   const finish = startLoading()
   try {
-    const response = await fetch(`${API_BASE}/api/auth/me`, {
-      headers: getAuthHeaders({
-        Accept: 'application/json',
-      }),
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        clearAuthSession()
-        return null
+    const response = await apiFetch('/api/auth/me', { auth: useBearer, cache: 'no-store' })
+    if (response.status === 401) {
+      if (useBearer) {
+        clearAuthSession({ emitLogout: false })
       }
-
-      return getStoredUser()
+      return null
+    }
+    if (!response.ok) {
+      return useBearer ? getStoredUser() : null
     }
 
-    const result = await response.json().catch(() => ({}))
-
-    if (!result?.persona) {
-      return getStoredUser()
+    const result = await response.json()
+    if (result.google_pending) {
+      clearAuthSession({ emitLogout: false })
+      googlePending.value = result.google_pending
+      return null
     }
-
-    setAuthSession({ token, persona: result.persona })
-    return result.persona
+    if (result.persona) {
+      setAuthSession({ token: useBearer ? undefined : null, persona: result.persona })
+      return result.persona
+    }
+    return useBearer ? getStoredUser() : null
   } catch {
-    return getStoredUser()
+    return useBearer ? getStoredUser() : null
   } finally {
     finish()
   }
 }
 
-export async function logoutRequest() {
+export async function logoutRequest () {
   const finish = startLoading()
   try {
-    const token = getStoredToken()
-
-    if (token) {
-      await fetch(`${API_BASE}/api/auth/logout`, {
-        method: 'POST',
-        headers: getAuthHeaders({
-          Accept: 'application/json',
-        }),
-      })
+    const response = await apiFetch('/api/auth/logout', { method: 'POST' })
+    if (!response.ok && response.status !== 401) {
+      return false
     }
-  } catch {
-  } finally {
     clearAuthSession()
+    return true
+  } catch {
+    return false
+  } finally {
     finish()
   }
 }

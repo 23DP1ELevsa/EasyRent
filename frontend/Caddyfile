@@ -2,6 +2,11 @@
 	admin off
 	auto_https off
 	persist_config off
+	servers {
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Real-IP
+	}
 }
 
 # Railway terminates HTTPS and forwards HTTP to the runtime PORT.
@@ -11,6 +16,12 @@
 	encode zstd gzip
 
 	route {
+		@backend path /api /api/* /oauth /oauth/* /sanctum /sanctum/*
+		reverse_proxy @backend {$API_UPSTREAM} {
+			header_up Host {upstream_hostport}
+			header_up X-Forwarded-For {client_ip}
+		}
+
 		# Serve existing assets directly and let Vue Router handle other paths.
 		try_files {path} /index.html
 
