@@ -237,7 +237,9 @@ class GoogleOAuthController extends Controller
     private function signIn(Request $request, Persona $persona): void
     {
         $request->session()->invalidate();
-        Auth::guard('web')->login($persona);
+        $guard = Auth::guard('web');
+        $guard->login($persona);
+        $request->session()->put('password_hash_web', $guard->hashPasswordForCookie($persona->getAuthPassword()));
         $request->session()->regenerateToken();
     }
 

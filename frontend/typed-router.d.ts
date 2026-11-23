@@ -21,8 +21,10 @@ declare module 'vue-router/auto-routes' {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
     '/auth': RouteRecordInfo<'/auth', '/auth', Record<never, never>, Record<never, never>>,
     '/company/[id]': RouteRecordInfo<'/company/[id]', '/company/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
+    '/forgot-password': RouteRecordInfo<'/forgot-password', '/forgot-password', Record<never, never>, Record<never, never>>,
     '/map': RouteRecordInfo<'/map', '/map', Record<never, never>, Record<never, never>>,
     '/profile': RouteRecordInfo<'/profile', '/profile', Record<never, never>, Record<never, never>>,
+    '/reset-password': RouteRecordInfo<'/reset-password', '/reset-password', Record<never, never>, Record<never, never>>,
   }
 
   /**
@@ -48,12 +50,20 @@ declare module 'vue-router/auto-routes' {
       routes: '/company/[id]'
       views: never
     }
+    'src/pages/forgot-password.vue': {
+      routes: '/forgot-password'
+      views: never
+    }
     'src/pages/map.vue': {
       routes: '/map'
       views: never
     }
     'src/pages/profile.vue': {
       routes: '/profile'
+      views: never
+    }
+    'src/pages/reset-password.vue': {
+      routes: '/reset-password'
       views: never
     }
   }

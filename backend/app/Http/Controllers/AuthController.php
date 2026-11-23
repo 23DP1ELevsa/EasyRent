@@ -23,7 +23,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required','string','min:2','max:255'],
             'email' => ['required','email','max:255','unique:persona,epasts'],
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->symbols()],
+            'password' => ['required', 'confirmed', Password::defaults()],
             'loma' => ['required','in:klients,pakalpojumu_sniedzejs'],
             'kontakttalrunis' => ['required', 'string', 'max:20'],
             'bankas_konts' => ['required', 'string', 'max:34'],
@@ -134,7 +134,7 @@ class AuthController extends Controller
             return response()->json(['message' => __('app.invalidCredentials')], 422);
         }
 
-        return $this->issueToken($request, $persona);
+        return $this->issueToken($request, $persona, expectedPasswordHash: $persona->parole);
     }
 
     public function logout(Request $request)
@@ -170,11 +170,14 @@ class AuthController extends Controller
         ], $persona || $pending ? 200 : 401)->header('Cache-Control', 'no-store');
     }
 
-    private function issueToken(Request $request, Persona $persona, int $status = 200)
+    private function issueToken(Request $request, Persona $persona, int $status = 200, ?string $expectedPasswordHash = null)
     {
-        [$persona, $token] = DB::transaction(function () use ($persona) {
+        [$persona, $token] = DB::transaction(function () use ($persona, $expectedPasswordHash) {
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
             abort_unless($active, 401, __('app.authenticationRequired'));
+            if ($expectedPasswordHash !== null && ! hash_equals($expectedPasswordHash, $active->getAuthPassword())) {
+                abort(response()->json(['message' => __('app.invalidCredentials')], 422));
+            }
             $active->tokens()->delete();
 
             return [$active, $active->createToken('frontend')->plainTextToken];

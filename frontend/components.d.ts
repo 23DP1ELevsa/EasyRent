@@ -17,6 +17,7 @@ declare module 'vue' {
     HomePage: typeof import('./src/components/HomePage.vue')['default']
     LoadingScreen: typeof import('./src/components/LoadingScreen.vue')['default']
     MapViewSwitch: typeof import('./src/components/MapViewSwitch.vue')['default']
+    PasswordRecovery: typeof import('./src/components/PasswordRecovery.vue')['default']
     RentalFilterGroups: typeof import('./src/components/RentalFilterGroups.vue')['default']
     RentalPointList: typeof import('./src/components/RentalPointList.vue')['default']
     RentalSlideOver: typeof import('./src/components/RentalSlideOver.vue')['default']

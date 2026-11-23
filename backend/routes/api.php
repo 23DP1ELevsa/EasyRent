@@ -6,6 +6,7 @@ use App\Http\Controllers\TransportController;
 use App\Http\Controllers\TransportVeidsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RezervacijaController;
 use App\Http\Controllers\AtsauksmeController;
@@ -60,6 +61,8 @@ Route::prefix('profile')->middleware('auth:sanctum')->group(function () {
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/forgot-password', [PasswordResetController::class, 'requestLink'])->middleware('throttle:password-reset-request');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:password-reset-submit');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });

@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -59,9 +60,12 @@ class AccountDeletionController extends Controller
             }
 
             $this->archiveInvoices($persona);
+            if ($persona->epasts !== null) {
+                Password::deleteToken($persona);
+            }
             $this->anonymize($persona);
             $persona->tokens()->delete();
-            $this->purgeDatabaseSessions($persona);
+            $persona->purgeDatabaseSessions();
             if ($persona->delete() !== true) {
                 throw new \RuntimeException('The account could not be deleted.');
             }
@@ -84,29 +88,6 @@ class AccountDeletionController extends Controller
         }
 
         return response()->noContent()->header('Cache-Control', 'no-store');
-    }
-
-    private function purgeDatabaseSessions(Persona $persona): void
-    {
-        if (config('session.driver') !== 'database') {
-            return;
-        }
-
-        $store = DB::connection(config('session.connection'));
-        $purge = fn () => $store->table(config('session.table'))->where('user_id', $persona->getKey())->delete();
-        if ($store === $persona->getConnection()) {
-            $purge();
-            return;
-        }
-
-        // Sessions on a separate connection lose access once the account deletion commits.
-        DB::afterCommit(function () use ($purge) {
-            try {
-                $purge();
-            } catch (\Throwable $exception) {
-                report($exception);
-            }
-        });
     }
 
     private function reservations(Persona $persona): Builder

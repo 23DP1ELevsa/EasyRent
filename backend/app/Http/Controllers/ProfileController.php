@@ -74,7 +74,7 @@ class ProfileController extends Controller
             'uzvards' => ['nullable', 'string', 'max:50'],
             'kontakttalrunis' => ['string', 'min:6', 'max:20'],
             'bankas_konts' => ['string', 'min:15', 'max:34'],
-            'password' => ['string', Password::min(8)->mixedCase()->symbols()],
+            'password' => ['string', Password::defaults()],
         ];
 
         if ($google) {

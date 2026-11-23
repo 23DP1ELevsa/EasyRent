@@ -9,7 +9,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { routes } from 'vue-router/auto-routes'
 import { googlePending, syncCurrentUser } from '@/services/auth'
 import { startLoading } from '@/stores/loading'
-import { accountHome, AUTH_ROUTE, PROFILE_ROUTE } from './paths'
+import { accountHome, AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, PROFILE_ROUTE, RESET_PASSWORD_ROUTE } from './paths'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,6 +18,10 @@ const router = createRouter({
 
 const navigationTasks = new WeakMap()
 router.beforeEach(async to => {
+  if (to.path === FORGOT_PASSWORD_ROUTE || to.path === RESET_PASSWORD_ROUTE) {
+    return
+  }
+
   const googleCallback = ['ok', 'role', 'link'].includes(to.query.google)
   const persona = await syncCurrentUser({ useBearer: !googleCallback })
   const pending = googlePending.value

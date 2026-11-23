@@ -148,6 +148,10 @@
                 variant="outlined"
               />
 
+              <RouterLink class="auth-recovery-link" :to="FORGOT_PASSWORD_ROUTE">
+                {{ t('passwordRecovery.forgot') }}
+              </RouterLink>
+
               <v-btn
                 block
                 class="submit-btn"
@@ -349,6 +353,7 @@
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { apiFetch, googlePending, setAuthSession } from '@/services/auth'
+  import { FORGOT_PASSWORD_ROUTE } from '@/router/paths'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -781,6 +786,7 @@
 .auth-role-options :deep(.v-btn--active) { border-color: var(--er-primary) !important; background: var(--er-primary-soft) !important; color: var(--er-primary-strong); }
 .auth-role-options :deep(.v-btn__content) { white-space: normal; line-height: 1.4; padding-block: 12px; }
 .auth-feedback { margin-bottom: 24px; border-radius: 16px; font-size: .875rem; }
+.auth-recovery-link { display: table; color: var(--er-primary-strong); font-weight: 700; margin: -16px 0 16px auto; padding-block: 8px; }
 .auth-form-card :deep(.v-field) { min-height: 52px; border-radius: 12px !important; background: var(--er-surface-strong); box-shadow: none; }
 .auth-form-card :deep(.v-field__outline) { --v-field-border-opacity: 1; color: var(--er-stroke-strong); }
 .auth-form-card :deep(.v-field--focused .v-field__outline) { color: var(--er-primary); }

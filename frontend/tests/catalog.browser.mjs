@@ -40,6 +40,7 @@ const failures = []
 const writes = []
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
+const recovery = { requestLimit: false, invalidLink: false }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
 function signedInPersona (role, completed = false) {
@@ -101,12 +102,26 @@ socket.addEventListener('message', async event => {
       let responseCode = 200
       const responseHeaders = [{ name: 'Content-Type', value: 'application/json' }]
       if (request.method !== 'GET' && request.method !== 'OPTIONS') {
-        const language = Object.entries(request.headers).find(([name]) => name.toLowerCase() === 'accept-language')?.[1]
-        writes.push({ method: request.method, path: url.pathname, body: request.postData, language })
+        const headers = new Headers(request.headers)
+        writes.push({
+          method: request.method,
+          path: url.pathname,
+          body: request.postData,
+          language: headers.get('accept-language'),
+          authorization: headers.get('authorization'),
+        })
       }
       if (url.pathname === '/api/auth/me') {
         result = { persona: signIn.persona, google_pending: signIn.pending }
         responseCode = signIn.persona || signIn.pending ? 200 : 401
+      } else if (url.pathname === '/api/auth/forgot-password') {
+        await delay(800)
+        responseCode = recovery.requestLimit ? 429 : 200
+      } else if (url.pathname === '/api/auth/reset-password') {
+        if (recovery.invalidLink) {
+          responseCode = 422
+          result = { code: 'invalid_reset_link' }
+        }
       } else if (url.pathname === '/oauth/google/start') {
         signIn.selectedRole = url.searchParams.get('role')
         signIn.language = url.searchParams.get('lang')
@@ -559,6 +574,91 @@ try {
   assert.equal(googleDeletion.language, 'ru')
   assert.equal(failures.length, 0, JSON.stringify(failures))
   console.log('PASS: account deletion blockers, late conflict, archived booking display, password and Google deletion after profile completion.')
+
+  await resize(1440, 1000)
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('!!document.querySelector(".auth-recovery-link")')
+  for (const [locale, label] of [['lv', 'Aizmirsāt paroli?'], ['ru', 'Забыли пароль?'], ['en', 'Forgot password?']]) {
+    await changeLanguage(locale)
+    assert.equal((await evaluate('document.querySelector(".auth-recovery-link").textContent')).trim(), label)
+  }
+  await click('.auth-recovery-link')
+  await waitFor('location.pathname === "/forgot-password" && document.querySelector("#recovery-title")?.textContent === "Forgot password?"')
+  await changeLanguage('ru')
+  await waitFor('document.querySelector("#recovery-title")?.textContent === "Забыли пароль?"')
+  await resize(360, 800)
+  await noOverflow()
+  const recoveryEmail = '.recovery-card input[type=email]'
+  const recoverySubmit = '.recovery-card button[type=submit]'
+  await input(recoveryEmail, 'invalid')
+  await click(recoverySubmit)
+  assert.match(await evaluate('document.querySelector(".recovery-card .v-messages").textContent'), /почт/i)
+  assert.ok(!writes.some(write => write.path === '/api/auth/forgot-password'))
+
+  const email = 'renter+test@example.com'
+  recovery.requestLimit = true
+  await evaluate('localStorage.setItem("token", "stale-token")')
+  await input(recoveryEmail, email)
+  await click(recoverySubmit)
+  await waitFor('document.querySelector(".recovery-card button[type=submit]")?.classList.contains("v-btn--loading")')
+  await waitFor('document.querySelector(".recovery-card .v-alert")?.textContent.includes("Слишком много")')
+  recovery.requestLimit = false
+  await click(recoverySubmit)
+  await waitFor('document.querySelector(".recovery-card [role=status]")?.textContent.includes("отправим инструкцию")')
+  const requestLink = writes.findLast(write => write.path === '/api/auth/forgot-password')
+  assert.deepEqual(JSON.parse(requestLink.body), { email, locale: 'ru' })
+  assert.equal(requestLink.language, 'ru')
+  assert.equal(requestLink.authorization, null)
+  await screenshot('forgot-password-mobile')
+
+  const token = 'a'.repeat(64)
+  const resetUrl = `${base}/reset-password#${new URLSearchParams({ token, email, lang: 'lv' })}`
+  const password = 'Replacement123!'
+  const newPassword = '.recovery-card input[type=password]:nth-of-type(1)'
+  const fillPasswords = () => evaluate(`(() => {
+    const fields = [...document.querySelectorAll(".recovery-card input[type=password]")];
+    fields.forEach(el => {
+      el.value = ${JSON.stringify(password)};
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  })()`)
+  await send('Page.navigate', { url: resetUrl })
+  await waitFor('!location.hash && document.querySelector("#recovery-title")?.textContent === "Paroles atjaunošana"')
+  assert.equal(await evaluate(`document.querySelector('${recoveryEmail}').value`), email)
+  await resize(320, 700)
+  await noOverflow()
+  await resize(1440, 1000)
+  await changeLanguage('en')
+  await waitFor('document.querySelector("#recovery-title")?.textContent === "Reset your password"')
+  await resize(360, 800)
+  await input(newPassword, 'LOWERLESS!')
+  await click(recoverySubmit)
+  assert.match(await evaluate('document.querySelector(".recovery-card").innerText'), /one uppercase and one lowercase/)
+  await input(newPassword, password)
+  await click(recoverySubmit)
+  assert.match(await evaluate('document.querySelector(".recovery-card").innerText'), /Passwords do not match/)
+  assert.ok(!writes.some(write => write.path === '/api/auth/reset-password'))
+  await screenshot('reset-password-mobile')
+
+  recovery.invalidLink = true
+  await fillPasswords()
+  await click(recoverySubmit)
+  await waitFor('document.querySelector(".recovery-card .v-alert")?.textContent.includes("invalid or has expired")')
+  await click('.recovery-card a[href="/forgot-password"]')
+  await waitFor('location.pathname === "/forgot-password"')
+  recovery.invalidLink = false
+  await send('Page.navigate', { url: resetUrl })
+  await waitFor('!location.hash && !!document.querySelector(".recovery-card input[type=password]")')
+  await fillPasswords()
+  await click(recoverySubmit)
+  await waitFor('document.querySelector(".recovery-card [role=status]")?.textContent.includes("Parole ir nomainīta") && !localStorage.getItem("token")')
+  const reset = writes.findLast(write => write.path === '/api/auth/reset-password')
+  assert.deepEqual(JSON.parse(reset.body), { token, email, password, password_confirmation: password })
+  assert.equal(reset.authorization, null)
+  await click('.recovery-card a[href="/auth"]')
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-recovery-link")')
+  assert.equal(failures.length, 0, JSON.stringify(failures))
+  console.log('PASS: password recovery in LV/RU/EN, mobile forms, validation, loading, rate limit, expired link and sign-in navigation.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()

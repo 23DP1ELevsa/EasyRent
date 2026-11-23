@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPersonaPassword;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class Persona extends Authenticatable
@@ -49,6 +51,49 @@ class Persona extends Authenticatable
     public function getAuthPassword(): string
     {
         return $this->parole ?? '';
+    }
+
+    public function getAuthPasswordName(): string
+    {
+        return 'parole';
+    }
+
+    public function getEmailForPasswordReset(): ?string
+    {
+        return $this->epasts;
+    }
+
+    public function routeNotificationForMail(): ?string
+    {
+        return $this->epasts;
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token, ?string $locale = null): void
+    {
+        $this->notify((new ResetPersonaPassword($token))->locale($locale ?? app()->getLocale()));
+    }
+
+    public function purgeDatabaseSessions(): void
+    {
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        $store = DB::connection(config('session.connection'));
+        $purge = fn () => $store->table(config('session.table'))->where('user_id', $this->getKey())->delete();
+        if ($store === $this->getConnection()) {
+            $purge();
+
+            return;
+        }
+
+        $this->getConnection()->afterCommit(function () use ($purge) {
+            try {
+                $purge();
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        });
     }
 
     public function scopeForEmail(Builder $query, string $email): Builder
