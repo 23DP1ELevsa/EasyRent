@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -33,6 +34,7 @@ class GoogleOAuthTest extends TestCase
 
         config([
             'app.key' => 'base64:'.base64_encode(random_bytes(32)),
+            'app.frontend_url' => 'https://easyrent.vip',
             'session.driver' => 'database',
             'session.domain' => null,
             'session.secure' => false,
@@ -71,6 +73,8 @@ class GoogleOAuthTest extends TestCase
         $id = $account->json('persona.persona_id');
         $this->assertEqualsCanonicalizing(['kontakttalrunis', 'bankas_konts', 'lietotajvards'], $account->json('persona.profile_missing_fields'));
         $this->assertDatabaseHas('persona', ['persona_id' => $id, 'google_id' => '123456', 'parole' => null]);
+        $this->assertTrue(Persona::findOrFail($id)->hasVerifiedEmail());
+        $this->assertDatabaseEmpty('email_verification_tokens');
         $this->assertDatabaseHas('klients', ['persona_id' => $id, 'lietotajvards' => null]);
         $this->assertDatabaseCount('personal_access_tokens', 0);
 
@@ -159,12 +163,27 @@ class GoogleOAuthTest extends TestCase
 
         $id = $this->browser('new', 'GET', '/api/auth/me')->assertJsonPath('persona.vards', null)
             ->assertJsonPath('persona.epasts', null)->json('persona.persona_id');
+        $this->assertFalse(Persona::findOrFail($id)->hasVerifiedEmail());
+        $this->browser('new', 'GET', '/api/profile/deletion-check')->assertForbidden()->assertJsonPath('code', 'email_not_verified');
+        $this->browser('new', 'GET', '/api/rezervacijas')->assertForbidden()->assertJsonPath('code', 'email_not_verified');
         $this->browser('new', 'PUT', '/api/profile/'.$id, self::CONTACTS + [
             'vards' => 'Jānis',
             'uzvards' => 'Kalniņš',
             'epasts' => 'janis@example.com',
             'lietotajvards' => 'janisk',
-        ])->assertOk()->assertJsonPath('persona.profile_completed', true);
+        ])->assertOk()->assertJsonPath('code', 'verification_required')->assertJsonPath('mail_status', 'sent');
+        $this->assertDatabaseHas('persona', ['persona_id' => $id, 'email_verified_at' => null, 'profile_completed' => true]);
+        $this->browser('new', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->finishGoogle('new', $this->start('new'))->assertRedirect('/verify-email');
+        $this->browser('new', 'GET', '/api/auth/me')->assertUnauthorized();
+
+        $message = Mail::mailer('array')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
+        preg_match('/verify-email#([^\s]+)/', $message->getTextBody(), $fragment);
+        parse_str($fragment[1], $link);
+        $this->postJson('/api/auth/verification/confirm', $link)->assertOk()->assertJsonPath('code', 'email_verified');
+        $this->browser('new', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->finishGoogle('new', $this->start('new'))->assertRedirect('/profile?google=ok');
+        $this->browser('new', 'GET', '/api/auth/me')->assertJsonPath('persona.profile_completed', true);
         $this->browser('new', 'PUT', '/api/profile/'.$id, ['epasts' => 'new@example.com'])
             ->assertUnprocessable()->assertJsonValidationErrors('epasts');
         $this->browser('new', 'POST', '/oauth/google/role', ['loma' => 'klients'])->assertStatus(410);
@@ -188,12 +207,14 @@ class GoogleOAuthTest extends TestCase
         $this->browser('link', 'POST', '/oauth/google/role', ['loma' => 'klients'])->assertStatus(410);
         $this->browser('link', 'POST', '/oauth/google/link', ['password' => 'wrong'])->assertUnprocessable();
         $this->assertNull($existing->fresh()->google_id);
+        $this->assertFalse($existing->fresh()->hasVerifiedEmail());
         $this->browser('visitor', 'POST', '/oauth/google/link', ['password' => $password])->assertStatus(410);
 
         $this->browser('link', 'POST', '/oauth/google/link', ['password' => $password])->assertOk()
             ->assertJsonPath('persona.persona_id', $existing->getKey())->assertJsonPath('persona.loma', 'klients')
             ->assertJsonPath('persona.profile_completed', true);
         $this->assertSame('123456', $existing->fresh()->google_id);
+        $this->assertTrue($existing->fresh()->hasVerifiedEmail());
         $this->assertDatabaseCount('persona', 1);
         $this->assertDatabaseCount('pakalpojumu_sniedzejs', 0);
         $this->browser('link', 'GET', '/api/transport')->assertOk();
@@ -201,6 +222,30 @@ class GoogleOAuthTest extends TestCase
         $this->browser('password', 'POST', '/api/auth/login', [
             'email' => 'anna@example.com', 'password' => $password,
         ])->assertOk()->assertJsonPath('persona.persona_id', $existing->getKey());
+    }
+
+    public function test_returning_google_account_can_use_a_newly_verified_unclaimed_email(): void
+    {
+        $owner = Persona::create(['epasts' => 'claimed@example.com', 'loma' => 'klients']);
+        Http::fake([
+            self::TOKEN_URL => Http::response(['access_token' => 'test-access-token']),
+            self::USERINFO_URL => Http::sequence()
+                ->push(['sub' => '123456', 'email' => 'anna@example.com', 'email_verified' => false])
+                ->push(['sub' => '123456', 'email' => $owner->epasts, 'email_verified' => true])
+                ->push(['sub' => '123456', 'email' => 'anna@example.com', 'email_verified' => true]),
+        ]);
+        $this->finishGoogle('browser', $this->start('browser', 'klients'))->assertRedirect('/profile?google=ok');
+        $account = Persona::where('google_id', '123456')->firstOrFail();
+        $this->assertFalse($account->hasVerifiedEmail());
+
+        $this->finishGoogle('browser', $this->start('browser'))->assertRedirect('/profile?google=ok');
+        $this->assertNull($account->fresh()->epasts);
+        $this->assertNull($owner->fresh()->google_id);
+
+        $this->finishGoogle('browser', $this->start('browser'))->assertRedirect('/profile?google=ok');
+        $this->assertSame('anna@example.com', $account->fresh()->epasts);
+        $this->assertTrue($account->fresh()->hasVerifiedEmail());
+        $this->assertDatabaseEmpty('email_verification_tokens');
     }
 
     public function test_overlapping_authorizations_reuse_the_unique_google_account(): void
@@ -231,7 +276,7 @@ class GoogleOAuthTest extends TestCase
             'loma' => 'klients',
             'parole' => Hash::make('First123!'),
         ]);
-        $existing->forceFill(['google_id' => 'first-subject'])->save();
+        $existing->forceFill(['google_id' => 'first-subject', 'email_verified_at' => now()])->save();
         Http::fake([
             self::TOKEN_URL => Http::response(['access_token' => 'test-access-token']),
             self::USERINFO_URL => Http::sequence()
@@ -317,7 +362,7 @@ class GoogleOAuthTest extends TestCase
         Http::fake([
             self::TOKEN_URL => Http::response(['access_token' => 'test-access-token']),
             self::USERINFO_URL => Http::sequence()
-                ->push(['sub' => 'first-subject'])
+                ->push(['sub' => 'first-subject', 'email' => 'first@example.com', 'email_verified' => true])
                 ->push(['sub' => 'other-subject'])
                 ->push(['sub' => 'first-subject']),
         ]);

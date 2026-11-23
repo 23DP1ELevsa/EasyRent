@@ -15,7 +15,7 @@ class SetRequestLocale
     {
         $requested = match (true) {
             $request->is('oauth/google/start') => $request->query('lang'),
-            $request->is('api/auth/forgot-password') => $request->input('locale'),
+            $request->is('api/auth/forgot-password', 'api/auth/verification/resend') => $request->input('locale'),
             default => null,
         };
         $locale = in_array($requested, self::LANGUAGES, true)

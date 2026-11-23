@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Persona;
+use App\Support\AccountMail;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,9 +52,7 @@ class PasswordResetController extends Controller
 
     private function sendLink(string $email, string $locale): void
     {
-        $transport = config('mail.mailers.'.config('mail.default').'.transport');
-        $testTransport = $transport === 'array' && app()->environment('local', 'testing');
-        if (! $testTransport && ($transport !== 'resend' || blank(config('services.resend.key')))) {
+        if (! AccountMail::available()) {
             Log::warning('Password reset email requires a configured Resend mailer.');
 
             return;

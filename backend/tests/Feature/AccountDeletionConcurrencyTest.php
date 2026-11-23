@@ -93,9 +93,10 @@ class AccountDeletionConcurrencyTest extends TestCase
 
     private function account(string $role): Persona
     {
-        return Persona::create([
+        return Persona::forceCreate([
             'epasts' => uniqid('qa-').'@example.test',
             'parole' => Hash::make(self::PASSWORD), 'loma' => $role,
+            'email_verified_at' => now(),
         ]);
     }
 

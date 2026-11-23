@@ -111,7 +111,7 @@ async function fetchCurrentUser (useBearer) {
     if (revision !== authRevision) {
       return null
     }
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
       if (useBearer) {
         clearAuthSession({ emitLogout: false })
       }

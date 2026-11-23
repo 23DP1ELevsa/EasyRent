@@ -69,10 +69,11 @@ class ApiCriteriaTest extends TestCase
 
     public function test_login_allows_existing_account_with_legacy_weak_password(): void
     {
-        Persona::create([
+        Persona::forceCreate([
             'vards' => 'Legacy',
             'uzvards' => 'User',
             'epasts' => 'legacy@example.com',
+            'email_verified_at' => now(),
             'parole' => Hash::make('weakpass'),
             'kontakttalrunis' => '+37120000000',
             'loma' => 'klients',
@@ -180,10 +181,11 @@ class ApiCriteriaTest extends TestCase
     {
         $suffix = uniqid();
 
-        $persona = Persona::create(array_merge([
+        $persona = Persona::forceCreate(array_merge([
             'vards' => 'Test',
             'uzvards' => 'Client',
             'epasts' => "client-{$suffix}@example.com",
+            'email_verified_at' => now(),
             'parole' => Hash::make('Secret123!'),
             'kontakttalrunis' => '+37120000000',
             'loma' => 'klients',
@@ -202,10 +204,11 @@ class ApiCriteriaTest extends TestCase
     {
         $suffix = uniqid();
 
-        $persona = Persona::create(array_merge([
+        $persona = Persona::forceCreate(array_merge([
             'vards' => 'Test',
             'uzvards' => 'Provider',
             'epasts' => "provider-{$suffix}@example.com",
+            'email_verified_at' => now(),
             'parole' => Hash::make('Secret123!'),
             'kontakttalrunis' => '+37121111111',
             'loma' => 'pakalpojumu_sniedzejs',

@@ -20,7 +20,7 @@ class AuthContactAndReviewTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_client_can_register_and_receives_token(): void
+    public function test_client_can_register_and_is_asked_to_verify(): void
     {
         $response = $this->postJson('/api/auth/register', [
             'name' => 'Test Client',
@@ -35,24 +35,22 @@ class AuthContactAndReviewTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonStructure([
-                'token',
-                'persona' => ['persona_id', 'epasts', 'loma', 'klients'],
-            ])
-            ->assertJsonPath('persona.epasts', 'new-client@example.com')
-            ->assertJsonPath('persona.loma', 'klients')
-            ->assertJsonPath('persona.klients.lietotajvards', 'newclient');
+            ->assertJsonPath('code', 'verification_required')
+            ->assertJsonPath('email', 'new-client@example.com')
+            ->assertJsonMissingPath('persona')
+            ->assertJsonMissingPath('token');
 
         $this->assertDatabaseHas('persona', [
             'epasts' => 'new-client@example.com',
             'loma' => 'klients',
+            'email_verified_at' => null,
         ]);
 
         $this->assertDatabaseHas('klients', [
             'lietotajvards' => 'newclient',
         ]);
 
-        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertDatabaseEmpty('personal_access_tokens');
     }
 
     public function test_provider_registration_uses_geocoding_when_coordinates_are_missing(): void
@@ -80,15 +78,17 @@ class AuthContactAndReviewTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath('persona.loma', 'pakalpojumu_sniedzejs')
-            ->assertJsonPath('persona.pakalpojumu_sniedzejs.registracijas_numurs', 'REG-123');
+            ->assertJsonPath('code', 'verification_required')
+            ->assertJsonMissingPath('token');
 
         Http::assertSentCount(1);
 
-        $personaId = $response->json('persona.persona_id');
-        $provider = PakalpojumuSniedzejs::where('persona_id', $personaId)->first();
+        $persona = Persona::forEmail('provider@example.com')->firstOrFail();
+        $provider = $persona->pakalpojumuSniedzejs;
 
         $this->assertNotNull($provider);
+        $this->assertSame('pakalpojumu_sniedzejs', $persona->loma);
+        $this->assertSame('REG-123', $provider->registracijas_numurs);
         $this->assertEquals(56.9496, (float) $provider->latitude);
         $this->assertEquals(24.1052, (float) $provider->longitude);
     }
@@ -248,10 +248,11 @@ class AuthContactAndReviewTest extends TestCase
     {
         $suffix = uniqid();
 
-        $persona = Persona::create(array_merge([
+        $persona = Persona::forceCreate(array_merge([
             'vards' => 'Test',
             'uzvards' => 'Client',
             'epasts' => "client-{$suffix}@example.com",
+            'email_verified_at' => now(),
             'parole' => Hash::make('Secret123!'),
             'kontakttalrunis' => '+37120000000',
             'loma' => 'klients',
@@ -270,10 +271,11 @@ class AuthContactAndReviewTest extends TestCase
     {
         $suffix = uniqid();
 
-        $persona = Persona::create(array_merge([
+        $persona = Persona::forceCreate(array_merge([
             'vards' => 'Test',
             'uzvards' => 'Provider',
             'epasts' => "provider-{$suffix}@example.com",
+            'email_verified_at' => now(),
             'parole' => Hash::make('Secret123!'),
             'kontakttalrunis' => '+37121111111',
             'loma' => 'pakalpojumu_sniedzejs',

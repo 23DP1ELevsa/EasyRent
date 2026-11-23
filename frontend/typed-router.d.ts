@@ -25,6 +25,7 @@ declare module 'vue-router/auto-routes' {
     '/map': RouteRecordInfo<'/map', '/map', Record<never, never>, Record<never, never>>,
     '/profile': RouteRecordInfo<'/profile', '/profile', Record<never, never>, Record<never, never>>,
     '/reset-password': RouteRecordInfo<'/reset-password', '/reset-password', Record<never, never>, Record<never, never>>,
+    '/verify-email': RouteRecordInfo<'/verify-email', '/verify-email', Record<never, never>, Record<never, never>>,
   }
 
   /**
@@ -64,6 +65,10 @@ declare module 'vue-router/auto-routes' {
     }
     'src/pages/reset-password.vue': {
       routes: '/reset-password'
+      views: never
+    }
+    'src/pages/verify-email.vue': {
+      routes: '/verify-email'
       views: never
     }
   }

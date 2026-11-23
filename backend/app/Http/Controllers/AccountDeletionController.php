@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Persona;
 use App\Models\Rezervacija;
+use App\Support\EmailVerification;
 use App\Support\GoogleOAuth;
 use App\Support\ReservationInvoice;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,7 +30,7 @@ class AccountDeletionController extends Controller
         ])->header('Cache-Control', 'no-store');
     }
 
-    public function destroy(Request $request, GoogleOAuth $google): JsonResponse|Response
+    public function destroy(Request $request, GoogleOAuth $google, EmailVerification $verification): JsonResponse|Response
     {
         $data = $request->validate([
             'confirmation' => ['required', 'string', 'in:DZĒST'],
@@ -42,7 +43,7 @@ class AccountDeletionController extends Controller
             'password.max' => __('app.passwordInvalid'),
         ]);
 
-        $blocked = DB::transaction(function () use ($request, $data, $google) {
+        $blocked = DB::transaction(function () use ($request, $data, $google, $verification) {
             $persona = Persona::whereKey($request->user()->getKey())->lockForUpdate()->first();
             abort_unless($persona, 401, __('app.authenticationRequired'));
 
@@ -63,6 +64,7 @@ class AccountDeletionController extends Controller
             if ($persona->epasts !== null) {
                 Password::deleteToken($persona);
             }
+            $verification->forget($persona);
             $this->anonymize($persona);
             $persona->tokens()->delete();
             $persona->purgeDatabaseSessions();
@@ -153,7 +155,7 @@ class AccountDeletionController extends Controller
         }
 
         $persona->forceFill(array_fill_keys([
-            'vards', 'uzvards', 'epasts', 'parole', 'google_id', 'kontakttalrunis', 'bankas_konts',
+            'vards', 'uzvards', 'epasts', 'parole', 'google_id', 'kontakttalrunis', 'bankas_konts', 'email_verified_at',
         ], null) + ['profile_completed' => false])->save();
     }
 }

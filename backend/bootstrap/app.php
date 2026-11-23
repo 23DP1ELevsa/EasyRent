@@ -25,7 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $expectsJson = fn (Request $request) => $request->expectsJson()
-            || $request->is('api/auth/forgot-password', 'api/auth/reset-password');
+            || $request->is('api/auth/forgot-password', 'api/auth/reset-password', 'api/auth/verification/*');
         $exceptions->shouldRenderJsonWhen($expectsJson);
         $exceptions->render(function (Throwable $exception, Request $request) use ($expectsJson) {
             if (! $expectsJson($request) || ! $request->is('api/*', 'oauth/*')) {
@@ -44,7 +44,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return response()->json(['message' => __('app.'.$key)],
+            $data = ['message' => __('app.'.$key)];
+            if ($key === 'retryLater' && $request->is('api/auth/verification/*')) {
+                $data['code'] = 'rate_limited';
+            }
+
+            return response()->json($data,
                 $exception instanceof HttpExceptionInterface ? $exception->getStatusCode() : 401,
                 $exception instanceof HttpExceptionInterface ? $exception->getHeaders() : []);
         });

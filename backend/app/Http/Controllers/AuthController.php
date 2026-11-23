@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Persona;
 use App\Models\Klients;
+use App\Http\Middleware\RequireVerifiedEmail;
+use App\Support\EmailVerification;
 use App\Support\GoogleOAuth;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -17,7 +19,7 @@ use Laravel\Sanctum\TransientToken;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(Request $request, EmailVerification $verification)
     {
         // Vispirms validēt — ja neiziet, Laravel automātiski atgriež 422
         $data = $request->validate([
@@ -118,7 +120,9 @@ class AuthController extends Controller
             throw $exception;
         }
 
-        return $this->issueToken($request, $persona, 201);
+        $this->clearWebSession($request);
+
+        return response()->json($verification->requestFor($persona), 201)->header('Cache-Control', 'no-store');
     }
 
     public function login(Request $request)
@@ -134,7 +138,7 @@ class AuthController extends Controller
             return response()->json(['message' => __('app.invalidCredentials')], 422);
         }
 
-        return $this->issueToken($request, $persona, expectedPasswordHash: $persona->parole);
+        return $this->issueToken($request, $persona);
     }
 
     public function logout(Request $request)
@@ -156,6 +160,9 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $persona = $request->user('sanctum');
+        if ($persona && ! $persona->hasVerifiedEmail() && ! $persona->mayCompleteGoogleProfile()) {
+            return RequireVerifiedEmail::response();
+        }
         $pending = GoogleOAuth::pending($request);
         $googlePending = $pending ? [
             'purpose' => $pending['purpose'],
@@ -170,13 +177,16 @@ class AuthController extends Controller
         ], $persona || $pending ? 200 : 401)->header('Cache-Control', 'no-store');
     }
 
-    private function issueToken(Request $request, Persona $persona, int $status = 200, ?string $expectedPasswordHash = null)
+    private function issueToken(Request $request, Persona $persona)
     {
-        [$persona, $token] = DB::transaction(function () use ($persona, $expectedPasswordHash) {
+        [$persona, $token] = DB::transaction(function () use ($persona) {
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
             abort_unless($active, 401, __('app.authenticationRequired'));
-            if ($expectedPasswordHash !== null && ! hash_equals($expectedPasswordHash, $active->getAuthPassword())) {
+            if (! hash_equals($persona->getAuthPassword(), $active->getAuthPassword())) {
                 abort(response()->json(['message' => __('app.invalidCredentials')], 422));
+            }
+            if (! $active->hasVerifiedEmail()) {
+                abort(RequireVerifiedEmail::response());
             }
             $active->tokens()->delete();
 
@@ -187,7 +197,7 @@ class AuthController extends Controller
         return response()->json([
             'persona' => $persona->profileData(),
             'token' => $token,
-        ], $status)->header('Cache-Control', 'no-store');
+        ])->header('Cache-Control', 'no-store');
     }
 
     private function clearWebSession(Request $request): void

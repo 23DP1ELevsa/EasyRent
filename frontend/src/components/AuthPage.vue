@@ -352,8 +352,8 @@
 <script setup>
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { apiFetch, googlePending, setAuthSession } from '@/services/auth'
-  import { FORGOT_PASSWORD_ROUTE } from '@/router/paths'
+  import { apiFetch, clearAuthSession, googlePending, setAuthSession } from '@/services/auth'
+  import { emailVerificationRoute, FORGOT_PASSWORD_ROUTE } from '@/router/paths'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -685,32 +685,8 @@
         throw new Error(data?.message || copy.value.messages.registerFailed)
       }
 
-      setAuthSession({ token: data.token, persona: data.persona })
-
-      okText.value = copy.value.messages.registered
-
-      // Notīrīt formu
-      reg.value = {
-        name: '',
-        email: '',
-        kontakttalrunis: '',
-        password: '',
-        password_confirmation: '',
-        loma: 'klients',
-        lietotajvards: '',
-        registracijas_numurs: '',
-        iela: '',
-        majas_numurs: '',
-        dzivokla_numurs: '',
-        pilseta: '',
-        pasta_indekss: '',
-        bankas_konts: '',
-      }
-
-      // Informēt parent par sekmīgu reģistrāciju
-      setTimeout(() => {
-        emit('auth-success')
-      }, 1500)
+      clearAuthSession({ emitLogout: false })
+      await router.replace(emailVerificationRoute(data.email || payload.email, data))
     } catch (error) {
       errorText.value = error?.message || copy.value.messages.serverConnection
     } finally {
@@ -736,6 +712,10 @@
       const data = await r.json().catch(() => ({}))
 
       if (!r.ok) {
+        if (data.code === 'email_not_verified') {
+          await router.replace(emailVerificationRoute(login.value.email.trim()))
+          return
+        }
         const msg = data?.message || copy.value.messages.loginFailed
         throw new Error(msg)
       }

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\RequireVerifiedEmail;
 use App\Models\Persona;
+use App\Support\EmailVerification;
 use App\Support\GoogleOAuth;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
@@ -21,6 +23,8 @@ use RuntimeException;
 class GoogleOAuthController extends Controller
 {
     private const ROLES = ['klients', 'pakalpojumu_sniedzejs'];
+
+    public function __construct(private readonly EmailVerification $verification) {}
 
     public function start(Request $request, GoogleOAuth $google): RedirectResponse
     {
@@ -74,6 +78,9 @@ class GoogleOAuthController extends Controller
     {
         $persona = Auth::guard('web')->user();
         abort_unless($persona?->google_id, 403, __('app.googleDeletionSignIn'));
+        if (! $persona->hasVerifiedEmail()) {
+            return RequireVerifiedEmail::response();
+        }
         abort_unless($google->configured(), 503, __('app.googleDeletionUnavailable'));
 
         return response()->json([
@@ -126,6 +133,7 @@ class GoogleOAuthController extends Controller
                 }
 
                 $persona->forceFill(['google_id' => $identity['google_id']])->save();
+                $this->verification->markVerified($persona);
 
                 return $persona;
             }, 3);
@@ -152,9 +160,7 @@ class GoogleOAuthController extends Controller
     {
         $persona = Persona::where('google_id', $identity['google_id'])->first();
         if ($persona) {
-            $this->signIn($request, $persona);
-
-            return '/profile?google=ok';
+            return $this->signIn($request, $persona, $identity['epasts']);
         }
 
         $owner = $this->emailOwner($identity);
@@ -171,7 +177,10 @@ class GoogleOAuthController extends Controller
         try {
             $persona = DB::transaction(function () use ($identity, $role) {
                 $persona = new Persona(['loma' => $role]);
-                $persona->forceFill($identity + ['profile_completed' => false])->save();
+                $persona->forceFill($identity + [
+                    'profile_completed' => false,
+                    'email_verified_at' => $identity['epasts'] === null ? null : now(),
+                ])->save();
                 $relation = $role === 'klients' ? $persona->klients() : $persona->pakalpojumuSniedzejs();
                 $relation->create([]);
 
@@ -190,9 +199,7 @@ class GoogleOAuthController extends Controller
             }
         }
 
-        $this->signIn($request, $persona);
-
-        return '/profile?google=ok';
+        return $this->signIn($request, $persona, $identity['epasts']);
     }
 
     private function emailOwner(array $identity): ?Persona
@@ -234,13 +241,55 @@ class GoogleOAuthController extends Controller
         return $pending;
     }
 
-    private function signIn(Request $request, Persona $persona): void
+    private function signIn(Request $request, Persona $persona, ?string $googleEmail = null): string
     {
-        $request->session()->invalidate();
+        if ($googleEmail !== null && ($persona->epasts === null || ! $persona->hasVerifiedEmail())) {
+            $persona = $this->applyVerifiedGoogleEmail($persona, $googleEmail);
+            if (! $persona) {
+                return '/auth?google=invalid';
+            }
+        }
+
         $guard = Auth::guard('web');
+        if (! $persona->hasVerifiedEmail() && ($persona->epasts !== null || $persona->profile_completed)) {
+            $guard->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return '/verify-email';
+        }
+
+        $request->session()->invalidate();
         $guard->login($persona);
         $request->session()->put('password_hash_web', $guard->hashPasswordForCookie($persona->getAuthPassword()));
         $request->session()->regenerateToken();
+
+        return '/profile?google=ok';
+    }
+
+    private function applyVerifiedGoogleEmail(Persona $persona, string $email): ?Persona
+    {
+        $account = Persona::whereKey($persona->getKey())->where('google_id', $persona->google_id);
+
+        try {
+            return DB::transaction(function () use ($account, $email) {
+                $active = (clone $account)->lockForUpdate()->first();
+                if (! $active) {
+                    return null;
+                }
+                if ($active->epasts === null && ! Persona::forEmail($email)->exists()) {
+                    $active->forceFill(['epasts' => $email])->save();
+                }
+                if (strcasecmp($active->epasts ?? '', $email) === 0) {
+                    $this->verification->markVerified($active);
+                }
+
+                return $active;
+            }, 3);
+        } catch (UniqueConstraintViolationException) {
+            // Another account claimed the address while this callback was updating the profile.
+            return $account->first();
+        }
     }
 
     private function redirect(string $destination): RedirectResponse

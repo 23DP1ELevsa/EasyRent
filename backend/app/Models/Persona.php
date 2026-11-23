@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Notifications\ResetPersonaPassword;
+use App\Support\EmailVerification;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,8 +12,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\TransientToken;
 
-class Persona extends Authenticatable
+class Persona extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use Notifiable;
@@ -33,9 +36,12 @@ class Persona extends Authenticatable
 
     protected $attributes = ['profile_completed' => true];
 
-    protected $casts = ['profile_completed' => 'boolean'];
+    protected $casts = [
+        'profile_completed' => 'boolean',
+        'email_verified_at' => 'datetime',
+    ];
 
-    protected $hidden = ['parole', 'google_id', 'profile_completed', 'deleted_at'];
+    protected $hidden = ['parole', 'google_id', 'profile_completed', 'deleted_at', 'email_verified_at'];
 
     /** Acquire participant locks by primary key, in the same order for every booking write. */
     public static function lockActiveAccounts(int ...$ids): void
@@ -61,6 +67,24 @@ class Persona extends Authenticatable
     public function getEmailForPasswordReset(): ?string
     {
         return $this->epasts;
+    }
+
+    public function getEmailForVerification(): ?string
+    {
+        return $this->epasts;
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        if ($this->epasts !== null) {
+            app(EmailVerification::class)->send($this->epasts, app()->getLocale(), $this->getKey());
+        }
+    }
+
+    public function mayCompleteGoogleProfile(): bool
+    {
+        return $this->google_id !== null && ! $this->profile_completed && $this->epasts === null
+            && $this->currentAccessToken() instanceof TransientToken;
     }
 
     public function routeNotificationForMail(): ?string

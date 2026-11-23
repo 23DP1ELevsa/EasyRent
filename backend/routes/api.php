@@ -6,11 +6,13 @@ use App\Http\Controllers\TransportController;
 use App\Http\Controllers\TransportVeidsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RezervacijaController;
 use App\Http\Controllers\AtsauksmeController;
 use App\Http\Middleware\RequireCompletedProfile;
+use App\Http\Middleware\RequireVerifiedEmail;
 
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
@@ -28,7 +30,7 @@ Route::middleware(RequireCompletedProfile::class)->group(function () {
     Route::get('/atsauksmes', [AtsauksmeController::class, 'index']);
 });
 
-Route::middleware(['auth:sanctum', RequireCompletedProfile::class])->group(function () {
+Route::middleware(['auth:sanctum', RequireVerifiedEmail::class, RequireCompletedProfile::class])->group(function () {
     Route::prefix('transport')->group(function () {
         Route::post('/', [TransportController::class, 'store']);
         Route::post('/veidi', [TransportVeidsController::class, 'store']);
@@ -52,10 +54,10 @@ Route::middleware(['auth:sanctum', RequireCompletedProfile::class])->group(funct
 });
 
 Route::prefix('profile')->middleware('auth:sanctum')->group(function () {
-    Route::get('/deletion-check', [AccountDeletionController::class, 'check']);
-    Route::delete('/me', [AccountDeletionController::class, 'destroy'])->middleware('throttle:5,1');
-    Route::get('/{personaId}', [ProfileController::class, 'show'])->whereNumber('personaId');
-    Route::put('/{personaId}', [ProfileController::class, 'update'])->whereNumber('personaId');
+    Route::get('/deletion-check', [AccountDeletionController::class, 'check'])->middleware(RequireVerifiedEmail::class);
+    Route::delete('/me', [AccountDeletionController::class, 'destroy'])->middleware([RequireVerifiedEmail::class, 'throttle:5,1']);
+    Route::get('/{personaId}', [ProfileController::class, 'show'])->whereNumber('personaId')->middleware(RequireVerifiedEmail::class.':onboarding');
+    Route::put('/{personaId}', [ProfileController::class, 'update'])->whereNumber('personaId')->middleware(RequireVerifiedEmail::class.':onboarding');
 });
 
 Route::prefix('auth')->group(function () {
@@ -63,6 +65,8 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/forgot-password', [PasswordResetController::class, 'requestLink'])->middleware('throttle:password-reset-request');
     Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:password-reset-submit');
+    Route::post('/verification/confirm', [EmailVerificationController::class, 'confirm'])->middleware('throttle:email-verification-confirm');
+    Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:email-verification-resend');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });

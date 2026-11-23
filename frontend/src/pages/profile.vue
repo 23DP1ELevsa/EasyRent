@@ -611,7 +611,7 @@
 <script setup>
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { accountHome, AUTH_ROUTE, HOME_ROUTE } from '@/router/paths'
+  import { accountHome, AUTH_ROUTE, emailVerificationRoute, HOME_ROUTE } from '@/router/paths'
   import { apiFetch, clearAuthSession, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
@@ -1370,6 +1370,12 @@
           return
         }
         throw new Error(result?.message || t('common.networkError'))
+      }
+
+      if (result?.code === 'verification_required') {
+        clearAuthSession({ emitLogout: false })
+        await router.replace(emailVerificationRoute(result.email, result))
+        return
       }
 
       if (!result?.persona) {

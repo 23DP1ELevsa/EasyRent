@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Klients;
 use App\Models\Persona;
+use App\Support\EmailVerification;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +25,7 @@ class ProfileController extends Controller
         return response()->json(['persona' => $request->user()->profileData()])->header('Cache-Control', 'no-store');
     }
 
-    public function update(Request $request, string $personaId): JsonResponse
+    public function update(Request $request, string $personaId, EmailVerification $verification): JsonResponse
     {
         $this->authorizeProfile($request, $personaId);
 
@@ -38,7 +39,13 @@ class ProfileController extends Controller
                     throw ValidationException::withMessages(['epasts' => __('app.profileEmailFixed')]);
                 }
 
-                return $this->saveProfile($request->all(), $persona);
+                $persona = $this->saveProfile($request->all(), $persona);
+                if (! $persona->hasVerifiedEmail()) {
+                    $persona->tokens()->delete();
+                    $persona->purgeDatabaseSessions();
+                }
+
+                return $persona;
             }, 3);
         } catch (UniqueConstraintViolationException $exception) {
             if ($request->filled('epasts') && Persona::forEmail($request->string('epasts')->value())->exists()) {
@@ -52,6 +59,12 @@ class ProfileController extends Controller
 
         // Keep Sanctum's authenticated session user in sync when the password changes.
         $request->user()->setRawAttributes($persona->getAttributes(), true);
+
+        if (! $persona->hasVerifiedEmail()) {
+            $verification->clearWebSessionFor($request, $persona->getKey());
+
+            return response()->json($verification->requestFor($persona))->header('Cache-Control', 'no-store');
+        }
 
         return response()->json([
             'persona' => $persona->profileData(),
@@ -143,6 +156,9 @@ class ProfileController extends Controller
 
         $personalFields = ['vards', 'uzvards', 'epasts', 'kontakttalrunis', 'bankas_konts', 'password'];
         $persona->fill(array_filter(Arr::only($data, $personalFields), fn ($value) => $value !== null));
+        if ($persona->isDirty('epasts')) {
+            $persona->email_verified_at = null;
+        }
         if (isset($data['password'])) {
             $persona->parole = Hash::make($data['password']);
         }

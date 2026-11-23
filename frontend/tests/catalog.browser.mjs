@@ -41,6 +41,7 @@ const writes = []
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
 const recovery = { requestLimit: false, invalidLink: false }
+const verification = { resendStatus: 202, confirmCode: 'invalid_verification_link', active: false }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
 function signedInPersona (role, completed = false) {
@@ -114,6 +115,30 @@ socket.addEventListener('message', async event => {
       if (url.pathname === '/api/auth/me') {
         result = { persona: signIn.persona, google_pending: signIn.pending }
         responseCode = signIn.persona || signIn.pending ? 200 : 401
+      } else if (url.pathname === '/api/auth/register') {
+        const { email } = JSON.parse(request.postData)
+        responseCode = 201
+        result = { code: 'verification_required', email, mail_status: 'sent', retry_after: 60 }
+      } else if (url.pathname === '/api/auth/login') {
+        if (verification.active) {
+          signIn.persona = signedInPersona('klients', true)
+          result = { token: 'verified-token', persona: signIn.persona }
+        } else {
+          responseCode = 403
+          result = { code: 'email_not_verified' }
+        }
+      } else if (url.pathname === '/api/auth/verification/resend') {
+        responseCode = verification.resendStatus
+        result = { code: 'verification_requested', retry_after: 60 }
+      } else if (url.pathname === '/api/auth/verification/confirm') {
+        result = { code: verification.confirmCode }
+        responseCode = {
+          email_verified: 200,
+          verification_link_expired: 410,
+          invalid_verification_link: 422,
+          verification_unavailable: 503,
+        }[verification.confirmCode]
+        verification.active = responseCode === 200
       } else if (url.pathname === '/api/auth/forgot-password') {
         await delay(800)
         responseCode = recovery.requestLimit ? 429 : 200
@@ -659,6 +684,83 @@ try {
   await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-recovery-link")')
   assert.equal(failures.length, 0, JSON.stringify(failures))
   console.log('PASS: password recovery in LV/RU/EN, mobile forms, validation, loading, rate limit, expired link and sign-in navigation.')
+
+  const activationEmail = 'activate+qa@example.com'
+  const activationPassword = 'Activation123!'
+  const verificationText = phrase => `document.querySelector(".verification-card")?.innerText.includes(${JSON.stringify(phrase)})`
+  const verificationLink = locale => `${base}/verify-email#${new URLSearchParams({ id: '42', token, lang: locale })}`
+  const followVerificationLink = locale => evaluate(`location.hash = ${JSON.stringify(new URL(verificationLink(locale)).hash)}`)
+  await changeLanguage('ru')
+  await click('.auth-tabs [role=tab]:nth-child(2)')
+  await waitFor('document.querySelectorAll(".register-grid input").length === 7')
+  const registrationValues = ['Activation QA', activationEmail, '+37120000000', 'activateqa', 'LV80BANK0000435195001', activationPassword, activationPassword]
+  await evaluate(`[...document.querySelectorAll(".register-grid input")].forEach((el, i) => {
+    el.value = ${JSON.stringify(registrationValues)}[i];
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  })`)
+  await click('.register-grid button[type=submit]')
+  await waitFor(`location.pathname === "/verify-email" && ${verificationText('Мы отправили ссылку')}`)
+  assert.equal(await evaluate('document.querySelector(".verification-card input").value'), activationEmail)
+  assert.ok(await evaluate('document.querySelector(".verification-card button[type=submit]").disabled'))
+  assert.equal(await evaluate('location.search'), '')
+  assert.ok(await evaluate('!localStorage.getItem("token") && !localStorage.getItem("user")'))
+  assert.equal(writes.findLast(write => write.path === '/api/auth/register').language, 'ru')
+  for (const width of [320, 768, 1440]) {
+    await resize(width, 800)
+    await noOverflow()
+  }
+  await resize(360, 800)
+  await screenshot('email-verification-mobile')
+
+  await click('.verification-card a[href="/auth"]')
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-recovery-link")')
+  await input('.auth-form-card input[autocomplete=username]', activationEmail)
+  await input('.auth-form-card input[autocomplete=current-password]', activationPassword)
+  await click('.auth-form-card button[type=submit]')
+  await waitFor(`location.pathname === "/verify-email" && ${verificationText('Для входа откройте ссылку')}`)
+  await changeLanguage('en')
+  await waitFor(verificationText('To sign in, open the verification link'))
+  const resendButton = '.verification-card button[type=submit]'
+  verification.resendStatus = 503
+  await click(resendButton)
+  await waitFor(verificationText('We couldn’t submit your request'))
+  verification.resendStatus = 202
+  await click(resendButton)
+  await waitFor(verificationText('If this address needs verification'))
+  const verificationResend = writes.findLast(write => write.path === '/api/auth/verification/resend')
+  assert.deepEqual(JSON.parse(verificationResend.body), { email: activationEmail, locale: 'en' })
+  assert.equal(verificationResend.authorization, null)
+  assert.ok(await evaluate('document.querySelector(".verification-card button[type=submit]").disabled'))
+
+  verification.confirmCode = 'verification_link_expired'
+  await followVerificationLink('lv')
+  await waitFor(`!location.hash && ${verificationText('Saites derīguma termiņš ir beidzies')}`)
+  assert.ok(await evaluate('!!document.querySelector(".verification-card button[type=submit]")'))
+
+  verification.confirmCode = 'invalid_verification_link'
+  await followVerificationLink('ru')
+  await waitFor(verificationText('Ссылка недействительна или уже использована'))
+
+  verification.confirmCode = 'verification_unavailable'
+  await send('Page.navigate', { url: `${base}/auth?verificationqa=mail` })
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-recovery-link")')
+  await send('Page.navigate', { url: verificationLink('en') })
+  await waitFor(verificationText('We couldn’t verify the link'))
+  verification.confirmCode = 'email_verified'
+  await click('.verification-card button[type=button]')
+  await waitFor(`!location.hash && ${verificationText('Your email address is verified')}`)
+  const verificationConfirm = writes.findLast(write => write.path === '/api/auth/verification/confirm')
+  assert.deepEqual(JSON.parse(verificationConfirm.body), { id: '42', token })
+  assert.equal(verificationConfirm.authorization, null)
+  assert.ok(await evaluate('!localStorage.getItem("token") && !document.querySelector(".verification-card form")'))
+  await click('.verification-card a[href="/auth"]')
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-recovery-link")')
+  await input('.auth-form-card input[autocomplete=username]', activationEmail)
+  await input('.auth-form-card input[autocomplete=current-password]', activationPassword)
+  await click('.auth-form-card button[type=submit]')
+  await waitFor('location.pathname === "/" && localStorage.getItem("token") === "verified-token"')
+  assert.equal(failures.length, 0, JSON.stringify(failures))
+  console.log('PASS: email registration and activation, signed-out confirmation, resend countdown and recovery, LV/RU/EN and responsive layout.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()

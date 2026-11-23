@@ -193,14 +193,16 @@ class AccountDeletionTest extends TestCase
             ->assertSee('Volkswagen Golf');
 
         Auth::forgetGuards();
-        $newAccount = $this->postJson('/api/auth/register', [
+        $this->postJson('/api/auth/register', [
             'name' => 'Jauns Klients', 'email' => $client->epasts, 'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD, 'loma' => 'klients', 'lietotajvards' => 'jauns',
             'kontakttalrunis' => '20000000', 'bankas_konts' => 'LV80BANK0000435195001',
-        ])->assertCreated();
-        $this->assertNotEquals($client->getKey(), $newAccount->json('persona.persona_id'));
-        Auth::forgetGuards();
-        $this->withToken($newAccount->json('token'))->getJson('/api/rezervacijas')->assertOk()->assertExactJson([]);
+        ])->assertCreated()->assertJsonMissingPath('token');
+        $newAccount = Persona::forEmail($client->epasts)->firstOrFail();
+        $this->assertNotEquals($client->getKey(), $newAccount->getKey());
+        $newAccount->markEmailAsVerified();
+        $this->authenticate($newAccount);
+        $this->getJson('/api/rezervacijas')->assertOk()->assertExactJson([]);
         $this->getJson($invoice)->assertNotFound();
     }
 
@@ -232,10 +234,11 @@ class AccountDeletionTest extends TestCase
 
     private function account(string $role = 'klients'): Persona
     {
-        $account = Persona::create([
+        $account = Persona::forceCreate([
             'vards' => 'Anna', 'uzvards' => 'Ozola', 'epasts' => uniqid('account-').'@example.test',
             'kontakttalrunis' => '20000000', 'bankas_konts' => 'LV80BANK0000435195001',
             'parole' => Hash::make(self::PASSWORD), 'loma' => $role,
+            'email_verified_at' => now(),
         ]);
         if ($role === 'klients') {
             $account->klients()->create(['lietotajvards' => uniqid('user-')]);

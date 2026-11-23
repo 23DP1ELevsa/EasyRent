@@ -1,0 +1,36 @@
+.account-action-page {
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: clamp(24px, 8vw, 88px) 16px;
+  background: var(--er-bg);
+  color: var(--er-text);
+}
+.account-action-card {
+  width: min(100%, 480px);
+  min-width: 0;
+  padding: clamp(16px, 5vw, 36px);
+  background: var(--er-surface-strong);
+  border: 1px solid var(--er-stroke);
+  border-radius: 20px;
+}
+.account-action-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--er-primary-soft);
+  color: var(--er-primary-strong);
+}
+.account-action-title {
+  margin-bottom: 16px;
+  font-family: var(--er-display-font);
+  font-size: clamp(1.65rem, 4vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1.15;
+}
+.account-action-description { margin-bottom: 20px; color: var(--er-text-muted); }
+.account-action-card .v-field, .account-action-submit { border-radius: 12px; }
+.account-action-submit { min-height: 48px; }

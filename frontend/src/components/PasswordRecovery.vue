@@ -1,8 +1,8 @@
 <template>
-  <section aria-labelledby="recovery-title" class="recovery-page">
-    <div class="recovery-card">
-      <v-icon aria-hidden="true" class="recovery-icon" icon="mdi-lock-reset" />
-      <h1 id="recovery-title">{{ t(reset ? 'passwordRecovery.resetTitle' : 'passwordRecovery.forgot') }}</h1>
+  <section aria-labelledby="recovery-title" class="account-action-page">
+    <div class="account-action-card recovery-card">
+      <v-icon aria-hidden="true" class="account-action-icon" icon="mdi-lock-reset" />
+      <h1 id="recovery-title" class="account-action-title">{{ t(reset ? 'passwordRecovery.resetTitle' : 'passwordRecovery.forgot') }}</h1>
 
       <v-alert
         v-if="complete"
@@ -18,13 +18,13 @@
         <v-alert class="mb-5" type="error" variant="tonal">
           {{ t('passwordRecovery.invalidLink') }}
         </v-alert>
-        <v-btn block class="recovery-submit mb-3" color="primary" :to="FORGOT_PASSWORD_ROUTE">
+        <v-btn block class="account-action-submit mb-3" color="primary" :to="FORGOT_PASSWORD_ROUTE">
           {{ t('passwordRecovery.newLink') }}
         </v-btn>
       </template>
 
       <template v-else>
-        <p class="recovery-description">{{ t(reset ? 'passwordRecovery.resetIntro' : 'passwordRecovery.forgotIntro') }}</p>
+        <p class="account-action-description">{{ t(reset ? 'passwordRecovery.resetIntro' : 'passwordRecovery.forgotIntro') }}</p>
         <v-alert v-if="requestError" class="mb-5" type="error" variant="tonal">
           {{ t(requestError) }}
         </v-alert>
@@ -64,7 +64,7 @@
           </template>
           <v-btn
             block
-            class="recovery-submit"
+            class="account-action-submit"
             color="primary"
             :disabled="pending"
             :loading="pending"
@@ -199,41 +199,4 @@
   }
 </script>
 
-<style scoped>
-.recovery-page {
-  display: grid;
-  justify-items: center;
-  align-items: start;
-  padding: clamp(24px, 8vw, 88px) 16px;
-  background: var(--er-bg);
-  color: var(--er-text);
-}
-.recovery-card {
-  width: min(100%, 480px);
-  min-width: 0;
-  padding: clamp(16px, 5vw, 36px);
-  background: var(--er-surface-strong);
-  border: 1px solid var(--er-stroke);
-  border-radius: 20px;
-}
-.recovery-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 16px;
-  border-radius: 12px;
-  background: var(--er-primary-soft);
-  color: var(--er-primary-strong);
-}
-.recovery-card h1 {
-  margin-bottom: 16px;
-  font-family: var(--er-display-font);
-  font-size: clamp(1.65rem, 4vw, 2.25rem);
-  font-weight: 900;
-  line-height: 1.15;
-}
-.recovery-description { margin-bottom: 20px; color: var(--er-text-muted); }
-.recovery-card :deep(.v-field), .recovery-submit { border-radius: 12px; }
-.recovery-submit { min-height: 48px; }
-</style>
+<style src="@/styles/account-action.css"></style>

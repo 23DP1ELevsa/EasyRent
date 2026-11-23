@@ -273,6 +273,7 @@ class PasswordResetTest extends TestCase
             'loma' => 'klients',
             'parole' => $password === null ? null : Hash::make($password),
             'google_id' => $googleId,
+            'email_verified_at' => now(),
         ]);
     }
 
