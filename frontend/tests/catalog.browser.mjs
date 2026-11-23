@@ -132,7 +132,9 @@ socket.addEventListener('message', async event => {
         signIn.persona = null
         signIn.pending = null
       } else if (url.hostname === 'nominatim.openstreetmap.org') {
-        result = []
+        result = url.searchParams.get('q') === 'Brīvības iela, 10, Rīga, LV-1010, Latvia'
+          ? [{ lat: '56.9496', lon: '24.1052' }]
+          : []
         responseHeaders.push({ name: 'Access-Control-Allow-Origin', value: '*' })
       } else if (url.pathname === '/sanctum/csrf-cookie') {
         responseCode = 204
@@ -376,6 +378,7 @@ try {
   assert.match(await evaluate('document.querySelector(".profile-email").textContent'), /anna@example.com/)
   assert.match(await evaluate('document.querySelector(".profile-content .v-alert").textContent'), /Pabeidziet sava profila izveidi/)
   assert.ok(await evaluate(`!document.querySelector('.nav-link[href="/map"]') && !document.querySelector('.profile-reservations')`))
+  assert.ok(await evaluate(`!document.querySelector('.profile-details input[placeholder="56.9496"], .profile-details input[placeholder="24.1052"]')`), 'Google onboarding hides manual coordinates')
   await noOverflow()
   await screenshot('google-provider-profile-mobile')
   await send('Page.navigate', { url: `${base}/map` })
@@ -404,6 +407,8 @@ try {
   await click('button[type=submit]')
   await waitFor('location.pathname === "/map" && !!document.querySelector(".map-workspace")', 'Provider can open map after completion')
   assert.equal(signIn.lastProfile.iela, 'Brīvības iela')
+  assert.equal(signIn.lastProfile.latitude, 56.9496, 'Latitude was geocoded from the saved address')
+  assert.equal(signIn.lastProfile.longitude, 24.1052, 'Longitude was geocoded from the saved address')
   await waitFor('document.body.innerText.includes("Profils veiksmīgi aizpildīts!")', 'Completion notification is visible')
 
   signIn.persona = null

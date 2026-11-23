@@ -245,7 +245,7 @@
                     />
                   </v-col>
 
-                  <v-col cols="12" sm="6">
+                  <v-col v-if="!profileIncomplete" cols="12" sm="6">
                     <v-text-field
                       v-model="form.latitude"
                       density="compact"
@@ -256,7 +256,7 @@
                     />
                   </v-col>
 
-                  <v-col cols="12" sm="6">
+                  <v-col v-if="!profileIncomplete" cols="12" sm="6">
                     <v-text-field
                       v-model="form.longitude"
                       density="compact"
