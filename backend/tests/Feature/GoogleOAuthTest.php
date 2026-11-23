@@ -180,7 +180,10 @@ class GoogleOAuthTest extends TestCase
         $message = Mail::mailer('array')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
         preg_match('/verify-email#([^\s]+)/', $message->getTextBody(), $fragment);
         parse_str($fragment[1], $link);
-        $this->postJson('/api/auth/verification/confirm', $link)->assertOk()->assertJsonPath('code', 'email_verified');
+        $this->postJson('/api/auth/verification/confirm', $link)->assertConflict()
+            ->assertJsonPath('code', 'verification_interaction_required')->assertJsonMissingPath('token');
+        $this->postJson('/api/auth/verification/confirm', $link + ['interactive' => true])->assertOk()
+            ->assertJsonPath('code', 'email_verified')->assertJsonPath('password_reset_required', false)->assertJsonMissingPath('token');
         $this->browser('new', 'GET', '/api/auth/me')->assertUnauthorized();
         $this->finishGoogle('new', $this->start('new'))->assertRedirect('/profile?google=ok');
         $this->browser('new', 'GET', '/api/auth/me')->assertJsonPath('persona.profile_completed', true);

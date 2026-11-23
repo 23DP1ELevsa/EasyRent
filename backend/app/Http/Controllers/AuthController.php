@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Sanctum\TransientToken;
@@ -50,7 +51,7 @@ class AuthController extends Controller
             'bankas_konts.required' => __('app.ibanRequired'),
         ]);
 
-        $data['email'] = strtolower($data['email']);
+        $data['email'] = Persona::normalizeEmail($data['email']);
         if (Persona::forEmail($data['email'])->exists()) {
             throw ValidationException::withMessages(['email' => __('app.emailTaken')]);
         }
@@ -122,7 +123,10 @@ class AuthController extends Controller
 
         $this->clearWebSession($request);
 
-        return response()->json($verification->requestFor($request, $persona), 201)->header('Cache-Control', 'no-store');
+        $requestId = (string) Str::uuid();
+
+        return response()->json($verification->requestFor($request, $persona, $requestId), 201)
+            ->header('Cache-Control', 'no-store')->header('X-Request-ID', $requestId);
     }
 
     public function login(Request $request, EmailVerification $verification)

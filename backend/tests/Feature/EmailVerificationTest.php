@@ -111,8 +111,8 @@ class EmailVerificationTest extends TestCase
         $this->getJson('/api/auth/me', $headers)->assertForbidden()->assertJsonPath('code', 'email_not_verified');
         $this->resetRequestState();
         $link = $this->link();
-        $this->postJson(self::CONFIRM, $link, $headers)->assertOk()->assertJsonPath('code', 'email_verified')
-            ->assertJsonMissingPath('token')->assertJsonMissingPath('persona');
+        $this->postJson(self::CONFIRM, $link + ['interactive' => true], $headers)->assertOk()->assertJsonPath('code', 'email_verified')
+            ->assertJsonMissingPath('token')->assertJsonMissingPath('persona')->assertJsonPath('password_reset_required', true);
         $this->assertNotNull($persona->fresh()->email_verified_at);
         $this->assertDatabaseMissing('sessions', ['user_id' => $persona->getKey()]);
         $this->assertDatabaseEmpty('personal_access_tokens');
@@ -121,7 +121,126 @@ class EmailVerificationTest extends TestCase
         $this->getJson('/api/auth/me', $headers + ['Authorization' => 'Bearer '.$stale])->assertUnauthorized();
         $this->postJson(self::CONFIRM, $link)->assertUnprocessable()->assertJsonPath('code', 'invalid_verification_link');
         Event::assertDispatchedTimes(Verified::class, 1);
-        $this->postJson('/api/auth/login', $credentials)->assertOk()->assertJsonStructure(['token', 'persona']);
+        $this->postJson('/api/auth/login', $credentials)->assertUnprocessable();
+    }
+
+    public function test_the_signup_browser_can_sign_in_once_via_the_email_link(): void
+    {
+        $headers = $this->registerWithSession();
+        $link = $this->link();
+        $this->getJson(self::CONFIRM, $headers)->assertMethodNotAllowed();
+        $this->assertDatabaseEmpty('personal_access_tokens');
+        $response = $this->postJson(self::CONFIRM, $link, $headers)->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('code', 'email_verified')
+            ->assertJsonPath('persona.epasts', self::EMAIL);
+        $token = $response->json('token');
+        $this->assertIsString($token);
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertDatabaseEmpty('email_verification_tokens');
+        $this->resetRequestState();
+        $this->getJson('/api/auth/me', ['Authorization' => 'Bearer '.$token])->assertOk()
+            ->assertJsonPath('persona.epasts', self::EMAIL);
+        $this->resetRequestState();
+        $this->postJson(self::CONFIRM, $link, $headers)->assertUnprocessable()->assertJsonMissingPath('token');
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+    }
+
+    public function test_the_signup_browser_can_still_verify_at_the_auto_login_deadline(): void
+    {
+        $headers = $this->registerWithSession();
+        $this->travel(15)->minutes();
+        $this->postJson(self::CONFIRM, $this->link(), $headers)->assertOk()
+            ->assertJsonPath('code', 'email_verified')->assertJsonPath('password_reset_required', false)
+            ->assertJsonMissingPath('token')->assertJsonMissingPath('persona');
+        $this->assertDatabaseEmpty('personal_access_tokens');
+        $this->postJson('/api/auth/login', ['email' => self::EMAIL, 'password' => self::PASSWORD])
+            ->assertOk()->assertJsonStructure(['token', 'persona']);
+    }
+
+    public function test_stateful_confirmation_requires_the_sanctum_csrf_cookie(): void
+    {
+        $headers = $this->registerWithSession();
+        $this->app->instance('env', 'local');
+        $link = $this->link();
+        $this->postJson(self::CONFIRM, $link, $headers)->assertStatus(419)->assertJsonMissingPath('token');
+        $this->assertDatabaseHas('persona', ['epasts' => self::EMAIL, 'email_verified_at' => null]);
+        $this->assertDatabaseEmpty('personal_access_tokens');
+        $this->resetRequestState();
+
+        $csrf = $this->get('/sanctum/csrf-cookie', $headers)->assertNoContent();
+        $this->resetRequestState();
+        $this->postJson(self::CONFIRM, $link, $headers + ['X-XSRF-TOKEN' => $csrf->getCookie('XSRF-TOKEN', false)->getValue()])
+            ->assertOk()->assertJsonStructure(['token', 'persona']);
+    }
+
+    public function test_a_link_cannot_verify_a_different_current_email(): void
+    {
+        $headers = $this->registerWithSession();
+        $account = Persona::forEmail(self::EMAIL)->firstOrFail();
+        $account->update(['epasts' => 'changed@example.com']);
+        $this->postJson(self::CONFIRM, $this->link() + ['interactive' => true], $headers)
+            ->assertUnprocessable()->assertJsonMissingPath('token');
+        $this->assertNull($account->fresh()->email_verified_at);
+        $this->assertDatabaseEmpty('personal_access_tokens');
+    }
+
+    public function test_another_browser_must_confirm_explicitly_and_reset_the_unproven_password(): void
+    {
+        $this->registerWithSession();
+        $this->resetRequestState();
+        $this->defaultCookies = [];
+        $link = $this->link();
+        $this->postJson(self::CONFIRM, $link)->assertConflict()->assertJsonPath('code', 'verification_interaction_required')
+            ->assertJsonMissingPath('token');
+        $account = Persona::forEmail(self::EMAIL)->firstOrFail();
+        $this->assertNull($account->email_verified_at);
+        $this->assertDatabaseCount('email_verification_tokens', 1);
+        $this->assertDatabaseEmpty('personal_access_tokens');
+
+        $this->postJson(self::CONFIRM, $link + ['interactive' => true])->assertOk()
+            ->assertJsonPath('password_reset_required', true)->assertJsonMissingPath('token');
+        $this->assertNotNull($account->fresh()->email_verified_at);
+        $this->postJson('/api/auth/login', ['email' => self::EMAIL, 'password' => self::PASSWORD])->assertUnprocessable();
+
+        $password = 'MailboxOwner123!';
+        $this->postJson('/api/auth/reset-password', [
+            'email' => self::EMAIL, 'password' => $password, 'password_confirmation' => $password,
+            'token' => Password::createToken($account->fresh()),
+        ])->assertOk();
+        $this->postJson('/api/auth/login', ['email' => self::EMAIL, 'password' => $password])->assertOk();
+    }
+
+    public function test_confirmation_leaves_other_bearer_and_google_web_sessions_signed_in(): void
+    {
+        $headers = $this->registerWithSession();
+        $other = $this->account('other@example.com');
+        $other->forceFill(['google_id' => 'other-google-subject', 'email_verified_at' => now()])->save();
+        $bearer = $other->createToken('other-device')->plainTextToken;
+        $session = Str::random(40);
+        DB::table('sessions')->insert([
+            'id' => $session,
+            'user_id' => $other->getKey(),
+            'payload' => base64_encode(serialize([Auth::guard('web')->getName() => $other->getKey()])),
+            'last_activity' => now()->timestamp,
+        ]);
+        // Preserve the signup proof in a browser that also has a different Sanctum identity.
+        $link = $this->link();
+        $this->postJson(self::CONFIRM, $link, $headers + ['Authorization' => 'Bearer '.$bearer])
+            ->assertOk()->assertJsonPath('active_session', true)->assertJsonMissingPath('token');
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->resetRequestState();
+        $this->getJson('/api/auth/me', $headers + ['Authorization' => 'Bearer '.$bearer])
+            ->assertOk()->assertJsonPath('persona.epasts', $other->epasts);
+
+        $this->resetRequestState();
+        $this->withCredentials()->withCookie(config('session.cookie'), $session);
+        $target = $this->account('target@example.com');
+        $target->sendEmailVerificationNotification();
+        $this->postJson(self::CONFIRM, $this->link(1) + ['interactive' => true], $headers)
+            ->assertOk()->assertJsonPath('active_session', true)->assertJsonMissingPath('token');
+        $this->resetRequestState();
+        $this->getJson('/api/auth/me', $headers)->assertOk()->assertJsonPath('persona.epasts', $other->epasts);
+        $this->assertDatabaseHas('sessions', ['id' => $session, 'user_id' => $other->getKey()]);
     }
 
     public function test_a_bearer_token_cannot_bypass_verification_on_private_routes(): void
@@ -182,7 +301,7 @@ class EmailVerificationTest extends TestCase
         $this->assertSame('ru', $second['lang']);
         $this->assertNotSame($first['token'], $second['token']);
         $this->postJson(self::CONFIRM, $first)->assertUnprocessable();
-        $this->postJson(self::CONFIRM, $second)->assertOk();
+        $this->postJson(self::CONFIRM, $second + ['interactive' => true])->assertOk();
     }
 
     public function test_transport_failure_preserves_registration_and_resend_is_available(): void
@@ -201,14 +320,17 @@ class EmailVerificationTest extends TestCase
             }
         });
         Log::spy();
-        $this->postJson('/api/auth/register', $this->registration())->assertCreated()->assertJsonPath('mail_status', 'unavailable');
+        $response = $this->postJson('/api/auth/register', $this->registration())->assertCreated()->assertJsonPath('mail_status', 'unavailable');
         $this->assertDatabaseHas('persona', ['epasts' => self::EMAIL, 'email_verified_at' => null]);
-        Log::shouldHaveReceived('warning')->with('Email verification message could not be sent.')->once();
+        Log::shouldHaveReceived('log')->with('warning', 'Account email send result.', [
+            'mail_type' => 'email_verification', 'recipient_domain' => 'example.com', 'resend_id' => null,
+            'outcome' => 'error', 'error' => 'send_failed', 'request_id' => $response->headers->get('X-Request-ID'),
+        ])->once();
 
         $this->travel(60)->seconds();
         config(['mail.default' => 'array']);
         $this->postJson(self::RESEND, ['email' => self::EMAIL])->assertAccepted();
-        $this->postJson(self::CONFIRM, $this->link())->assertOk();
+        $this->postJson(self::CONFIRM, $this->link() + ['interactive' => true])->assertOk();
     }
 
     public function test_resend_in_the_signup_session_reports_acceptance_or_transport_failure_and_preserves_the_previous_link(): void
@@ -252,11 +374,19 @@ class EmailVerificationTest extends TestCase
         $this->resetRequestState();
         $this->withCredentials()->withCookie(config('session.cookie'), $login->getCookie(config('session.cookie'))->getValue());
         $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)->assertOk();
+        $this->postJson(self::CONFIRM, $this->link(), $headers)->assertConflict()->assertJsonMissingPath('token');
+        $this->assertDatabaseEmpty('personal_access_tokens');
         $this->resetRequestState();
         $this->postJson(self::RESEND, ['email' => self::EMAIL])->assertAccepted()->assertJsonPath('code', 'verification_requested');
     }
 
-    public function test_resend_transport_logs_only_the_provider_id_for_a_verification_email(): void
+    public static function recipientDomains(): array
+    {
+        return [['gmail.com'], ['inbox.lv'], ['outlook.com'], ['rvt.lv']];
+    }
+
+    #[DataProvider('recipientDomains')]
+    public function test_resend_transport_uses_the_normalized_address_and_safely_logs_the_provider_id(string $domain): void
     {
         $providerId = '49a862af-016a-45a8-8f72-c18eefb7f503';
         $requests = [];
@@ -273,16 +403,21 @@ class EmailVerificationTest extends TestCase
         Mail::extend('resend', fn () => new ResendTransport($resend));
         Log::spy();
 
-        $this->postJson('/api/auth/register', $this->registration())
+        $email = 'renter+qa@'.$domain;
+        $response = $this->postJson('/api/auth/register', ['email' => ' '.strtoupper($email).' '] + $this->registration())
             ->assertCreated()->assertJsonPath('mail_status', 'sent')->assertJsonMissingPath('resend_id');
         $this->assertCount(1, $requests);
         $request = $requests[0]['request'];
         $this->assertSame('https://api.resend.com/emails', (string) $request->getUri());
         $message = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
-        $this->assertContains(self::EMAIL, $message['to']);
+        $this->assertSame([$email], $message['to']);
         $this->assertStringContainsString(self::FRONTEND.'/verify-email#id=', $message['text']);
         $this->assertStringContainsString(self::FRONTEND.'/verify-email#id=', $message['html']);
-        Log::shouldHaveReceived('info')->with('Email verification accepted by Resend.', ['resend_id' => $providerId])->once();
+        $this->assertNotEmpty($response->headers->get('X-Request-ID'));
+        Log::shouldHaveReceived('log')->with('info', 'Account email send result.', [
+            'mail_type' => 'email_verification', 'recipient_domain' => $domain, 'resend_id' => $providerId,
+            'outcome' => 'accepted', 'error' => null, 'request_id' => $response->headers->get('X-Request-ID'),
+        ])->once();
     }
 
     public function test_password_reset_does_not_verify_email_or_bypass_login_gate(): void
@@ -296,7 +431,8 @@ class EmailVerificationTest extends TestCase
         ])->assertOk();
         $this->assertNull($persona->fresh()->email_verified_at);
         $this->postJson('/api/auth/login', $credentials)->assertForbidden()->assertJsonPath('code', 'email_not_verified');
-        $this->postJson(self::CONFIRM, $this->link())->assertOk();
+        $this->postJson(self::CONFIRM, $this->link() + ['interactive' => true])->assertOk()
+            ->assertJsonPath('password_reset_required', false)->assertJsonMissingPath('token');
         $this->postJson('/api/auth/login', $credentials)->assertOk();
     }
 
@@ -338,6 +474,17 @@ class EmailVerificationTest extends TestCase
             'password_confirmation' => self::PASSWORD, 'loma' => 'klients', 'lietotajvards' => 'qatest',
             'kontakttalrunis' => '+37120000000', 'bankas_konts' => 'LV80BANK0000435195001',
         ];
+    }
+
+    private function registerWithSession(): array
+    {
+        config(['session.driver' => 'database', 'sanctum.stateful' => ['easyrent.vip']]);
+        $headers = ['Referer' => self::FRONTEND.'/auth'];
+        $response = $this->postJson('/api/auth/register', $this->registration(), $headers)->assertCreated();
+        $this->resetRequestState();
+        $this->withCredentials()->withCookie(config('session.cookie'), $response->getCookie(config('session.cookie'))->getValue());
+
+        return $headers;
     }
 
     private function account(string $email): Persona

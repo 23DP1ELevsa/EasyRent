@@ -232,11 +232,14 @@ class PasswordResetTest extends TestCase
         Log::spy();
         foreach (['log', 'failover', 'resend'] as $mailer) {
             config(['mail.default' => $mailer, 'services.resend.key' => null]);
-            $this->postJson(self::REQUEST, ['email' => $account->epasts])->assertOk();
+            $response = $this->postJson(self::REQUEST, ['email' => $account->epasts])->assertOk();
             $this->assertDatabaseEmpty('password_reset_tokens');
+            Log::shouldHaveReceived('log')->with('warning', 'Account email send result.', [
+                'mail_type' => 'password_reset', 'recipient_domain' => 'example.test', 'resend_id' => null,
+                'outcome' => 'error', 'error' => 'mailer_unavailable', 'request_id' => $response->headers->get('X-Request-ID'),
+            ])->once();
             $this->travel(60)->seconds();
         }
-        Log::shouldHaveReceived('warning')->with('Password reset email requires a configured Resend mailer.')->times(3);
     }
 
     public function test_resend_driver_resolves_and_transport_failure_keeps_the_generic_response_and_logs_no_secret(): void
@@ -260,8 +263,11 @@ class PasswordResetTest extends TestCase
 
         $account = $this->account('user@example.test');
         $reply = $this->postJson(self::REQUEST, ['email' => 'absent@example.test'])->assertOk()->json();
-        $this->postJson(self::REQUEST, ['email' => $account->epasts])->assertOk()->assertExactJson($reply);
-        Log::shouldHaveReceived('warning')->with('Password reset email could not be sent.')->once();
+        $response = $this->postJson(self::REQUEST, ['email' => $account->epasts])->assertOk()->assertExactJson($reply);
+        Log::shouldHaveReceived('log')->with('warning', 'Account email send result.', [
+            'mail_type' => 'password_reset', 'recipient_domain' => 'example.test', 'resend_id' => null,
+            'outcome' => 'error', 'error' => 'send_failed', 'request_id' => $response->headers->get('X-Request-ID'),
+        ])->once();
     }
 
     private function account(string $email, ?string $googleId = null, ?string $password = self::OLD_PASSWORD): Persona

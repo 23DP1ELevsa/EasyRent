@@ -21,6 +21,9 @@
                             <a href="{{ $actionUrl }}" style="display:inline-block;padding:13px 22px;color:#fff;font-weight:bold;text-decoration:none">{{ $action }}</a>
                         </td></tr>
                     </table>
+                    <p style="margin:12px 0 0;font-size:13px;line-height:1.4;word-break:break-all;overflow-wrap:anywhere">
+                        <a href="{{ $actionUrl }}" style="color:#006b43;text-decoration:underline">{{ $actionUrl }}</a>
+                    </p>
                     <p style="margin:20px 0 8px;color:#40514a">{{ $expires }}</p>
                     <p style="margin:0;color:#40514a">{{ $ignore }}</p>
                 </td></tr>

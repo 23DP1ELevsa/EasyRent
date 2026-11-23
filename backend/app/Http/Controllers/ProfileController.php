@@ -12,6 +12,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -63,7 +64,10 @@ class ProfileController extends Controller
         if (! $persona->hasVerifiedEmail()) {
             $verification->clearWebSessionFor($request, $persona->getKey());
 
-            return response()->json($verification->requestFor($request, $persona))->header('Cache-Control', 'no-store');
+            $requestId = (string) Str::uuid();
+
+            return response()->json($verification->requestFor($request, $persona, $requestId))
+                ->header('Cache-Control', 'no-store')->header('X-Request-ID', $requestId);
         }
 
         return response()->json([
@@ -104,7 +108,7 @@ class ProfileController extends Controller
 
         if ($persona->epasts === null && $onboarding) {
             if (isset($input['epasts']) && is_string($input['epasts'])) {
-                $input['epasts'] = strtolower($input['epasts']);
+                $input['epasts'] = Persona::normalizeEmail($input['epasts']);
             }
             $rules['epasts'] = ['email', 'max:255', function (string $field, mixed $value, \Closure $fail) {
                 if (is_string($value) && Persona::forEmail($value)->exists()) {

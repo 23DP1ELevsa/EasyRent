@@ -24,18 +24,22 @@
       </v-alert>
 
       <v-btn
-        v-if="status === 'confirmError'"
+        v-if="status === 'confirmError' || status === 'interactionRequired'"
         block
         class="account-action-submit mb-3"
         color="primary"
-        variant="outlined"
-        @click="confirm"
+        :variant="status === 'interactionRequired' ? 'flat' : 'outlined'"
+        @click="confirm(status === 'interactionRequired' || lastInteractive)"
       >
-        {{ t('emailVerification.retryConfirm') }}
+        {{ t(status === 'interactionRequired' ? 'emailVerification.confirmAction' : 'emailVerification.retryConfirm') }}
       </v-btn>
 
+      <p v-if="status === 'verified' && !signedIn" class="account-action-description">
+        {{ t(activeSession ? 'emailVerification.activeSession' : passwordResetRequired ? 'emailVerification.resetRequired' : 'emailVerification.signInRequired') }}
+      </p>
+
       <v-form
-        v-if="status !== 'verified' && status !== 'checking'"
+        v-if="!['verified', 'checking', 'interactionRequired'].includes(status)"
         :disabled="resending"
         novalidate
         @submit.prevent="resend"
@@ -65,13 +69,14 @@
       </v-form>
 
       <v-btn
+        v-if="!signedIn && !activeSession && !['checking', 'interactionRequired'].includes(status)"
         block
         class="mt-2"
         color="primary"
-        :to="AUTH_ROUTE"
+        :to="passwordResetRequired ? FORGOT_PASSWORD_ROUTE : AUTH_ROUTE"
         variant="text"
       >
-        {{ t('emailVerification.signIn') }}
+        {{ t(passwordResetRequired ? 'emailVerification.resetPassword' : 'emailVerification.signIn') }}
       </v-btn>
     </div>
   </section>
@@ -80,8 +85,8 @@
 <script setup>
   import { computed, onBeforeUnmount, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { AUTH_ROUTE, VERIFY_EMAIL_ROUTE } from '@/router/paths'
-  import { apiFetch } from '@/services/auth'
+  import { accountHome, AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, PROFILE_ROUTE, VERIFY_EMAIL_ROUTE } from '@/router/paths'
+  import { apiFetch, hasAuthSession, setAuthSession } from '@/services/auth'
   import { useLocale } from '@/stores/locale'
 
   const route = useRoute()
@@ -92,21 +97,30 @@
   const status = ref({ sent: 'sent', unavailable: 'mailUnavailable' }[receipt?.mailStatus] || 'ready')
   const emailError = ref('')
   const resending = ref(false)
+  const signedIn = ref(false)
+  const activeSession = ref(false)
+  const passwordResetRequired = ref(false)
   const cooldownUntil = ref(receipt?.cooldownUntil ?? 0)
   const now = ref(Date.now())
   const remaining = computed(() => Math.max(0, Math.ceil((cooldownUntil.value - now.value) / 1000)))
   const alertType = computed(() => {
     if (['mailUnavailable', 'resendMailUnavailable', 'rateLimited'].includes(status.value)) return 'warning'
-    if (status.value === 'resent') return 'info'
+    if (['resent', 'interactionRequired'].includes(status.value)) return 'info'
     return ['verified', 'sent', 'resentConfirmed'].includes(status.value) ? 'success' : 'error'
   })
 
   let link = null
+  let confirmation = null
+  let lastInteractive = false
+  let redirectTimer
   const timer = window.setInterval(() => {
     now.value = Date.now()
   }, 250)
+  document.addEventListener('visibilitychange', confirmVisibleLink)
   onBeforeUnmount(() => {
     window.clearInterval(timer)
+    window.clearTimeout(redirectTimer)
+    document.removeEventListener('visibilitychange', confirmVisibleLink)
     link = null
   })
 
@@ -117,51 +131,86 @@
 
   function submit (action, data) {
     return apiFetch(`/api/auth/verification/${action}`, {
-      auth: false,
+      auth: action === 'confirm',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
   }
 
-  async function confirm () {
+  function confirmVisibleLink () {
+    if (document.visibilityState === 'visible' && status.value === 'checking') {
+      void confirm()
+    }
+  }
+
+  async function confirm (interactive = false) {
     const attempt = link
-    if (!attempt) return
+    if (!attempt || confirmation === attempt) return
+    confirmation = attempt
+    lastInteractive = interactive
     status.value = 'checking'
     try {
-      const response = await submit('confirm', attempt)
+      const response = await submit('confirm', {
+        ...attempt,
+        interactive,
+        auto_login: !hasAuthSession(),
+      })
       const result = await response.json()
       if (link !== attempt) return
 
+      if (response.ok && result.code === 'email_verified') {
+        link = null
+        status.value = 'verified'
+        activeSession.value = result.active_session === true || hasAuthSession()
+        passwordResetRequired.value = result.password_reset_required === true
+        if (result.token && result.persona && !activeSession.value) {
+          setAuthSession({ token: result.token, persona: result.persona })
+          signedIn.value = true
+          const destination = result.persona.profile_completed === false ? PROFILE_ROUTE : accountHome(result.persona)
+          redirectTimer = window.setTimeout(() => router.replace(destination), 450)
+        }
+        return
+      }
+
       const next = {
-        email_verified: 'verified',
+        verification_interaction_required: 'interactionRequired',
         verification_link_expired: 'expired',
         invalid_verification_link: 'invalid',
       }[result.code]
       status.value = next || 'confirmError'
-      if (next) link = null
+      if (next === 'expired' || next === 'invalid') link = null
     } catch {
       if (link === attempt) status.value = 'confirmError'
+    } finally {
+      if (confirmation === attempt) confirmation = null
     }
   }
 
-  watch(() => route.hash, async hash => {
-    if (route.path !== VERIFY_EMAIL_ROUTE || !hash) return
+  watch(() => route.hash, hash => {
+    if (route.path !== VERIFY_EMAIL_ROUTE || !hash || !window.location.hash) return
 
     const params = new URLSearchParams(window.location.hash.slice(1))
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+    void router.replace({ hash: '' })
+
     const id = params.get('id') || ''
     const token = params.get('token') || ''
     setLocale(params.get('lang'))
     link = null
-    status.value = 'checking'
-    await router.replace({ hash: '' })
+    window.clearTimeout(redirectTimer)
+    lastInteractive = false
+    signedIn.value = false
+    activeSession.value = false
+    passwordResetRequired.value = false
 
     if (!/^[1-9][0-9]{0,18}$/.test(id) || !/^[a-f0-9]{64}$/.test(token)) {
       status.value = 'invalid'
       return
     }
     link = { id, token }
-    await confirm()
+    status.value = 'checking'
+    confirmVisibleLink()
   }, { immediate: true })
 
   async function resend () {

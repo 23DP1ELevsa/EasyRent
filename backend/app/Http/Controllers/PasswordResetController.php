@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Throwable;
@@ -28,32 +28,32 @@ class PasswordResetController extends Controller
             'locale' => ['sometimes', 'required', Rule::in(['lv', 'ru', 'en'])],
         ]);
 
-        $email = mb_strtolower($data['email']);
+        $email = Persona::normalizeEmail($data['email']);
         $locale = app()->getLocale();
-        defer(function () use ($email, $locale) {
+        $requestId = (string) Str::uuid();
+        defer(function () use ($email, $locale, $requestId) {
             try {
                 $key = 'password-reset-email:'.hash_hmac('sha256', $email, config('app.key'));
                 if (Cache::add($key, true, 60)) {
-                    $this->sendLink($email, $locale);
+                    $this->sendLink($email, $locale, $requestId);
                 }
             } catch (Throwable) {
-                // Transport exceptions can contain the message body or authentication headers.
-                Log::warning('Password reset email could not be sent.');
+                AccountMail::logDelivery('password_reset', $email, $requestId, error: 'preparation_failed');
             }
         });
 
         $response = response()->json([
             'message' => __('password-reset.requested'),
-        ])->header('Cache-Control', 'no-store');
+        ])->header('Cache-Control', 'no-store')->header('X-Request-ID', $requestId);
         $response->headers->set('Content-Length', (string) strlen($response->getContent()));
 
         return $response;
     }
 
-    private function sendLink(string $email, string $locale): void
+    private function sendLink(string $email, string $locale, string $requestId): void
     {
         if (! AccountMail::available()) {
-            Log::warning('Password reset email requires a configured Resend mailer.');
+            AccountMail::logDelivery('password_reset', $email, $requestId, error: 'mailer_unavailable');
 
             return;
         }
@@ -69,7 +69,7 @@ class PasswordResetController extends Controller
 
         if ($delivery !== null) {
             [$persona, $token] = $delivery;
-            $persona->sendPasswordResetNotification($token, $locale);
+            $persona->sendPasswordResetNotification($token, $locale, $requestId);
         }
     }
 
@@ -101,7 +101,11 @@ class PasswordResetController extends Controller
                 'token' => $data['token'],
                 'password' => $data['password'],
             ], function (Persona $account, #[\SensitiveParameter] string $password) {
-                $account->forceFill(['parole' => Hash::make($password)])->save();
+                $account->parole = Hash::make($password);
+                if (! $account->hasVerifiedEmail()) {
+                    $account->email_verification_password_reset_at = now();
+                }
+                $account->save();
                 $account->tokens()->delete();
                 $account->purgeDatabaseSessions();
             });

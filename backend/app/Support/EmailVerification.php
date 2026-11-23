@@ -6,30 +6,35 @@ use App\Models\Persona;
 use App\Notifications\VerifyPersonaEmail;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
-use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Traits\Localizable;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
 class EmailVerification
 {
-    use Localizable;
-
     public const VALID_HOURS = 24;
+
+    public const AUTO_LOGIN_MINUTES = 15;
 
     public const COOLDOWN = 60;
 
     private const PENDING_SESSION = 'email_verification.pending';
 
-    public function requestFor(Request $request, Persona $persona): array
+    private const INITIATOR_SESSION = 'email_verification.initiator';
+
+    public function requestFor(Request $request, Persona $persona, string $requestId): array
     {
         $this->rememberPending($request, $persona);
-        $status = $this->send($persona->epasts, app()->getLocale(), $persona->getKey());
+        if ($request->hasSession()) {
+            $request->session()->put(self::INITIATOR_SESSION, $this->initiatorProof($persona));
+        }
+        $status = $this->send($persona->epasts, app()->getLocale(), $persona->getKey(), $requestId);
 
         return [
             'code' => 'verification_required',
@@ -45,7 +50,7 @@ class EmailVerification
         if ($request->hasSession()) {
             $request->session()->put(self::PENDING_SESSION, [
                 'id' => $persona->getKey(),
-                'email' => mb_strtolower($persona->epasts),
+                'email' => Persona::normalizeEmail($persona->epasts),
                 'expires_at' => now()->addMinutes(30)->timestamp,
             ]);
         }
@@ -59,12 +64,12 @@ class EmailVerification
             ? $pending['id'] : null;
     }
 
-    public function send(string $email, string $locale, ?int $personaId = null): string
+    public function send(string $email, string $locale, ?int $personaId = null, ?string $requestId = null): string
     {
         $delivery = null;
         try {
             if (! AccountMail::available()) {
-                Log::warning('Email verification requires a configured Resend mailer.');
+                AccountMail::logDelivery('email_verification', $email, $requestId, error: 'mailer_unavailable');
 
                 return 'unavailable';
             }
@@ -80,7 +85,7 @@ class EmailVerification
                 }
 
                 $address = $persona->getEmailForVerification();
-                $key = 'email-verification:'.hash_hmac('sha256', mb_strtolower($address), config('app.key'));
+                $key = 'email-verification:'.hash_hmac('sha256', Persona::normalizeEmail($address), config('app.key'));
                 if (! Cache::add($key, true, self::COOLDOWN)) {
                     return 'rate_limited';
                 }
@@ -103,20 +108,15 @@ class EmailVerification
             }
             [$persona, $token, $hash, $previous] = $prepared;
             $delivery = [$persona->getKey(), $hash, $previous];
-            $sent = $this->withLocale($locale, fn () => app(MailChannel::class)->send($persona, new VerifyPersonaEmail($token)));
-            if (! $sent) {
-                throw new RuntimeException('The mailer did not accept the email verification message.');
-            }
+            if (! app(AccountMail::class)->send('email_verification', $persona, new VerifyPersonaEmail($token), $locale, $requestId)) {
+                $this->restorePreviousLink(...$delivery);
 
-            $resendId = $sent->getOriginalMessage()->getHeaders()->get('X-Resend-Email-ID')?->getBodyAsString();
-            if (is_string($resendId) && preg_match('/\A[\da-f-]{36}\z/i', $resendId)) {
-                Log::info('Email verification accepted by Resend.', ['resend_id' => $resendId]);
+                return 'unavailable';
             }
 
             return 'sent';
         } catch (Throwable) {
-            // A transport exception may include the whole message, including the secret link.
-            Log::warning('Email verification message could not be sent.');
+            AccountMail::logDelivery('email_verification', $email, $requestId, error: 'preparation_failed');
             if ($delivery !== null) {
                 $this->restorePreviousLink(...$delivery);
             }
@@ -145,27 +145,52 @@ class EmailVerification
         }
     }
 
-    public function confirm(int $id, #[\SensitiveParameter] string $token): string
+    public function confirm(Request $request, int $id, #[\SensitiveParameter] string $token, bool $interactive, bool $autoLogin): array
     {
-        return DB::transaction(function () use ($id, $token) {
+        $initiator = $request->hasSession() ? $request->session()->get(self::INITIATOR_SESSION, '') : '';
+        $signedIn = $request->user('sanctum') !== null || GoogleOAuth::pending($request) !== null;
+
+        return DB::transaction(function () use ($id, $token, $initiator, $interactive, $autoLogin, $signedIn) {
             $persona = Persona::whereKey($id)->lockForUpdate()->first();
             if (! $persona || $persona->hasVerifiedEmail()) {
-                return 'invalid_verification_link';
+                return ['code' => 'invalid_verification_link'];
             }
 
             $pending = DB::table('email_verification_tokens')->where('persona_id', $id)->first();
             if (! $pending || $pending->email !== $persona->getEmailForVerification()
                 || ! hash_equals($pending->token_hash, $this->digest($persona, $token))) {
-                return 'invalid_verification_link';
+                return ['code' => 'invalid_verification_link'];
             }
 
-            if (Carbon::parse($pending->expires_at)->lessThanOrEqualTo(now())) {
-                return 'verification_link_expired';
+            $expiresAt = Carbon::parse($pending->expires_at);
+            $now = now();
+            if ($expiresAt->lessThanOrEqualTo($now)) {
+                return ['code' => 'verification_link_expired'];
             }
 
+            $sameBrowser = hash_equals($this->initiatorProof($persona), $initiator);
+            if (! $sameBrowser && ! $interactive) {
+                return ['code' => 'verification_interaction_required'];
+            }
+
+            // A password chosen before proving mailbox ownership is unsafe in another browser.
+            $resetRequired = ! $sameBrowser && $persona->google_id === null && $persona->parole !== null
+                && $persona->email_verification_password_reset_at === null;
+            if ($resetRequired) {
+                $persona->parole = Hash::make(Str::random(64));
+            }
             $this->markVerified($persona);
 
-            return 'email_verified';
+            $result = ['code' => 'email_verified'];
+            if ($autoLogin && ! $signedIn && $sameBrowser
+                && $expiresAt->subHours(self::VALID_HOURS)->addMinutes(self::AUTO_LOGIN_MINUTES)->isAfter($now)) {
+                return $result + [
+                    'token' => $persona->createToken('frontend')->plainTextToken,
+                    'persona' => $persona->profileData(),
+                ];
+            }
+
+            return $result + ['password_reset_required' => $resetRequired, 'active_session' => $signedIn];
         }, 3);
     }
 
@@ -175,6 +200,7 @@ class EmailVerification
         if ($persona->hasVerifiedEmail()) {
             return;
         }
+        $persona->email_verification_password_reset_at = null;
         if (! $persona->markEmailAsVerified()) {
             throw new RuntimeException('The email address could not be verified.');
         }
@@ -198,6 +224,13 @@ class EmailVerification
             $request->session()->invalidate();
             $request->session()->regenerateToken();
         }
+    }
+
+    private function initiatorProof(Persona $persona): string
+    {
+        return hash_hmac('sha256', serialize([
+            $persona->getKey(), $persona->getEmailForVerification(), $persona->getAuthPassword(),
+        ]), config('app.key'));
     }
 
     private function digest(Persona $persona, #[\SensitiveParameter] string $token): string

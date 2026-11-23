@@ -12,6 +12,10 @@ function getStoredToken () {
   return localStorage.getItem('token') || ''
 }
 
+export function hasAuthSession () {
+  return Boolean(getStoredToken() || localStorage.getItem('user') || googlePending.value)
+}
+
 export function getStoredUser () {
   const raw = localStorage.getItem('user')
   if (!raw) {
@@ -75,6 +79,9 @@ export async function apiFetch (path, { auth = true, ...options } = {}) {
 }
 
 export function setAuthSession ({ token, persona }) {
+  if (token !== undefined && (token ?? '') !== getStoredToken()) {
+    authRevision++
+  }
   if (token === null) {
     localStorage.removeItem('token')
   } else if (token) {
@@ -97,10 +104,11 @@ export function clearAuthSession ({ emitLogout = true } = {}) {
 }
 
 export function syncCurrentUser ({ useBearer = true } = {}) {
-  if (!userRequests.has(useBearer)) {
-    userRequests.set(useBearer, fetchCurrentUser(useBearer).finally(() => userRequests.delete(useBearer)))
+  const key = `${authRevision}:${useBearer}`
+  if (!userRequests.has(key)) {
+    userRequests.set(key, fetchCurrentUser(useBearer).finally(() => userRequests.delete(key)))
   }
-  return userRequests.get(useBearer)
+  return userRequests.get(key)
 }
 
 async function fetchCurrentUser (useBearer) {

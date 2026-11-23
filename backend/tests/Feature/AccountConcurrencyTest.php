@@ -7,17 +7,92 @@ use App\Models\TransportliedzieklsVeids;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
-class AccountDeletionConcurrencyTest extends TestCase
+class AccountConcurrencyTest extends TestCase
 {
     private const PASSWORD = 'Secret123!';
 
     #[Group('mysql-race')]
     public function test_booking_and_account_deletion_are_serialized_for_both_parties(): void
+    {
+        $this->migrateDisposableDatabase();
+
+        foreach (['klients', 'pakalpojumu_sniedzejs'] as $role) {
+            foreach ([true, false] as $deleteFirst) {
+                $this->assertRace($role, $deleteFirst);
+            }
+        }
+    }
+
+    #[Group('mysql-race')]
+    public function test_simultaneous_email_confirmations_issue_only_one_token(): void
+    {
+        $this->migrateDisposableDatabase();
+        $frontend = 'https://easyrent.vip';
+        config([
+            'app.key' => 'base64:'.base64_encode(random_bytes(32)),
+            'app.frontend_url' => $frontend,
+            'mail.default' => 'array',
+            'session.driver' => 'database',
+            'sanctum.stateful' => ['easyrent.vip'],
+        ]);
+        $headers = ['Referer' => $frontend.'/verify-email'];
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Race Tester',
+            'email' => 'activation@example.test',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+            'loma' => 'klients',
+            'lietotajvards' => 'activationrace',
+            'kontakttalrunis' => '+37120000000',
+            'bankas_konts' => 'LV80BANK0000435195001',
+        ], $headers)->assertCreated();
+        $cookie = config('session.cookie');
+        $this->withCredentials()->withCookie($cookie, $response->getCookie($cookie)->getValue());
+        $mail = Mail::mailer('array')->getSymfonyTransport()->messages()->first()->getOriginalMessage();
+        preg_match('/verify-email#([^\s]+)/', $mail->getTextBody(), $fragment);
+        parse_str($fragment[1], $link);
+        $path = '/api/auth/verification/confirm';
+
+        $worker = $this->worker([
+            'method' => 'POST',
+            'path' => $path,
+            'body' => $link,
+            'referer' => $headers['Referer'],
+            'cookies' => [$cookie => $response->getCookie($cookie, false)->getValue()],
+        ], [
+            'APP_KEY' => config('app.key'),
+            'APP_ENV' => 'testing',
+            'SESSION_DRIVER' => 'database',
+            'SANCTUM_STATEFUL_DOMAINS' => 'easyrent.vip',
+        ]);
+
+        try {
+            DB::transaction(function () use ($link, $worker, $path, $headers) {
+                Persona::lockActiveAccounts((int) $link['id']);
+                $worker->start();
+                $reachedLock = $worker->waitUntil(fn ($type, $lines) => str_contains($lines, "WAITING\n"));
+                $this->assertTrue($reachedLock, $worker->getErrorOutput().$worker->getOutput());
+                $this->assertTrue($worker->isRunning());
+                $this->postJson($path, $link, $headers)->assertOk()->assertJsonStructure(['token', 'persona']);
+            });
+
+            $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
+            $this->assertStringContainsString('STATUS=422', $worker->getOutput());
+            $this->assertStringContainsString('invalid_verification_link', $worker->getOutput());
+            $this->assertDatabaseCount('personal_access_tokens', 1);
+            $this->assertDatabaseEmpty('email_verification_tokens');
+        } finally {
+            $worker->stop(0);
+        }
+    }
+
+    private function migrateDisposableDatabase(): void
     {
         if (getenv('EASYRENT_TEST_MYSQL_RACE') !== '1') {
             $this->markTestSkipped('Requires an empty, local and disposable MySQL/MariaDB database.');
@@ -29,12 +104,6 @@ class AccountDeletionConcurrencyTest extends TestCase
         $this->assertMatchesRegularExpression('/^easyrent_qa_[a-z0-9_]+$/D', $connection->getDatabaseName());
         $this->assertSame([], Schema::getTables($connection->getDatabaseName()), 'Use a new empty database for the race test.');
         $this->artisan('migrate', ['--force' => true])->assertSuccessful();
-
-        foreach (['klients', 'pakalpojumu_sniedzejs'] as $role) {
-            foreach ([true, false] as $deleteFirst) {
-                $this->assertRace($role, $deleteFirst);
-            }
-        }
     }
 
     private function assertRace(string $role, bool $deleteFirst): void
@@ -100,7 +169,7 @@ class AccountDeletionConcurrencyTest extends TestCase
         ]);
     }
 
-    private function worker(array $request): Process
+    private function worker(array $request, array $env = []): Process
     {
         $script = <<<'PHP'
             require 'vendor/autoload.php';
@@ -114,16 +183,23 @@ class AccountDeletionConcurrencyTest extends TestCase
                 }
             });
             $data = json_decode($argv[1], true, flags: JSON_THROW_ON_ERROR);
-            $request = Illuminate\Http\Request::create($data['path'], $data['method'], server: [
+            $server = [
                 'HTTP_ACCEPT' => 'application/json',
-                'HTTP_AUTHORIZATION' => 'Bearer '.$data['token'],
                 'CONTENT_TYPE' => 'application/json',
-            ], content: json_encode($data['body'], JSON_THROW_ON_ERROR));
+            ];
+            if (isset($data['token'])) {
+                $server['HTTP_AUTHORIZATION'] = 'Bearer '.$data['token'];
+            }
+            if (isset($data['referer'])) {
+                $server['HTTP_REFERER'] = $data['referer'];
+            }
+            $request = Illuminate\Http\Request::create($data['path'], $data['method'],
+                cookies: $data['cookies'] ?? [], server: $server, content: json_encode($data['body'], JSON_THROW_ON_ERROR));
             $response = $kernel->handle($request);
             $kernel->terminate($request, $response);
             echo 'STATUS='.$response->getStatusCode()."\n".$response->getContent();
             PHP;
 
-        return new Process([PHP_BINARY, '-r', $script, json_encode($request, JSON_THROW_ON_ERROR)], base_path(), timeout: 15);
+        return new Process([PHP_BINARY, '-r', $script, json_encode($request, JSON_THROW_ON_ERROR)], base_path(), $env, timeout: 15);
     }
 }

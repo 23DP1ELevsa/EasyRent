@@ -156,6 +156,14 @@ npm run preview
 
 Pēc tam atver `http://localhost:4173` un pārbaudi pārlūkā instalēšanas iespēju (`Install app` / `Add to home screen`).
 
+## Aktivizācijas e-pastu pārbaude produkcijā
+
+1. Reģistrē pa vienam testa kontam ar adresi, kuru kontrolē Gmail, Inbox.lv un Outlook. Katram mēģinājumam pārlūka **Network** cilnē no `POST /api/auth/register` vai `POST /api/auth/verification/resend` atbildes pieraksti `X-Request-ID` un pieprasījuma laiku (UTC). Salīdzinājumam izmanto arī `POST /api/auth/forgot-password` un atsevišķi pieraksti tā ID.
+2. Railway backend žurnālos atrodi `Account email send result.` ar attiecīgo `request_id`. Pārbaudi `mail_type`, `recipient_domain` un `outcome`. `accepted` apzīmē Resend pieņemtu sūtījumu. Kļūmes gadījumā pārbaudi `error`. Publiska atkārtotas nosūtīšanas atbilde ir vienāda arī adresēm, kurām vēstule nepienākas, un šādā gadījumā sūtīšanas ieraksta var nebūt.
+3. Resend **Emails** skatā atver ierakstu pēc Laravel `resend_id`. Pārbaudi saņēmēju, notikumu secību un saņēmēja servera atbildi. `Delivered` nozīmē, ka saņēmēja pasta serveris ziņojumu pieņēma. [Resend piegādes detaļas](https://resend.com/changelog/improved-bounced-and-delivery-details)
+4. Katrā pastkastē pārbaudi iesūtni, mēstules un pārējās mapes. Ja serveris vēstuli pieņēma, bet tā nav atrodama, lūdz saņēmēja pasta administratoram pārbaudīt piegādes izsekošanu vai karantīnu pēc UTC laika un Resend ierakstā norādītā SMTP `Message-ID`. Šādi var izmeklēt arī `rvt.lv` piegādes. Atbalsta pieteikumā pietiek ar korelācijas ID un pasta servera statusu. [Resend piegādes diagnostika](https://resend.com/guides/email/users-never-got-login-code)
+5. Atver testa vēstulē esošo saiti tajā pašā pārlūkā 15 minūšu laikā un pārbaudi automātisko pierakstīšanos. Ar atsevišķu testa kontu atver saiti citā pārlūkā vai Gmail lietotnē telefonā. Saites apstiprināšana tur prasa atsevišķu darbību, un paroles kontam var būt jāiestata jauna parole. Saite e-pasta apstiprināšanai ir derīga 24 stundas.
+
 ## Drošības piezīmes
 
 - API autentificētie maršruti izmanto `Bearer` tokenus ar Laravel Sanctum.

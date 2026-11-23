@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\ResetPersonaPassword;
+use App\Support\AccountMail;
 use App\Support\EmailVerification;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
@@ -41,7 +42,9 @@ class Persona extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
     ];
 
-    protected $hidden = ['parole', 'google_id', 'profile_completed', 'deleted_at', 'email_verified_at'];
+    protected $hidden = [
+        'parole', 'google_id', 'profile_completed', 'deleted_at', 'email_verified_at', 'email_verification_password_reset_at',
+    ];
 
     /** Acquire participant locks by primary key, in the same order for every booking write. */
     public static function lockActiveAccounts(int ...$ids): void
@@ -92,9 +95,14 @@ class Persona extends Authenticatable implements MustVerifyEmail
         return $this->epasts;
     }
 
-    public function sendPasswordResetNotification(#[\SensitiveParameter] $token, ?string $locale = null): void
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token, ?string $locale = null, ?string $requestId = null): void
     {
-        $this->notify((new ResetPersonaPassword($token))->locale($locale ?? app()->getLocale()));
+        app(AccountMail::class)->send('password_reset', $this, new ResetPersonaPassword($token), $locale ?? app()->getLocale(), $requestId);
+    }
+
+    public static function normalizeEmail(string $email): string
+    {
+        return mb_strtolower(trim($email));
     }
 
     public function purgeDatabaseSessions(): void

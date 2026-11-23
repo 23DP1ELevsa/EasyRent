@@ -42,7 +42,7 @@ const documentsFromServiceWorker = new Map()
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
 const recovery = { requestLimit: false, invalidLink: false }
-const verification = { resendStatus: 202, confirmCode: 'invalid_verification_link', active: false }
+const verification = { resendStatus: 202, confirmCode: 'invalid_verification_link', active: false, autoPersona: null, resetRequired: false }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
 function signedInPersona (role, completed = false) {
@@ -57,6 +57,29 @@ function signedInPersona (role, completed = false) {
     ...(role === 'klients' ? { klients: { klients_id: 99 } } : { pakalpojumu_sniedzejs: { sniedzejs_id: 99 } }),
   }
 }
+
+function verificationResponse (postData) {
+  const { interactive, auto_login: autoLogin } = JSON.parse(postData)
+  const code = verification.confirmCode === 'verification_interaction_required' && interactive ? 'email_verified' : verification.confirmCode
+  const responseCode = {
+    email_verified: 200,
+    verification_interaction_required: 409,
+    verification_link_expired: 410,
+    invalid_verification_link: 422,
+    verification_unavailable: 503,
+  }[code]
+
+  verification.active = responseCode === 200
+  if (!verification.active) {
+    return { responseCode, result: { code } }
+  }
+  if (autoLogin && verification.autoPersona) {
+    signIn.persona = verification.autoPersona
+    return { responseCode, result: { code, token: 'activation-auto-token', persona: signIn.persona } }
+  }
+  return { responseCode, result: { code, password_reset_required: verification.resetRequired, active_session: Boolean(signIn.persona) } }
+}
+
 const types = ['Automašīna', 'Motocikls', 'Kvadracikls', 'Laiva', 'Velosipēds', 'Furgons'].map((nosaukums, index) => ({ veids_id: index + 1, nosaukums }))
 const providerCoordinates = [[56.95, 24.1], [56.96, 24.12], [56.94, 24.09], [56.58, 21.08], [56.59, 21.09], [56.6, 21.1], [56.61, 21.11]]
 const vehicles = Array.from({ length: 12 }, (_, index) => ({
@@ -141,14 +164,7 @@ socket.addEventListener('message', async event => {
           responseHeaders.push({ name: 'Retry-After', value: '1' })
         }
       } else if (url.pathname === '/api/auth/verification/confirm') {
-        result = { code: verification.confirmCode }
-        responseCode = {
-          email_verified: 200,
-          verification_link_expired: 410,
-          invalid_verification_link: 422,
-          verification_unavailable: 503,
-        }[verification.confirmCode]
-        verification.active = responseCode === 200
+        ({ result, responseCode } = verificationResponse(request.postData))
       } else if (url.pathname === '/api/auth/forgot-password') {
         await delay(800)
         responseCode = recovery.requestLimit ? 429 : 200
@@ -701,6 +717,7 @@ try {
   const verificationText = phrase => `document.querySelector(".verification-card")?.innerText.includes(${JSON.stringify(phrase)})`
   const verificationLink = locale => `${base}/verify-email#${new URLSearchParams({ id: '42', token, lang: locale })}`
   const followVerificationLink = locale => evaluate(`location.hash = ${JSON.stringify(new URL(verificationLink(locale)).hash)}`)
+  const confirmationWrites = () => writes.filter(write => write.path === '/api/auth/verification/confirm')
   await changeLanguage('ru')
   await click('.auth-tabs [role=tab]:nth-child(2)')
   await waitFor('document.querySelectorAll(".register-grid input").length === 7')
@@ -761,8 +778,8 @@ try {
   verification.confirmCode = 'email_verified'
   await click('.verification-card button[type=button]')
   await waitFor(`!location.hash && ${verificationText('Your email address is verified')}`)
-  const verificationConfirm = writes.findLast(write => write.path === '/api/auth/verification/confirm')
-  assert.deepEqual(JSON.parse(verificationConfirm.body), { id: '42', token })
+  const verificationConfirm = confirmationWrites().at(-1)
+  assert.deepEqual(JSON.parse(verificationConfirm.body), { id: '42', token, interactive: false, auto_login: true })
   assert.equal(verificationConfirm.authorization, null)
   assert.ok(await evaluate('!localStorage.getItem("token") && !document.querySelector(".verification-card form")'))
   await click('.verification-card a[href="/auth"]')
@@ -771,6 +788,43 @@ try {
   await input('.auth-form-card input[autocomplete=current-password]', activationPassword)
   await click('.auth-form-card button[type=submit]')
   await waitFor('location.pathname === "/" && localStorage.getItem("token") === "verified-token"')
+
+  verification.confirmCode = 'verification_interaction_required'
+  let confirmationCount = confirmationWrites().length
+  await send('Page.navigate', { url: verificationLink('ru') })
+  await waitFor(`!location.hash && ${verificationText('Если вы запросили эту ссылку')}`)
+  assert.equal(confirmationWrites().length, confirmationCount + 1)
+  const activeConfirmation = confirmationWrites().at(-1)
+  assert.equal(activeConfirmation.authorization, 'Bearer verified-token')
+  assert.equal(JSON.parse(activeConfirmation.body).auto_login, false)
+  await click('.verification-card button[type=button]')
+  await waitFor(verificationText('Вы всё ещё в текущем аккаунте'))
+  assert.equal(await evaluate('localStorage.getItem("token")'), 'verified-token')
+  assert.equal(confirmationWrites().length, confirmationCount + 2)
+
+  signIn.persona = null
+  await evaluate('localStorage.removeItem("user"); localStorage.removeItem("token")')
+  verification.resetRequired = true
+  await followVerificationLink('lv')
+  await waitFor(verificationText('Ja pieprasījāt šo saiti'))
+  await click('.verification-card button[type=button]')
+  await waitFor(verificationText('Lai pierakstītos šajā ierīcē, iestatiet jaunu paroli'))
+  assert.ok(await evaluate('!!document.querySelector(".verification-card a[href=\'/forgot-password\']")'))
+  assert.equal(await evaluate('localStorage.getItem("token")'), null)
+
+  verification.confirmCode = 'email_verified'
+  verification.autoPersona = signedInPersona(providerRole, true)
+  confirmationCount = confirmationWrites().length
+  await evaluate('Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })')
+  await followVerificationLink('en')
+  await waitFor(`!location.hash && ${verificationText('Checking your verification link')}`)
+  assert.equal(confirmationWrites().length, confirmationCount)
+  await evaluate('delete document.visibilityState; document.dispatchEvent(new Event("visibilitychange"))')
+  await waitFor(`!location.hash && ${verificationText('Your email address is verified')}`)
+  assert.ok(await evaluate('!document.querySelector(".verification-card a[href=\'/auth\']")'))
+  await waitFor('location.pathname === "/map" && localStorage.getItem("token") === "activation-auto-token"')
+  assert.equal(await evaluate('JSON.parse(localStorage.getItem("user")).loma'), providerRole)
+  assert.equal(confirmationWrites().length, confirmationCount + 1)
   if (process.env.CATALOG_VERIFY_PWA === '1') {
     await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the application')
     for (const path of ['/auth', '/verify-email']) {
@@ -781,7 +835,7 @@ try {
     }
   }
   assert.equal(failures.length, 0, JSON.stringify(failures))
-  console.log('PASS: email registration and activation, signed-out confirmation, resend countdown and recovery, LV/RU/EN and responsive layout.')
+  console.log('PASS: email registration, automatic sign-in, cross-browser recovery, active-session protection, resend, LV/RU/EN and responsive layout.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()
