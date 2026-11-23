@@ -326,10 +326,95 @@
                 </v-col>
               </v-row>
             </v-form>
+
+            <v-divider class="my-6" />
+            <section aria-labelledby="profile-deletion-title">
+              <h3 id="profile-deletion-title" class="section-title mb-3">Konta dzēšana</h3>
+              <p class="mb-4">Ja vairs nevēlaties izmantot EasyRent, varat dzēst savu kontu. Konta dzēšana neietekmēs citu lietotāju rezervāciju vēsturi.</p>
+              <v-alert
+                v-if="deletionBlock"
+                class="mb-4"
+                title="Kontu pašlaik nevar dzēst"
+                type="warning"
+                variant="tonal"
+              >
+                <template v-if="deletionBlock.blocking_reservations_count">
+                  <p>Jums ir aktīvas vai gaidāmas rezervācijas. Kontu varēs dzēst pēc visu rezervāciju pabeigšanas un nenokārtoto saistību atrisināšanas.</p>
+                  <p class="mt-2">Aktīvo un gaidāmo rezervāciju skaits: {{ deletionBlock.blocking_reservations_count }}</p>
+                </template>
+                <p v-if="deletionBlock.blocking_payments_count" class="mt-2">Nenokārtoto maksājumu skaits: {{ deletionBlock.blocking_payments_count }}. Kontu varēs dzēst pēc maksājumu saistību nokārtošanas.</p>
+                <v-btn v-if="showReservationsSection" class="mt-2" href="#profile-reservations" variant="text">Skatīt rezervācijas</v-btn>
+              </v-alert>
+              <v-alert v-if="deletionError && !deletionDialog" class="mb-4" type="error" variant="tonal">{{ deletionError }}</v-alert>
+              <v-btn
+                color="error"
+                :disabled="Boolean(deletionBlock)"
+                :loading="checkingDeletion"
+                rounded="pill"
+                variant="outlined"
+                @click="openDeletion"
+              >
+                Dzēst kontu
+              </v-btn>
+              <v-btn
+                v-if="deletionBlock"
+                class="ms-2"
+                :loading="checkingDeletion"
+                variant="text"
+                @click="checkDeletion"
+              >Pārbaudīt vēlreiz</v-btn>
+            </section>
+
+            <v-dialog v-model="deletionDialog" max-width="540" :persistent="deletingAccount">
+              <v-card class="profile-confirmation">
+                <v-card-title class="font-weight-bold text-wrap">Vai tiešām vēlaties dzēst savu kontu?</v-card-title>
+                <v-form @submit.prevent="deleteAccount">
+                  <v-card-text class="pa-4">
+                    <p class="mb-4">Šī darbība ir neatgriezeniska. Jūs zaudēsiet piekļuvi savam kontam. Iepriekšējo rezervāciju un maksājumu vēsture tiks saglabāta atbilstoši piemērojamajiem datu glabāšanas noteikumiem.</p>
+                    <v-alert v-if="deletionError" class="mb-4" type="error" variant="tonal">{{ deletionError }}</v-alert>
+                    <v-text-field
+                      v-model="deletionPhrase"
+                      autocomplete="off"
+                      :disabled="deletingAccount"
+                      label="Ievadiet DZĒST"
+                      variant="outlined"
+                    />
+                    <v-text-field
+                      v-if="deletionCheck?.confirmation_method === 'password'"
+                      v-model="deletionPassword"
+                      autocomplete="current-password"
+                      :disabled="deletingAccount"
+                      label="Pašreizējā parole"
+                      type="password"
+                      variant="outlined"
+                    />
+                    <v-alert v-else-if="deletionCheck?.google_confirmed" type="success" variant="tonal">
+                      Identitāte ir apstiprināta ar Google.
+                    </v-alert>
+                    <v-btn v-else-if="deletionCheck?.google_available" :loading="startingGoogleDeletion" variant="outlined" @click="startGoogleDeletion">
+                      Apstiprināt identitāti ar Google
+                    </v-btn>
+                    <p v-else>Google apstiprināšana pašlaik nav pieejama.</p>
+                  </v-card-text>
+                  <v-card-actions class="px-4 pb-4 flex-wrap ga-2 justify-end">
+                    <v-btn :disabled="deletingAccount" variant="text" @click="deletionDialog = false">Atcelt</v-btn>
+                    <v-btn
+                      color="error"
+                      :disabled="!canSubmitDeletion"
+                      :loading="deletingAccount"
+                      type="submit"
+                      variant="flat"
+                    >
+                      Neatgriezeniski dzēst kontu
+                    </v-btn>
+                  </v-card-actions>
+                </v-form>
+              </v-card>
+            </v-dialog>
           </v-card-text>
         </v-card>
 
-        <v-card v-if="showReservationsSection" class="surface profile-reservations" elevation="0">
+        <v-card v-if="showReservationsSection" id="profile-reservations" class="surface profile-reservations" elevation="0">
           <v-card-title class="pa-6">
             <div>
               <h2 class="text-h5 font-weight-bold">{{ copy.reservations.title }}</h2>
@@ -366,7 +451,7 @@
                     <div class="reservation-card-layout">
                       <div class="reservation-card-main">
                         <div class="reservation-card-title font-weight-bold">
-                          {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          {{ reservationVehicleName(item) }}
                         </div>
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
@@ -381,6 +466,7 @@
                       <div class="reservation-card-price">
                         <div class="reservation-card-amount font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
                         <v-chip color="success" size="small" variant="tonal">{{ copy.reservations.paid }}</v-chip>
+                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">Lejupielādēt rēķinu</v-btn>
                       </div>
                     </div>
                   </v-card-text>
@@ -402,7 +488,7 @@
                     <div class="reservation-card-layout mb-3">
                       <div class="reservation-card-main">
                         <div class="reservation-card-title font-weight-bold">
-                          {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          {{ reservationVehicleName(item) }}
                         </div>
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
@@ -461,7 +547,7 @@
                     <div class="reservation-card-layout">
                       <div class="reservation-card-main">
                         <div class="reservation-card-title font-weight-bold">
-                          {{ item.transportlidzeklis?.marka }} {{ item.transportlidzeklis?.modelis }}
+                          {{ reservationVehicleName(item) }}
                         </div>
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
@@ -479,6 +565,10 @@
                       <div class="reservation-card-price">
                         <div class="reservation-card-amount font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
                         <v-chip color="info" size="small" variant="tonal">{{ copy.reservations.historyDone }}</v-chip>
+                        <v-chip :color="item.apmaksas_statuss === 'apmaksata' ? 'success' : 'warning'" size="small" variant="tonal">
+                          {{ item.apmaksas_statuss === 'apmaksata' ? copy.reservations.paid : copy.reservations.unpaidStatus }}
+                        </v-chip>
+                        <v-btn v-if="item.invoice_available" size="small" variant="text" @click="downloadInvoice(item.rezervacija_id)">Lejupielādēt rēķinu</v-btn>
                       </div>
                     </div>
                   </v-card-text>
@@ -520,15 +610,16 @@
 
 <script setup>
   import { computed, onMounted, ref, watch } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import lv from '@/lang/lv'
   import { accountHome, AUTH_ROUTE, HOME_ROUTE } from '@/router/paths'
-  import { apiFetch, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
-  import { useLocale } from '@/stores/locale'
+  import { apiFetch, clearAuthSession, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
   import { useLoadingState } from '@/stores/loading'
+  import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
 
   const router = useRouter()
+  const route = useRoute()
   const { t, getIntlLocale } = useLocale()
   const { notifyError, notifySuccess } = useNotifications()
   const persona = ref(null)
@@ -558,6 +649,25 @@
   const currentClientId = ref(null)
   const geocodeLoading = ref(false)
   const geocodeError = ref('')
+  const deletionCheck = ref(null)
+  const deletionDialog = ref(false)
+  const deletionError = ref('')
+  const deletionPhrase = ref('')
+  const deletionPassword = ref('')
+  const checkingDeletion = ref(false)
+  const deletingAccount = ref(false)
+  const startingGoogleDeletion = ref(false)
+  const deletionBlock = computed(() => deletionCheck.value?.can_delete === false ? deletionCheck.value : null)
+  const canSubmitDeletion = computed(() => deletionCheck.value?.can_delete
+    && deletionPhrase.value === 'DZĒST'
+    && (deletionCheck.value.confirmation_method === 'password' ? Boolean(deletionPassword.value) : deletionCheck.value.google_confirmed))
+
+  watch(deletionDialog, open => {
+    if (!open) {
+      deletionPhrase.value = ''
+      deletionPassword.value = ''
+    }
+  })
   useLoadingState(loading, reservationsLoading, geocodeLoading, () => payingReservationId.value !== null, () => cancellingReservationId.value !== null)
   const initialProviderAddress = ref({
     iela: '',
@@ -748,9 +858,10 @@
     v => !v || hasSpecialCharacter(v) || copy.value.validation.passwordSpecial,
   ]
 
-  const unpaidReservations = computed(() =>
-    reservations.value.filter(item => item.apmaksas_statuss !== 'apmaksata'),
-  )
+  const unpaidReservations = computed(() => {
+    const now = new Date()
+    return reservations.value.filter(item => item.apmaksas_statuss !== 'apmaksata' && new Date(item.sakuma_laiks) > now)
+  })
 
   const providerPendingReservations = computed(() => {
     const now = new Date()
@@ -828,6 +939,7 @@
     }
 
     persona.value = userData
+    initializeDeletion()
     email.value = userData.epasts || ''
     loma.value = userData.loma
 
@@ -868,6 +980,110 @@
       if (showReservationsSection.value) {
         loadReservations()
       }
+    }
+  }
+
+  async function checkDeletion () {
+    checkingDeletion.value = true
+    deletionError.value = ''
+    try {
+      const response = await apiFetch('/api/profile/deletion-check', { cache: 'no-store' })
+      if (!response.ok) throw new Error('Neizdevās pārbaudīt konta dzēšanas iespēju.')
+      deletionCheck.value = await response.json()
+      return deletionCheck.value
+    } catch {
+      deletionError.value = 'Neizdevās pārbaudīt, vai kontu var dzēst. Mēģiniet vēlreiz.'
+      return null
+    } finally {
+      checkingDeletion.value = false
+    }
+  }
+
+  async function openDeletion () {
+    if ((await checkDeletion())?.can_delete) deletionDialog.value = true
+  }
+
+  async function initializeDeletion () {
+    const { delete_google: callback, ...query } = route.query
+    const eligibility = await checkDeletion()
+    if (!callback) return
+
+    await router.replace({ query, hash: route.hash })
+    if (!eligibility?.can_delete) return
+
+    deletionDialog.value = true
+    if (!eligibility.google_confirmed) {
+      deletionError.value = callback === 'mismatch'
+        ? 'Atlasiet šim EasyRent kontam piesaistīto Google kontu.'
+        : 'Google apstiprināšana netika pabeigta. Mēģiniet vēlreiz.'
+    }
+  }
+
+  async function startGoogleDeletion () {
+    startingGoogleDeletion.value = true
+    deletionError.value = ''
+    try {
+      const response = await apiFetch('/oauth/google/deletion', { auth: false, method: 'POST' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.authorization_url) {
+        deletionError.value = data.message || 'Neizdevās sākt Google apstiprināšanu.'
+        return
+      }
+      window.location.assign(data.authorization_url)
+    } catch {
+      deletionError.value = 'Neizdevās sākt Google apstiprināšanu.'
+    } finally {
+      startingGoogleDeletion.value = false
+    }
+  }
+
+  async function deleteAccount () {
+    if (!canSubmitDeletion.value || deletingAccount.value) return
+    deletingAccount.value = true
+    deletionError.value = ''
+    try {
+      const response = await apiFetch('/api/profile/me', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: deletionPhrase.value, password: deletionPassword.value || undefined }),
+      })
+      if (response.status === 204) {
+        localStorage.clear()
+        clearAuthSession({ emitLogout: false })
+        await router.replace(HOME_ROUTE)
+        window.scrollTo({ top: 0 })
+        notifySuccess('Jūsu konts ir veiksmīgi dzēsts.')
+        return
+      }
+
+      const data = await response.json().catch(() => ({}))
+      if (response.status === 409 && data.can_delete === false) {
+        deletionCheck.value = { ...deletionCheck.value, ...data }
+        deletionDialog.value = false
+        return
+      }
+      if (data.errors?.google) deletionCheck.value.google_confirmed = false
+      deletionError.value = data.message || 'Neizdevās dzēst kontu. Mēģiniet vēlreiz.'
+    } catch {
+      deletionError.value = 'Neizdevās dzēst kontu. Mēģiniet vēlreiz.'
+    } finally {
+      deletionPassword.value = ''
+      deletingAccount.value = false
+    }
+  }
+
+  async function downloadInvoice (id) {
+    try {
+      const response = await apiFetch(`/api/rezervacijas/${id}/invoice`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('Neizdevās lejupielādēt rēķinu.')
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `EasyRent-${id}.html`
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch {
+      notifyError('Neizdevās lejupielādēt rēķinu.')
     }
   }
 
@@ -968,14 +1184,20 @@
 
   function reservationVehicleDetails (item) {
     const vehicle = item?.transportlidzeklis
-    if (!vehicle) return ''
+    const snapshot = item?.transporta_snapshot
+    if (!vehicle && !snapshot) return ''
 
     return [
-      [copy.value.vehicleFields.type, vehicle.veids?.nosaukums],
-      [copy.value.vehicleFields.gearbox, normalizeVehicleField(vehicle.atrumkarba)],
-      [copy.value.vehicleFields.fuel, normalizeVehicleField(vehicle.degvielas_veids)],
-      [copy.value.vehicleFields.registrationNumber, normalizeVehicleField(vehicle.registracijas_numurs)],
+      [copy.value.vehicleFields.type, snapshot ? snapshot.veids : vehicle?.veids?.nosaukums],
+      [copy.value.vehicleFields.gearbox, normalizeVehicleField((snapshot || vehicle)?.atrumkarba)],
+      [copy.value.vehicleFields.fuel, normalizeVehicleField((snapshot || vehicle)?.degvielas_veids)],
+      [copy.value.vehicleFields.registrationNumber, normalizeVehicleField(vehicle?.registracijas_numurs)],
     ].filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`).join(' • ')
+  }
+
+  function reservationVehicleName (item) {
+    const vehicle = item.transporta_snapshot || item.transportlidzeklis
+    return [vehicle?.marka, vehicle?.modelis].filter(Boolean).join(' ') || 'Transportlīdzeklis'
   }
 
   function reservationBookedAt (item) {
@@ -984,12 +1206,15 @@
 
   function reservationCounterpartyName (item) {
     if (isProvider.value) {
+      if (item?.klients?.persona_deleted) return 'Dzēsts lietotājs'
       const clientPersona = item?.klients?.persona
       const fullName = `${clientPersona?.vards || ''} ${clientPersona?.uzvards || ''}`.trim()
       return fullName || copy.value.roles.client
     }
 
-    const providerPersona = item?.transportlidzeklis?.sniedzejs?.persona
+    const provider = item?.transportlidzeklis?.sniedzejs
+    if (provider?.persona_deleted) return 'Dzēsts pakalpojumu sniedzējs'
+    const providerPersona = provider?.persona
     const fullName = `${providerPersona?.vards || ''} ${providerPersona?.uzvards || ''}`.trim()
     return fullName || copy.value.roles.provider
   }

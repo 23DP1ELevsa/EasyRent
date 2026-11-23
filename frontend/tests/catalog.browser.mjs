@@ -39,6 +39,7 @@ const pending = new Map()
 const failures = []
 const writes = []
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, lastProfile: null }
+const deletion = { blockers: 0, conflict: false, google: false, confirmed: false }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
 function signedInPersona (role, completed = false) {
@@ -124,6 +125,33 @@ socket.addEventListener('message', async event => {
         signIn.persona = signedInPersona(JSON.parse(request.postData).loma)
         signIn.pending = null
         result = { next: '/profile?google=ok' }
+      } else if (url.pathname === '/oauth/google/deletion') {
+        deletion.confirmed = true
+        result = { authorization_url: '/profile?delete_google=ok' }
+      } else if (url.pathname === '/api/profile/deletion-check') {
+        result = {
+          can_delete: deletion.blockers === 0,
+          blocking_reservations_count: deletion.blockers,
+          confirmation_method: deletion.google ? 'google' : 'password',
+          google_available: deletion.google,
+          google_confirmed: deletion.confirmed,
+        }
+      } else if (url.pathname === '/api/profile/me') {
+        if (deletion.conflict) {
+          responseCode = 409
+          result = { can_delete: false, blocking_reservations_count: 1, reason: 'active_or_upcoming_reservations' }
+        } else {
+          signIn.persona = null
+          responseCode = 204
+        }
+      } else if (url.pathname === '/api/rezervacijas') {
+        result = [{
+          rezervacija_id: 1, apmaksas_statuss: 'apmaksata', kopa_summa: '99.98', invoice_available: true,
+          sakuma_laiks: '2025-10-01T10:00:00Z', beigu_laiks: '2025-10-03T10:00:00Z',
+          transporta_snapshot: { marka: 'Volkswagen', modelis: 'Golf' },
+          transportlidzeklis: { marka: 'Audi', modelis: 'A4', sniedzejs: { persona_deleted: true, persona: null } },
+          klients: { persona_deleted: true, persona: null },
+        }]
       } else if (url.pathname === '/api/profile/99') {
         signIn.lastProfile = JSON.parse(request.postData)
         signIn.persona = { ...signIn.persona, ...signIn.lastProfile, profile_completed: true, profile_missing_fields: [] }
@@ -443,6 +471,61 @@ try {
   await waitFor('document.querySelector(".auth-feedback")?.textContent.includes("Google autorizācija tika atcelta")')
   assert.equal(failures.length, 0, JSON.stringify(failures))
   console.log('PASS: Google entry, role selection, profile guard, required-field feedback, provider completion, logout, returning account, cancellation and responsive profile.')
+
+  const deletionSection = 'section[aria-labelledby="profile-deletion-title"]'
+  const deletionDialog = '.v-overlay--active .profile-confirmation'
+  const deleteSubmit = `${deletionDialog} button[type="submit"]`
+  await resize(360, 800)
+  signIn.persona = signedInPersona(providerRole, true)
+  deletion.blockers = 2
+  await send('Page.navigate', { url: `${base}/profile` })
+  await waitFor(`document.querySelector('${deletionSection}')?.textContent.includes('rezervāciju skaits: 2')`)
+  assert.ok(await evaluate(`document.querySelector('${deletionSection} button').disabled`))
+  assert.ok(await evaluate(`document.querySelector('${deletionSection} a').hash === '#profile-reservations'`))
+  await waitFor('document.querySelector(".reservation-card-history")?.textContent.includes("Dzēsts lietotājs")')
+
+  signIn.persona = signedInPersona('klients', true)
+  deletion.blockers = 0
+  await send('Page.navigate', { url: `${base}/profile?qa=client` })
+  await waitFor('document.querySelector(".reservation-card-history")?.textContent.includes("Dzēsts pakalpojumu sniedzējs")')
+  const history = await evaluate('document.querySelector(".reservation-card-history").textContent')
+  assert.match(history, /Volkswagen Golf/)
+  assert.match(history, /Lejupielādēt rēķinu/)
+  await click(`${deletionSection} button`)
+  await waitFor(`!!document.querySelector('${deleteSubmit}')`)
+  assert.ok(await evaluate(`document.querySelector('${deleteSubmit}').disabled`))
+  await input(`${deletionDialog} input:not([type=password])`, 'DZĒST')
+  await input(`${deletionDialog} input[type=password]`, 'Current123!')
+  await noOverflow()
+  deletion.conflict = true
+  await click(deleteSubmit)
+  await waitFor(`document.querySelector('${deletionSection}')?.textContent.includes('rezervāciju skaits: 1') && !document.querySelector('${deleteSubmit}')`)
+  assert.deepEqual(JSON.parse(writes.findLast(write => write.path === '/api/profile/me').body), {
+    confirmation: 'DZĒST', password: 'Current123!',
+  })
+  deletion.conflict = false
+  await click(`${deletionSection} button:last-of-type`)
+  await click(`${deletionSection} button`)
+  await input(`${deletionDialog} input:not([type=password])`, 'DZĒST')
+  await input(`${deletionDialog} input[type=password]`, 'Current123!')
+  await click(deleteSubmit)
+  await waitFor('location.pathname === "/" && localStorage.length === 0 && document.body.innerText.includes("Jūsu konts ir veiksmīgi dzēsts.")')
+
+  deletion.google = true
+  signIn.persona = signedInPersona('klients')
+  await send('Page.navigate', { url: `${base}/profile?qa=google-deletion` })
+  await waitFor(`!!document.querySelector('${deletionSection} button')`)
+  await click(`${deletionSection} button`)
+  await waitFor(`!!document.querySelector('${deleteSubmit}')`)
+  assert.ok(await evaluate(`!document.querySelector('${deletionDialog} input[type=password]')`))
+  await click(`${deletionDialog} .v-card-text button`)
+  await waitFor(`!location.search && document.querySelector('${deletionDialog}')?.textContent.includes('Identitāte ir apstiprināta ar Google')`)
+  await input(`${deletionDialog} input`, 'DZĒST')
+  await click(deleteSubmit)
+  await waitFor('location.pathname === "/" && localStorage.length === 0 && document.body.innerText.includes("Jūsu konts ir veiksmīgi dzēsts.")')
+  assert.deepEqual(JSON.parse(writes.findLast(write => write.path === '/api/profile/me').body), { confirmation: 'DZĒST' })
+  assert.equal(failures.length, 0, JSON.stringify(failures))
+  console.log('PASS: account deletion blockers, late conflict, archived booking display, password and incomplete Google deletion.')
   console.log(`Screenshots: ${artifacts}`)
 } finally {
   socket.close()

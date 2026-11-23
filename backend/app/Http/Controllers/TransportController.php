@@ -3,60 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\PakalpojumuSniedzejs;
+use App\Models\Persona;
 use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TransportController extends Controller
 {
-    private function syncTransportStatusById(int $transportId): void
-    {
-        $transport = Transportlidzeklis::find($transportId);
-
-        if (!$transport || $transport->statuss === 'neaktivs') {
-            return;
-        }
-
-        $hasActivePaidReservation = Rezervacija::where('transportlidzeklis_id', $transportId)
-            ->where('apmaksas_statuss', 'apmaksata')
-            ->where('beigu_laiks', '>', Carbon::now())
-            ->exists();
-
-        $targetStatus = $hasActivePaidReservation ? 'aiznemts' : 'pieejams';
-
-        if ($transport->statuss !== $targetStatus) {
-            $transport->update(['statuss' => $targetStatus]);
-        }
-    }
-
-    private function syncVehicleStatuses(): void
-    {
-        $vehicleIds = Rezervacija::query()
-            ->select('transportlidzeklis_id')
-            ->distinct()
-            ->pluck('transportlidzeklis_id');
-
-        foreach ($vehicleIds as $vehicleId) {
-            $this->syncTransportStatusById((int) $vehicleId);
-        }
-    }
-
-    private function cleanupExpiredUnpaidReservations(): void
-    {
-        Rezervacija::where('apmaksas_statuss', 'neapmaksata')
-            ->where('sakuma_laiks', '<=', Carbon::now())
-            ->delete();
-
-        $this->syncVehicleStatuses();
-    }
-
     public function index(Request $request)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
-        $query = Transportlidzeklis::with(['sniedzejs.persona', 'veids', 'rezervacijas'])
+        $query = Transportlidzeklis::listed()->with(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()])
             ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
             ->withCount('atsauksmes as atsauksmju_skaits');
         
@@ -77,17 +37,17 @@ class TransportController extends Controller
             $query->where('sniedzejs_id', $request->sniedzejs_id);
         }
 
-        return response()->json($query->get());
+        return response()->json($query->get())->header('Cache-Control', 'no-store');
     }
 
     public function show($id)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
-        $transport = Transportlidzeklis::with([
+        $transport = Transportlidzeklis::listed()->with([
             'sniedzejs.persona',
             'veids',
-            'rezervacijas',
+            'rezervacijas' => $this->availability(),
             'atsauksmes.klients.persona',
         ])
             ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
@@ -95,13 +55,18 @@ class TransportController extends Controller
             ->find($id);
         
         if (!$transport) {
-            return response()->json(['error' => 'Nav atrasts'], 404);
+            return response()->json(['error' => 'Nav atrasts'], 404)->header('Cache-Control', 'no-store');
         }
 
-        return response()->json($transport);
+        return response()->json($transport)->header('Cache-Control', 'no-store');
     }
 
     public function store(Request $request)
+    {
+        return DB::transaction(fn () => $this->storeForProvider($request), 3);
+    }
+
+    private function storeForProvider(Request $request)
     {
         $provider = $this->resolveAuthorizedProvider($request);
         if ($provider instanceof \Illuminate\Http\JsonResponse) {
@@ -129,12 +94,17 @@ class TransportController extends Controller
 
     public function update(Request $request, $id)
     {
+        return DB::transaction(fn () => $this->updateForProvider($request, $id), 3);
+    }
+
+    private function updateForProvider(Request $request, $id)
+    {
         $provider = $this->resolveAuthorizedProvider($request);
         if ($provider instanceof \Illuminate\Http\JsonResponse) {
             return $provider;
         }
 
-        $transport = Transportlidzeklis::find($id);
+        $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
 
         if (!$transport) {
             return response()->json(['error' => 'Nav atrasts'], 404);
@@ -161,17 +131,24 @@ class TransportController extends Controller
 
         $transport->update($data);
 
-        return response()->json($transport->load(['sniedzejs.persona', 'veids', 'rezervacijas']));
+        return response()->json($transport->load(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()]));
     }
 
     public function destroy(Request $request, $id)
+    {
+        Rezervacija::cleanupAvailability();
+
+        return DB::transaction(fn () => $this->destroyForProvider($request, $id), 3);
+    }
+
+    private function destroyForProvider(Request $request, $id)
     {
         $provider = $this->resolveAuthorizedProvider($request);
         if ($provider instanceof \Illuminate\Http\JsonResponse) {
             return $provider;
         }
 
-        $transport = Transportlidzeklis::find($id);
+        $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
 
         if (!$transport) {
             return response()->json(['error' => 'Nav atrasts'], 404);
@@ -182,7 +159,7 @@ class TransportController extends Controller
         }
 
         $hasActiveReservations = Rezervacija::where('transportlidzeklis_id', $transport->transportlidzeklis_id)
-            ->where('beigu_laiks', '>', Carbon::now())
+            ->where('beigu_laiks', '>', now())
             ->exists();
 
         if ($hasActiveReservations) {
@@ -191,9 +168,19 @@ class TransportController extends Controller
             ], 409);
         }
 
-        $transport->delete();
+        if ($transport->rezervacijas()->exists() || $transport->atsauksmes()->exists()) {
+            $transport->forceFill(['archived_at' => now(), 'statuss' => 'neaktivs'])->save();
+        } else {
+            $transport->delete();
+        }
 
         return response()->json(['message' => 'Transportlīdzeklis dzēsts.']);
+    }
+
+    private function availability(): \Closure
+    {
+        return fn ($query) => $query->where('beigu_laiks', '>', now())
+            ->select('rezervacija_id', 'transportlidzeklis_id', 'sakuma_laiks', 'beigu_laiks', 'apmaksas_statuss');
     }
 
     private function buildProviderAddress(PakalpojumuSniedzejs $provider): string
@@ -219,7 +206,7 @@ class TransportController extends Controller
 
     private function resolveAuthorizedProvider(Request $request): PakalpojumuSniedzejs|\Illuminate\Http\JsonResponse
     {
-        $persona = $request->user()?->load('pakalpojumuSniedzejs');
+        $persona = Persona::whereKey($request->user()->getKey())->lockForUpdate()->first();
 
         if (!$persona) {
             return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);

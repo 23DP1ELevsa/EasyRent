@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,7 +27,19 @@ class Transportlidzeklis extends Model
 
     protected $casts = [
         'dienas_nomas_cena' => 'decimal:2',
+        'archived_at' => 'datetime',
     ];
+
+    public function scopeListed(Builder $query): void
+    {
+        $query->whereNull('archived_at')->whereHas('sniedzejs.persona');
+    }
+
+    public function bookingSnapshot(): array
+    {
+        return $this->only(['marka', 'modelis', 'atrumkarba', 'degvielas_veids'])
+            + ['veids' => $this->veids?->nosaukums];
+    }
 
     public function sniedzejs(): BelongsTo
     {

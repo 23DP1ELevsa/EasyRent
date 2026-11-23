@@ -4,6 +4,7 @@ import { startLoading } from '@/stores/loading'
 export const googlePending = shallowRef(null)
 
 let csrfRequest
+let authRevision = 0
 const userRequests = new Map()
 
 function getStoredToken () {
@@ -86,6 +87,7 @@ export function setAuthSession ({ token, persona }) {
 }
 
 export function clearAuthSession ({ emitLogout = true } = {}) {
+  authRevision++
   localStorage.removeItem('user')
   localStorage.removeItem('token')
   googlePending.value = null
@@ -100,9 +102,13 @@ export function syncCurrentUser ({ useBearer = true } = {}) {
 }
 
 async function fetchCurrentUser (useBearer) {
+  const revision = authRevision
   const finish = startLoading()
   try {
     const response = await apiFetch('/api/auth/me', { auth: useBearer, cache: 'no-store' })
+    if (revision !== authRevision) {
+      return null
+    }
     if (response.status === 401) {
       if (useBearer) {
         clearAuthSession({ emitLogout: false })
@@ -114,6 +120,9 @@ async function fetchCurrentUser (useBearer) {
     }
 
     const result = await response.json()
+    if (revision !== authRevision) {
+      return null
+    }
     if (result.google_pending) {
       clearAuthSession({ emitLogout: false })
       googlePending.value = result.google_pending

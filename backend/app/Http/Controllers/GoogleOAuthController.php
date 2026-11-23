@@ -43,13 +43,16 @@ class GoogleOAuthController extends Controller
             return $this->redirect('/auth?google=invalid');
         }
 
+        $deletionAccount = $flow['deletion_account'] ?? null;
+        $returnPath = $deletionAccount === null ? '/auth?google=' : '/profile?delete_google=';
+
         if ($request->query('error') === 'access_denied') {
-            return $this->redirect('/auth?google=cancelled');
+            return $this->redirect($returnPath.'cancelled');
         }
 
         $code = $request->query('code');
         if ($request->has('error') || ! is_string($code) || $code === '' || strlen($code) > 4096) {
-            return $this->redirect('/auth?google=invalid');
+            return $this->redirect($returnPath.'invalid');
         }
 
         try {
@@ -57,10 +60,25 @@ class GoogleOAuthController extends Controller
         } catch (ConnectionException|RuntimeException $exception) {
             Log::warning('Google sign-in could not retrieve the user profile.', ['exception_type' => $exception::class]);
 
-            return $this->redirect('/auth?google=failed');
+            return $this->redirect($returnPath.'failed');
+        }
+
+        if ($deletionAccount !== null) {
+            return $this->redirect($returnPath.($google->confirmDeletion($request, $deletionAccount, $identity['google_id']) ? 'ok' : 'mismatch'));
         }
 
         return $this->redirect($this->continueSignIn($request, $identity, $flow['role']));
+    }
+
+    public function startDeletion(Request $request, GoogleOAuth $google): JsonResponse
+    {
+        $persona = Auth::guard('web')->user();
+        abort_unless($persona?->google_id, 403, 'Lai apstiprinātu dzēšanu, pierakstieties ar piesaistīto Google kontu.');
+        abort_unless($google->configured(), 503, 'Google apstiprināšana pašlaik nav pieejama.');
+
+        return response()->json([
+            'authorization_url' => $google->start($request, null, (int) $persona->getKey()),
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function chooseRole(Request $request): JsonResponse

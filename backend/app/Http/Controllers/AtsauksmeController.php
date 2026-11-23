@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Atsauksme;
 use App\Models\Persona;
+use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AtsauksmeController extends Controller
 {
@@ -15,7 +17,8 @@ class AtsauksmeController extends Controller
             'transportlidzeklis_id' => ['nullable', 'integer', 'exists:transportlidzeklis,transportlidzeklis_id'],
         ]);
 
-        $query = Atsauksme::with(['klients.persona'])
+        $baseStatsQuery = Atsauksme::whereHas('transportlidzeklis', fn ($query) => $query->listed());
+        $query = (clone $baseStatsQuery)->with(['klients.persona'])
             ->orderByDesc('datums')
             ->orderByDesc('created_at');
 
@@ -25,7 +28,6 @@ class AtsauksmeController extends Controller
 
         $reviews = $query->get();
 
-        $baseStatsQuery = Atsauksme::query();
         if (!empty($data['transportlidzeklis_id'])) {
             $baseStatsQuery->where('transportlidzeklis_id', $data['transportlidzeklis_id']);
         }
@@ -40,6 +42,7 @@ class AtsauksmeController extends Controller
             ->selectRaw('ROUND(AVG(vertejums), 2) as videjais_vertejums')
             ->selectRaw('COUNT(*) as atsauksmju_skaits')
             ->groupBy('transportlidzeklis_id')
+            ->withCasts(['videjais_vertejums' => 'float', 'atsauksmju_skaits' => 'integer'])
             ->get();
 
         return response()->json([
@@ -49,7 +52,7 @@ class AtsauksmeController extends Controller
                 'kopejais_atsauksmju_skaits' => $overallCount,
                 'transportlidzekli' => $vehicleStats,
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function store(Request $request)
@@ -65,17 +68,23 @@ class AtsauksmeController extends Controller
             return response()->json(['message' => 'Atsauksmi drīkst pievienot tikai autorizēts klients.'], 403);
         }
 
-        $review = Atsauksme::updateOrCreate(
-            [
-                'klients_id' => $klients->klients_id,
-                'transportlidzeklis_id' => $data['transportlidzeklis_id'],
-            ],
-            [
-                'vertejums' => $data['vertejums'],
-                'komentars' => $data['komentars'] ?? null,
-                'datums' => Carbon::today(),
-            ]
-        );
+        $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($data['transportlidzeklis_id']);
+        $review = DB::transaction(function () use ($klients, $vehicle, $data) {
+            Persona::lockActiveAccounts($klients->persona_id, $vehicle->sniedzejs->persona_id);
+            Transportlidzeklis::listed()->findOrFail($vehicle->getKey());
+
+            return Atsauksme::updateOrCreate(
+                [
+                    'klients_id' => $klients->klients_id,
+                    'transportlidzeklis_id' => $data['transportlidzeklis_id'],
+                ],
+                [
+                    'vertejums' => $data['vertejums'],
+                    'komentars' => $data['komentars'] ?? null,
+                    'datums' => Carbon::today(),
+                ]
+            );
+        }, 3);
 
         $statusCode = $review->wasRecentlyCreated ? 201 : 200;
 
@@ -106,11 +115,16 @@ class AtsauksmeController extends Controller
             return response()->json(['message' => 'Nav atļauts rediģēt cita klienta atsauksmi.'], 403);
         }
 
-        $review->update([
-            'vertejums' => $data['vertejums'],
-            'komentars' => $data['komentars'] ?? null,
-            'datums' => Carbon::today(),
-        ]);
+        $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($review->transportlidzeklis_id);
+        DB::transaction(function () use ($klients, $vehicle, $review, $data) {
+            Persona::lockActiveAccounts($klients->persona_id, $vehicle->sniedzejs->persona_id);
+            Transportlidzeklis::listed()->findOrFail($vehicle->getKey());
+            $review->update([
+                'vertejums' => $data['vertejums'],
+                'komentars' => $data['komentars'] ?? null,
+                'datums' => Carbon::today(),
+            ]);
+        }, 3);
 
         return response()->json([
             'message' => 'Atsauksme atjaunināta.',

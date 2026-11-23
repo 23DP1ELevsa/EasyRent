@@ -5,6 +5,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\TransportController;
 use App\Http\Controllers\TransportVeidsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RezervacijaController;
 use App\Http\Controllers\AtsauksmeController;
@@ -39,6 +40,7 @@ Route::middleware(['auth:sanctum', RequireCompletedProfile::class])->group(funct
         Route::get('/', [RezervacijaController::class, 'index']);
         Route::post('/', [RezervacijaController::class, 'store']);
         Route::post('/{id}/pay', [RezervacijaController::class, 'pay']);
+        Route::get('/{id}/invoice', [RezervacijaController::class, 'invoice'])->whereNumber('id');
         Route::delete('/{id}', [RezervacijaController::class, 'destroy']);
     });
 
@@ -49,6 +51,8 @@ Route::middleware(['auth:sanctum', RequireCompletedProfile::class])->group(funct
 });
 
 Route::prefix('profile')->middleware('auth:sanctum')->group(function () {
+    Route::get('/deletion-check', [AccountDeletionController::class, 'check']);
+    Route::delete('/me', [AccountDeletionController::class, 'destroy'])->middleware('throttle:5,1');
     Route::get('/{personaId}', [ProfileController::class, 'show'])->whereNumber('personaId');
     Route::put('/{personaId}', [ProfileController::class, 'update'])->whereNumber('personaId');
 });

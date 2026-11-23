@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\Persona;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -12,6 +14,7 @@ class GoogleOAuth
     public const PENDING = 'google_oauth.pending';
 
     private const FLOW = 'google_oauth.flow';
+    private const DELETION_PROOF = 'google_oauth.deletion_proof';
 
     public function configured(): bool
     {
@@ -20,15 +23,16 @@ class GoogleOAuth
             && filled(config('services.google.redirect'));
     }
 
-    public function start(Request $request, ?string $role): string
+    public function start(Request $request, ?string $role, ?int $deletionAccount = null): string
     {
         $state = Str::random(64);
         $verifier = Str::random(64);
-        $request->session()->forget(self::PENDING);
+        $request->session()->forget([self::PENDING, self::DELETION_PROOF]);
         $request->session()->put(self::FLOW, [
             'state' => $state,
             'verifier' => $verifier,
             'role' => $role,
+            'deletion_account' => $deletionAccount,
             'expires_at' => now()->addMinutes(10)->timestamp,
         ]);
 
@@ -37,12 +41,39 @@ class GoogleOAuth
             'redirect_uri' => config('services.google.redirect'),
             'response_type' => 'code',
             'scope' => 'openid email profile',
-            'prompt' => 'select_account',
+            'prompt' => $deletionAccount === null ? 'select_account' : 'select_account consent',
             'hl' => 'lv',
             'state' => $state,
             'code_challenge_method' => 'S256',
             'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='),
         ], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    public function confirmDeletion(Request $request, int $account, string $subject): bool
+    {
+        $persona = Auth::guard('web')->user();
+        if (! $persona || (int) $persona->getKey() !== $account || $persona->google_id !== $subject) {
+            return false;
+        }
+
+        $request->session()->put(self::DELETION_PROOF, [
+            'persona_id' => $account,
+            'subject' => $subject,
+            'expires_at' => now()->addMinutes(5)->timestamp,
+        ]);
+
+        return true;
+    }
+
+    public function deletionConfirmed(Request $request, Persona $persona): bool
+    {
+        $proof = $request->hasSession() ? $request->session()->get(self::DELETION_PROOF) : null;
+
+        return $proof && $persona->google_id !== null
+            && $proof['persona_id'] === (int) $persona->getKey()
+            && (int) Auth::guard('web')->id() === (int) $persona->getKey()
+            && $proof['subject'] === $persona->google_id
+            && $proof['expires_at'] > now()->timestamp;
     }
 
     public function consumeFlow(Request $request): ?array

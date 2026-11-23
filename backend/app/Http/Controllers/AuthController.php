@@ -172,12 +172,18 @@ class AuthController extends Controller
 
     private function issueToken(Request $request, Persona $persona, int $status = 200)
     {
+        [$persona, $token] = DB::transaction(function () use ($persona) {
+            $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
+            abort_unless($active, 401, 'Nepieciešama autentifikācija.');
+            $active->tokens()->delete();
+
+            return [$active, $active->createToken('frontend')->plainTextToken];
+        }, 3);
         $this->clearWebSession($request);
-        $persona->tokens()->delete();
 
         return response()->json([
             'persona' => $persona->profileData(),
-            'token' => $persona->createToken('frontend')->plainTextToken,
+            'token' => $token,
         ], $status)->header('Cache-Control', 'no-store');
     }
 

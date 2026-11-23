@@ -165,7 +165,7 @@
   import BrandLogo from '@/components/BrandLogo.vue'
   import LoadingScreen from '@/components/LoadingScreen.vue'
   import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
-  import { getStoredUser, googlePending, logoutRequest, syncCurrentUser } from '@/services/auth'
+  import { clearAuthSession, getStoredUser, googlePending, logoutRequest, syncCurrentUser } from '@/services/auth'
   import { useLoading } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -238,7 +238,10 @@
   }
 
   function handleAuthStorage (event) {
-    if (event.key === 'user') {
+    if (event.key === null && !getStoredUser()) {
+      clearAuthSession({ emitLogout: false })
+      if (route.path === PROFILE_ROUTE) router.replace(HOME_ROUTE)
+    } else if (event.key === 'user') {
       syncUserFromStorage()
       redirectLockedProfile()
     }

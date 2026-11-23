@@ -164,6 +164,40 @@ Pēc tam atver `http://localhost:4173` un pārbaudi pārlūkā instalēšanas ie
 - Paroles tiek glabātas tikai hashētā veidā.
 - Kontaktforma un autentifikācijas maršruti ir ierobežoti ar `throttle` middleware.
 
+## Konta dzēšana
+
+Profila sadaļā **Konta dzēšana** klients vai pakalpojumu sniedzējs var dzēst savu kontu. Dzēšanu bloķē aktīvas un gaidāmas rezervācijas, kā arī maksājumi statusā `gaida`. Neapmaksāts rezervācijas pieteikums bez maksājuma ieraksta beidzas rezervācijas sākuma laikā. Sistēmā pašlaik nav atsevišķas atmaksu vai strīdu uzskaites.
+
+### API
+
+| Maršruts | Darbība |
+| --- | --- |
+| `GET /api/profile/deletion-check` | Atgriež `can_delete`, `blocking_reservations_count` un identitātes apstiprināšanas veidu. Bloķēšanas iemesls ir `active_or_upcoming_reservations` vai `pending_payments`; ja vajadzīgs, atgriež arī `blocking_payments_count`. |
+| `POST /oauth/google/deletion` | Ar aktīvu Google tīmekļa sesiju un CSRF marķieri sāk atkārtotu Google autorizāciju. Piesaistītā Google konta apstiprinājums der piecas minūtes tajā pašā pārlūka sesijā. |
+| `DELETE /api/profile/me` | Pieņem `{"confirmation":"DZĒST","password":"…"}` kontam ar paroli vai `{"confirmation":"DZĒST"}` pēc Google apstiprināšanas Google-only kontam. Atgriež `204` pēc dzēšanas, `409` bloķējošu saistību dēļ un `422` nepareiza vai trūkstoša apstiprinājuma gadījumā. |
+| `GET /api/rezervacijas/{id}/invoice` | Ļauj autentificētam rezervācijas dalībniekam lejupielādēt izsniegtu rēķinu HTML formātā. |
+
+Konta dzēšanas transakcija aizstāj profila datus ar tukšām vērtībām, aizpilda `persona.deleted_at` un atsauc Sanctum marķierus. Tīmekļa sesiju noslēdz un datubāzē glabātās sesijas iztīra pēc konta ID. Vecie klienta, sniedzēja, transporta, rezervācijas un maksājuma ID saglabā esošās saites. Sniedzēja transportam aizpilda `archived_at`, noņem adresi un reģistrācijas numuru un paslēpj sludinājumus. Atkārtota reģistrācija izveido jaunu kontu ar saviem ID. Rezervācijas izveide, apmaksa un atcelšana izmanto tās pašas kontu rindu bloķēšanas darbības kā dzēšana.
+
+Rezervācija glabā transporta marku, modeli, veidu, pārnesumkārbu un degvielas veidu rezervācijas izveides brīdī. Esošām rezervācijām migrācija izmanto pieejamos transporta datus migrācijas laikā. Vēsturē otra puse redz dzēsta dalībnieka apzīmējumu un saglabātās rezervācijas detaļas. Izsniegto rēķinu dalībnieku dati un transporta numurs tiek šifrēti finanšu arhīvā. Vecajiem rēķiniem arhīva ierakstu pievieno pirms pirmās iesaistītās puses anonimizēšanas, izmantojot tajā brīdī pieejamos datus. Iepriekš e-pastā izsniegtās kopijas saglabā sākotnējo saturu.
+
+Finanšu arhīva piekļuve ir paredzēta rezervācijas dalībniekiem caur rēķina maršrutu un pilnvarotiem grāmatvedības darbiniekiem. Pirms produkcijas palaišanas datu pārzinim jānosaka un jāpiemēro glabāšanas un dzēšanas kārtība rēķiniem, citiem darījumu datiem un rezerves kopijām, ieskaitot izņēmumus nenoslēgtām saistībām. Repizitorijā nav automātiska arhīva dzēšanas termiņa. [VDAR 5. un 17. pants](https://eur-lex.europa.eu/eli/reg/2016/679/oj) · [Grāmatvedības likuma 28. pants](https://likumi.lv/ta/id/324249-gramatvedibas-likums)
+
+### Pārbaude
+
+1. Izolētā testēšanas vidē izveido klientu, sniedzēju un vismaz divus transportlīdzekļus. Izveido vienu gaidāmu rezervāciju. Pārbaudi, ka abos profilos redzams bloķējošo rezervāciju skaits un dzēšanas API atgriež `409`.
+2. Ar pabeigtu, apmaksātu rezervāciju pārbaudi abus scenārijus, dzēšot vispirms klientu un atsevišķi vispirms sniedzēju. Otras puses vēsturē pārbaudi transporta nosaukumu, datumus, summu, apmaksas statusu un lejupielādējamu rēķinu. Pēc sniedzēja dzēšanas pārbaudi arī karti, katalogu un mēģinājumu no jauna rezervēt viņa transportu.
+3. Pārbaudi nepareizu paroli, Google apstiprināšanu ar citu Google kontu un Google kontu ar nepabeigtu profilu. Pēc dzēšanas pārbaudi veco marķieri un sesiju citā pārlūkā, kā arī atkārtotu reģistrāciju ar iepriekšējo e-pastu.
+4. Palaid `php artisan test` mapē `backend`. Paralēlo pieprasījumu testam izveido jaunu, tukšu lokālu MySQL vai MariaDB datubāzi ar nosaukumu, kas sākas ar `easyrent_qa_`. Iestati `EASYRENT_TEST_MYSQL_RACE=1`, `DB_CONNECTION=mysql`, `DB_DATABASE` un `DB_URL` uz šo datubāzi un palaid `php vendor/bin/phpunit --group mysql-race`. Katram atkārtotam testa izpildījumam izmanto jaunu tukšu datubāzi.
+5. Frontend mapē palaid Vite un `npm run test:catalog:browser`, lai Chromium pārbaudītu dzēšanas saskarni ar simulētām API atbildēm.
+
+### Izvietošana Railway
+
+1. Izmēģini migrācijas un pārbaudes staging vidē ar tādu pašu MySQL versiju kā produkcijā. Pārbaudi esošā `APP_KEY` pieejamību, Google callback adresi, drošās sīkdatnes un `SANCTUM_STATEFUL_DOMAINS`. Saglabā šifrēšanas atslēgu kopā ar atkopšanas procedūru. Atslēgas maiņas laikā saglabā iepriekšējo atslēgu `APP_PREVIOUS_KEYS`, kamēr tā vajadzīga arhīva atšifrēšanai.
+2. Pirms migrēšanas izveido un pārbaudi atjaunojamu MySQL rezerves kopiju. Uz migrēšanas un izvietošanas laiku apturi lietotāju plūsmu un fona procesus, kas raksta šajās tabulās. Tas ļauj pabeigt veco rezervāciju momentuzņēmumus un novērš vienlaicīgu rezervāciju izveidi ar veco kodu.
+3. Backend servisam iestati Railway pre-deploy komandu `php artisan migrate --force`. Pārbaudi `php artisan migrate:status` un momentuzņēmumu aizpildi ar `SELECT COUNT(*) FROM rezervacija WHERE transporta_snapshot IS NULL` pirms plūsmas atjaunošanas. Tad izvieto frontend un izpildi pārbaudes ar testu kontiem. [Railway pre-deploy komandas](https://docs.railway.com/deployments/pre-deploy-command)
+4. Kad dzēšana ir izmantota, incidenta laikā saglabā migrēto shēmu un izmanto labotu būvējumu ar kontu un sludinājumu filtriem. Kļūmes laikā apturi plūsmu, kamēr labojums ir gatavs. Pirms jebkuras atjaunošanas no rezerves kopijas saskaņo, kā atkārtoti piemērot pēc kopijas izveides pieprasītās dzēšanas.
+
 ## Testēšana
 
 Backend pusē ir feature testi, kas pārbauda:

@@ -271,6 +271,67 @@ class GoogleOAuthTest extends TestCase
         $this->assertDatabaseCount('persona', 0);
     }
 
+    public function test_incomplete_google_account_requires_fresh_oauth_and_can_register_again_after_deletion(): void
+    {
+        $this->fakeGoogle();
+        $this->finishGoogle('first', $this->start('first', 'klients'))->assertRedirect('/profile?google=ok');
+        $accountId = $this->browser('first', 'GET', '/api/auth/me')->json('persona.persona_id');
+        $this->finishGoogle('second', $this->start('second'))->assertRedirect('/profile?google=ok');
+
+        $check = '/api/profile/deletion-check';
+        $this->browser('first', 'GET', $check)->assertOk()->assertJsonPath('confirmation_method', 'google')
+            ->assertJsonPath('google_confirmed', false);
+        $this->browser('first', 'DELETE', '/api/profile/me', ['confirmation' => 'DZĒST'])
+            ->assertUnprocessable()->assertJsonValidationErrors('google');
+        $parameters = $this->startGoogleDeletion('first');
+        $this->assertSame('select_account consent', $parameters['prompt']);
+        $this->finishGoogle('first', $parameters)->assertRedirect('/profile?delete_google=ok');
+        $this->browser('first', 'GET', $check)->assertJsonPath('google_confirmed', true);
+        $this->browser('second', 'GET', $check)->assertJsonPath('google_confirmed', false);
+        $this->browser('first', 'DELETE', '/api/profile/me', ['confirmation' => 'DZĒST'])->assertNoContent();
+        $this->browser('first', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->browser('second', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->assertDatabaseMissing('sessions', ['user_id' => $accountId]);
+        $this->assertDatabaseHas('persona', ['persona_id' => $accountId, 'google_id' => null, 'epasts' => null]);
+
+        $this->finishGoogle('first', $this->start('first'))->assertRedirect('/profile?google=role');
+        $this->browser('first', 'GET', '/api/auth/me')->assertJsonPath('persona', null);
+        $this->assertDatabaseCount('persona', 1);
+        $this->browser('first', 'POST', '/oauth/google/role', ['loma' => 'klients'])->assertOk();
+        $newId = $this->browser('first', 'GET', '/api/auth/me')->assertOk()->json('persona.persona_id');
+        $this->assertNotEquals($accountId, $newId);
+        $this->assertDatabaseCount('persona', 2);
+    }
+
+    public function test_google_deletion_rejects_another_subject_and_expired_proof(): void
+    {
+        Http::fake([
+            self::TOKEN_URL => Http::response(['access_token' => 'test-access-token']),
+            self::USERINFO_URL => Http::sequence()
+                ->push(['sub' => 'first-subject'])
+                ->push(['sub' => 'other-subject'])
+                ->push(['sub' => 'first-subject']),
+        ]);
+        $this->finishGoogle('browser', $this->start('browser', 'klients'))->assertRedirect('/profile?google=ok');
+        $this->finishGoogle('browser', $this->startGoogleDeletion('browser'))->assertRedirect('/profile?delete_google=mismatch');
+        $this->browser('browser', 'GET', '/api/profile/deletion-check')->assertJsonPath('google_confirmed', false);
+        $this->assertDatabaseCount('persona', 1);
+
+        $this->finishGoogle('browser', $this->startGoogleDeletion('browser'))->assertRedirect('/profile?delete_google=ok');
+        $this->travel(5)->minutes();
+        $this->browser('browser', 'DELETE', '/api/profile/me', ['confirmation' => 'DZĒST'])
+            ->assertUnprocessable()->assertJsonValidationErrors('google');
+        $this->browser('browser', 'GET', '/api/auth/me')->assertOk();
+    }
+
+    private function startGoogleDeletion(string $browser): array
+    {
+        $url = $this->browser($browser, 'POST', '/oauth/google/deletion')->assertOk()->json('authorization_url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $parameters);
+
+        return $parameters;
+    }
+
     private function fakeGoogle(?array $identity = null): void
     {
         Http::fake([

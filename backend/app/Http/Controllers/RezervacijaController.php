@@ -6,48 +6,20 @@ use App\Mail\ReservationInvoiceMail;
 use App\Models\Maksajums;
 use App\Models\Klients;
 use App\Models\PakalpojumuSniedzejs;
+use App\Models\Persona;
 use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
+use App\Support\ReservationInvoice;
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class RezervacijaController extends Controller
 {
-    private function syncTransportStatusById(int $transportId): void
-    {
-        $transport = Transportlidzeklis::find($transportId);
-
-        if (!$transport || $transport->statuss === 'neaktivs') {
-            return;
-        }
-
-        $hasActivePaidReservation = Rezervacija::where('transportlidzeklis_id', $transportId)
-            ->where('apmaksas_statuss', 'apmaksata')
-            ->where('beigu_laiks', '>', Carbon::now())
-            ->exists();
-
-        $targetStatus = $hasActivePaidReservation ? 'aiznemts' : 'pieejams';
-
-        if ($transport->statuss !== $targetStatus) {
-            $transport->update(['statuss' => $targetStatus]);
-        }
-    }
-
-    private function syncVehicleStatuses(): void
-    {
-        $vehicleIds = Rezervacija::query()
-            ->select('transportlidzeklis_id')
-            ->distinct()
-            ->pluck('transportlidzeklis_id');
-
-        foreach ($vehicleIds as $vehicleId) {
-            $this->syncTransportStatusById((int) $vehicleId);
-        }
-    }
-
     private function resolveClientTimezone(Request $request): \DateTimeZone
     {
         $timezone = trim((string) $request->header('X-Timezone', ''));
@@ -67,18 +39,9 @@ class RezervacijaController extends Controller
         return Carbon::parse($value, $this->resolveClientTimezone($request))->utc();
     }
 
-    private function cleanupExpiredUnpaidReservations(): void
-    {
-        Rezervacija::where('apmaksas_statuss', 'neapmaksata')
-            ->where('sakuma_laiks', '<=', Carbon::now())
-            ->delete();
-
-        $this->syncVehicleStatuses();
-    }
-
     public function index(Request $request)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
         $persona = $request->user();
 
@@ -86,11 +49,15 @@ class RezervacijaController extends Controller
             return response()->json(['message' => 'Nepieciešama autentifikācija.'], 401);
         }
 
+        $party = fn ($query) => $query->withTrashed()->select('persona_id', 'vards', 'uzvards', 'deleted_at');
         $query = Rezervacija::with([
-            'klients.persona',
+            'klients:klients_id,persona_id',
+            'klients.persona' => $party,
+            'transportlidzeklis.sniedzejs:sniedzejs_id,persona_id',
+            'transportlidzeklis.sniedzejs.persona' => $party,
             'transportlidzeklis.veids',
-            'transportlidzeklis.sniedzejs.persona',
-        ])->orderByDesc('izveides_datums');
+        ])->withExists(['maksajumi as invoice_available' => fn ($query) => $query
+            ->where('statuss', 'apstiprinats')->whereNotNull('rekins')])->orderByDesc('izveides_datums');
 
         if ($persona->loma === 'klients') {
             $klients = $this->resolveAuthorizedClient($request);
@@ -112,14 +79,23 @@ class RezervacijaController extends Controller
             return response()->json(['message' => 'Šī darbība nav pieejama šai lomai.'], 403);
         }
 
-        $rezervacijas = $query->get();
+        $reservations = $query->get()->each(function (Rezervacija $reservation) {
+            foreach ([$reservation->klients, $reservation->transportlidzeklis?->sniedzejs] as $party) {
+                if ($party?->persona?->trashed()) {
+                    $party->setAttribute('persona_deleted', true);
+                    $party->setRelation('persona', null);
+                    $party->makeHidden('persona_id');
+                }
+            }
+            $reservation->transportlidzeklis?->makeHidden('adrese');
+        });
 
-        return response()->json($rezervacijas);
+        return response()->json($reservations)->header('Cache-Control', 'no-store');
     }
 
     public function store(Request $request)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
         $klients = $this->resolveAuthorizedClient($request);
         if ($klients instanceof \Illuminate\Http\JsonResponse) {
@@ -132,94 +108,66 @@ class RezervacijaController extends Controller
             'beigu_laiks' => ['required', 'date', 'after:sakuma_laiks'],
         ]);
 
-        $transport = Transportlidzeklis::findOrFail($data['transportlidzeklis_id']);
-
-        if ($transport->statuss !== 'pieejams') {
-            return response()->json(['message' => 'Transportlīdzeklis nav pieejams.'], 409);
-        }
-
         $start = $this->parseClientDateTime($data['sakuma_laiks'], $request);
         $end = $this->parseClientDateTime($data['beigu_laiks'], $request);
 
-        if ($start->lessThanOrEqualTo(Carbon::now())) {
-            return response()->json(['message' => 'Sākuma laikam jābūt nākotnē.'], 422);
-        }
+        return $this->withLockedVehicle($klients, $data['transportlidzeklis_id'], function (Transportlidzeklis $transport) use ($klients, $start, $end) {
+            abort_if($transport->archived_at || $transport->statuss !== 'pieejams', 409, 'Transportlīdzeklis nav pieejams.');
+            abort_if($start->lessThanOrEqualTo(Carbon::now()), 422, 'Sākuma laikam jābūt nākotnē.');
+            abort_if($end->lessThanOrEqualTo($start), 422, 'Beigu laikam jābūt pēc sākuma laika.');
 
-        $conflict = Rezervacija::where('transportlidzeklis_id', $transport->transportlidzeklis_id)
-            ->where(function ($query) use ($start, $end) {
-                $query->where('sakuma_laiks', '<', $end)
-                      ->where('beigu_laiks', '>', $start);
-            })
-            ->exists();
+            $conflict = $transport->rezervacijas()->where('sakuma_laiks', '<', $end)->where('beigu_laiks', '>', $start)->exists();
+            abort_if($conflict, 409, 'Transportlīdzeklis vairs nav pieejams izvēlētajā laikā.');
 
-        if ($conflict) {
-            return response()->json(['message' => 'Transportlīdzeklis vairs nav pieejams izvēlētajā laikā.'], 409);
-        }
+            $days = max(1, (int) ceil($start->diffInSeconds($end) / 86400));
+            $reservation = $transport->rezervacijas()->create([
+                'klients_id' => $klients->getKey(),
+                'sakuma_laiks' => $start,
+                'beigu_laiks' => $end,
+                'rezervacijas_datums' => Carbon::today(),
+                'izveides_datums' => Carbon::now(),
+                'kopa_summa' => $days * $transport->dienas_nomas_cena,
+                'apmaksas_statuss' => 'neapmaksata',
+                'transporta_snapshot' => $transport->bookingSnapshot(),
+            ]);
 
-        $seconds = max(1, $start->diffInSeconds($end));
-        $days = max(1, (int) ceil($seconds / 86400));
-        $sum = $days * $transport->dienas_nomas_cena;
-
-        $rezervacija = Rezervacija::create([
-            'klients_id' => $klients->klients_id,
-            'transportlidzeklis_id' => $transport->transportlidzeklis_id,
-            'sakuma_laiks' => $start,
-            'beigu_laiks' => $end,
-            'rezervacijas_datums' => Carbon::today(),
-            'izveides_datums' => Carbon::now(),
-            'kopa_summa' => $sum,
-            'maksajuma_datums' => null,
-            'apmaksas_statuss' => 'neapmaksata',
-        ]);
-
-        return response()->json($rezervacija->load(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona']), 201);
+            return response()->json($reservation->load(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona']), 201);
+        });
     }
 
     public function pay(Request $request, $id)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
         $klients = $this->resolveAuthorizedClient($request);
         if ($klients instanceof \Illuminate\Http\JsonResponse) {
             return $klients;
         }
 
-        $rezervacija = Rezervacija::with([
-            'klients.persona',
-            'transportlidzeklis.veids',
-            'transportlidzeklis.sniedzejs.persona',
-        ])->findOrFail($id);
+        $reservation = Rezervacija::findOrFail($id);
+        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, 'Nav atļauts apmaksāt šo rezervāciju.');
 
-        if ((int) $rezervacija->klients_id !== (int) $klients->klients_id) {
-            return response()->json(['message' => 'Nav atļauts apmaksāt šo rezervāciju.'], 403);
-        }
+        [$rezervacija, $maksajums] = $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
+            $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
+            abort_if($reservation->apmaksas_statuss === 'apmaksata', 409, 'Rezervācija jau apmaksāta.');
+            abort_if($reservation->maksajumi()->exists(), 409, 'Rezervācijai jau ir maksājuma ieraksts.');
+            abort_if(now()->greaterThanOrEqualTo($reservation->sakuma_laiks), 409, 'Rezervācijas apmaksas termiņš ir beidzies.');
 
-        if ($rezervacija->apmaksas_statuss === 'apmaksata') {
-            return response()->json(['message' => 'Rezervācija jau apmaksāta.'], 409);
-        }
+            $payment = $reservation->maksajumi()->create([
+                'summa' => $reservation->kopa_summa,
+                'statuss' => 'apstiprinats',
+                'tranzakcijas_numurs' => 'TX-'.strtoupper(Str::random(12)),
+                'rekins' => sprintf('ER-%s-%d', now()->format('YmdHis'), $reservation->getKey()),
+            ]);
 
-        if ($rezervacija->apmaksas_statuss === 'neapmaksata' && Carbon::now()->greaterThanOrEqualTo($rezervacija->sakuma_laiks)) {
-            $rezervacija->delete();
-            return response()->json(['message' => 'Rezervācija automātiski atcelta, jo netika apmaksāta līdz sākuma laikam.'], 409);
-        }
+            $reservation->update(['apmaksas_statuss' => 'apmaksata', 'maksajuma_datums' => Carbon::today()]);
+            if ($transport->statuss === 'pieejams') {
+                $transport->update(['statuss' => 'aiznemts']);
+            }
+            ReservationInvoice::archive($reservation, $payment);
 
-        $transaction = 'TX-' . strtoupper(Str::random(12));
-        $invoiceNumber = $this->generateInvoiceNumber($rezervacija);
-
-        $maksajums = Maksajums::create([
-            'rezervacija_id' => $rezervacija->rezervacija_id,
-            'summa' => $rezervacija->kopa_summa,
-            'statuss' => 'apstiprinats',
-            'tranzakcijas_numurs' => $transaction,
-            'rekins' => $invoiceNumber,
-        ]);
-
-        $rezervacija->update([
-            'apmaksas_statuss' => 'apmaksata',
-            'maksajuma_datums' => Carbon::today(),
-        ]);
-
-        $this->syncTransportStatusById((int) $rezervacija->transportlidzeklis_id);
+            return [$reservation, $payment];
+        });
         $this->sendReservationInvoiceEmails($rezervacija, $maksajums);
 
         return response()->json([
@@ -228,28 +176,56 @@ class RezervacijaController extends Controller
         ]);
     }
 
+    public function invoice(Request $request, int $id)
+    {
+        $reservation = Rezervacija::with('transportlidzeklis')->findOrFail($id);
+        $persona = $request->user();
+        $participant = match ($persona->loma) {
+            'klients' => (int) $persona->klients?->getKey() === (int) $reservation->klients_id,
+            'pakalpojumu_sniedzejs' => (int) $persona->pakalpojumuSniedzejs?->getKey() === (int) $reservation->transportlidzeklis->sniedzejs_id,
+            default => false,
+        };
+        abort_unless($participant, 404, 'Rēķins nav atrasts.');
+
+        $payment = $reservation->maksajumi()->where('statuss', 'apstiprinats')->whereNotNull('rekins')->firstOrFail();
+        $data = ReservationInvoice::viewData($reservation, $payment, $persona->loma === 'klients' ? 'client' : 'provider');
+
+        return response()->view('emails.reservation-invoice', $data, 200, [
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'attachment; filename="EasyRent-'.$id.'.html"',
+        ]);
+    }
+
     public function destroy(Request $request, $id)
     {
-        $this->cleanupExpiredUnpaidReservations();
+        Rezervacija::cleanupAvailability();
 
         $klients = $this->resolveAuthorizedClient($request);
         if ($klients instanceof \Illuminate\Http\JsonResponse) {
             return $klients;
         }
 
-        $rezervacija = Rezervacija::findOrFail($id);
+        $reservation = Rezervacija::findOrFail($id);
+        abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, 'Nav atļauts atcelt šo rezervāciju.');
 
-        if ((int) $rezervacija->klients_id !== (int) $klients->klients_id) {
-            return response()->json(['message' => 'Nav atļauts atcelt šo rezervāciju.'], 403);
-        }
+        return $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
+            $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
+            abort_if($reservation->apmaksas_statuss === 'apmaksata' || $reservation->maksajumi()->exists(), 409, 'Rezervāciju ar maksājuma ierakstu atcelt nevar.');
+            $reservation->delete();
 
-        if ($rezervacija->apmaksas_statuss === 'apmaksata') {
-            return response()->json(['message' => 'Apmaksātu rezervāciju atcelt nevar.'], 409);
-        }
+            return response()->json(['message' => 'Rezervācija atcelta.']);
+        });
+    }
 
-        $rezervacija->delete();
+    private function withLockedVehicle(Klients $client, int $vehicleId, Closure $operation): mixed
+    {
+        $vehicle = Transportlidzeklis::with('sniedzejs')->findOrFail($vehicleId);
 
-        return response()->json(['message' => 'Rezervācija atcelta.']);
+        return DB::transaction(function () use ($client, $vehicle, $operation) {
+            Persona::lockActiveAccounts($client->persona_id, $vehicle->sniedzejs->persona_id);
+
+            return $operation(Transportlidzeklis::whereKey($vehicle->getKey())->lockForUpdate()->firstOrFail());
+        }, 3);
     }
 
     private function resolveAuthorizedClient(Request $request): Klients|\Illuminate\Http\JsonResponse
@@ -290,11 +266,6 @@ class RezervacijaController extends Controller
         }
 
         return $sniedzejs;
-    }
-
-    private function generateInvoiceNumber(Rezervacija $rezervacija): string
-    {
-        return sprintf('ER-%s-%d', Carbon::now()->format('YmdHis'), $rezervacija->rezervacija_id);
     }
 
     private function sendReservationInvoiceEmails(Rezervacija $rezervacija, Maksajums $maksajums): void

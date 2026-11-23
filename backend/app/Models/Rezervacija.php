@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,6 +22,7 @@ class Rezervacija extends Model
         'kopa_summa',
         'maksajuma_datums',
         'apmaksas_statuss',
+        'transporta_snapshot',
     ];
 
     protected $casts = [
@@ -30,7 +32,31 @@ class Rezervacija extends Model
         'izveides_datums' => 'datetime',
         'maksajuma_datums' => 'date',
         'kopa_summa' => 'decimal:2',
+        'transporta_snapshot' => 'array',
     ];
+
+    public function scopeExpiredUnpaid(Builder $query): void
+    {
+        $query->where('apmaksas_statuss', 'neapmaksata')
+            ->where('sakuma_laiks', '<=', now())
+            ->whereDoesntHave('maksajumi');
+    }
+
+    public static function cleanupAvailability(): void
+    {
+        static::expiredUnpaid()->delete();
+
+        Transportlidzeklis::whereNull('archived_at')->where('statuss', 'aiznemts')
+            ->whereHas('rezervacijas')
+            ->whereDoesntHave('rezervacijas', fn ($query) => $query
+                ->where('apmaksas_statuss', 'apmaksata')->where('beigu_laiks', '>', now()))
+            ->update(['statuss' => 'pieejams']);
+
+        Transportlidzeklis::whereNull('archived_at')->where('statuss', 'pieejams')
+            ->whereHas('rezervacijas', fn ($query) => $query
+                ->where('apmaksas_statuss', 'apmaksata')->where('beigu_laiks', '>', now()))
+            ->update(['statuss' => 'aiznemts']);
+    }
 
     public function klients(): BelongsTo
     {
