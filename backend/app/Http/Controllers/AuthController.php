@@ -122,10 +122,10 @@ class AuthController extends Controller
 
         $this->clearWebSession($request);
 
-        return response()->json($verification->requestFor($persona), 201)->header('Cache-Control', 'no-store');
+        return response()->json($verification->requestFor($request, $persona), 201)->header('Cache-Control', 'no-store');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, EmailVerification $verification)
     {
         $data = $request->validate([
             'email' => ['required','email'],
@@ -138,7 +138,7 @@ class AuthController extends Controller
             return response()->json(['message' => __('app.invalidCredentials')], 422);
         }
 
-        return $this->issueToken($request, $persona);
+        return $this->issueToken($request, $persona, $verification);
     }
 
     public function logout(Request $request)
@@ -177,15 +177,16 @@ class AuthController extends Controller
         ], $persona || $pending ? 200 : 401)->header('Cache-Control', 'no-store');
     }
 
-    private function issueToken(Request $request, Persona $persona)
+    private function issueToken(Request $request, Persona $persona, EmailVerification $verification)
     {
-        [$persona, $token] = DB::transaction(function () use ($persona) {
+        [$persona, $token] = DB::transaction(function () use ($persona, $request, $verification) {
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
             abort_unless($active, 401, __('app.authenticationRequired'));
             if (! hash_equals($persona->getAuthPassword(), $active->getAuthPassword())) {
                 abort(response()->json(['message' => __('app.invalidCredentials')], 422));
             }
             if (! $active->hasVerifiedEmail()) {
+                $verification->rememberPending($request, $active);
                 abort(RequireVerifiedEmail::response());
             }
             $active->tokens()->delete();

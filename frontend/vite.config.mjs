@@ -57,7 +57,10 @@ const config = {
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,svg,woff2}'],
-        navigateFallbackDenylist: [/^\/(?:api|oauth|sanctum)(?:\/|$)/],
+        navigateFallbackDenylist: [
+          /^\/(?:api|oauth|sanctum)(?:\/|$)/,
+          /^\/(?:auth|verify-email)(?:[/?]|$)/,
+        ],
       },
       devOptions: {
         enabled: false,

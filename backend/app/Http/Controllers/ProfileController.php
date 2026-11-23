@@ -63,7 +63,7 @@ class ProfileController extends Controller
         if (! $persona->hasVerifiedEmail()) {
             $verification->clearWebSessionFor($request, $persona->getKey());
 
-            return response()->json($verification->requestFor($persona))->header('Cache-Control', 'no-store');
+            return response()->json($verification->requestFor($request, $persona))->header('Cache-Control', 'no-store');
         }
 
         return response()->json([

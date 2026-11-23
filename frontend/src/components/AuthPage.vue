@@ -612,6 +612,7 @@
   ]
 
   async function submitRegister () {
+    if (loading.value) return
     errorText.value = ''
     okText.value = ''
     loading.value = true
@@ -695,6 +696,7 @@
   }
 
   async function submitLogin () {
+    if (loading.value) return
     errorText.value = ''
     okText.value = ''
     loading.value = true
@@ -727,10 +729,7 @@
       // Notīrīt formu
       login.value = { email: '', password: '' }
 
-      // Informēt parent par sekmīgu pieslēgšanos
-      setTimeout(() => {
-        emit('auth-success')
-      }, 1500)
+      emit('auth-success')
     } catch (error) {
       errorText.value = error?.message || copy.value.messages.serverConnection
     } finally {

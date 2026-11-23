@@ -122,8 +122,10 @@ export default {
   emailVerification: {
     title: 'Apstipriniet savu e-pasta adresi',
     ready: 'Lai pierakstītos, atveriet apstiprināšanas saiti iesūtnē. Tālāk varat pieprasīt jaunu saiti.',
-    sent: 'Jūsu konts ir izveidots. Nosūtījām apstiprināšanas saiti uz jūsu e-pasta adresi.',
+    sent: 'Jūsu konts ir izveidots. Pasta pakalpojums pieņēma apstiprināšanas e-pastu. Pārbaudiet iesūtni un mēstuļu mapi.',
     resent: 'Ja šī e-pasta adrese jāapstiprina, nosūtīsim jaunu saiti.',
+    resentConfirmed: 'Pasta pakalpojums pieņēma jauno apstiprināšanas e-pastu. Pārbaudiet iesūtni un mēstuļu mapi.',
+    resendMailUnavailable: 'Pasta pakalpojumam neizdevās nosūtīt jaunu apstiprināšanas e-pastu. Mēģiniet vēlreiz pēc atskaites beigām.',
     verified: 'Jūsu e-pasta adrese ir apstiprināta. Tagad varat pierakstīties.',
     invalid: 'Saite nav derīga vai jau ir izmantota. Tālāk varat pieprasīt jaunu saiti.',
     expired: 'Saites derīguma termiņš ir beidzies. Pieprasiet jaunu saiti.',

@@ -38,6 +38,7 @@ let sequence = 0
 const pending = new Map()
 const failures = []
 const writes = []
+const documentsFromServiceWorker = new Map()
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
 const recovery = { requestLimit: false, invalidLink: false }
@@ -95,6 +96,9 @@ socket.addEventListener('message', async event => {
     }
   } else if (message.method === 'Runtime.exceptionThrown') {
     failures.push(message.params.exceptionDetails)
+  } else if (message.method === 'Network.responseReceived' && message.params.type === 'Document') {
+    const { url, fromServiceWorker } = message.params.response
+    documentsFromServiceWorker.set(url, fromServiceWorker)
   } else if (message.method === 'Fetch.requestPaused') {
     const { requestId, request } = message.params
     try {
@@ -129,7 +133,13 @@ socket.addEventListener('message', async event => {
         }
       } else if (url.pathname === '/api/auth/verification/resend') {
         responseCode = verification.resendStatus
-        result = { code: 'verification_requested', retry_after: 60 }
+        result = {
+          code: { 200: 'verification_mail_sent', 202: 'verification_requested', 503: 'mail_unavailable' }[responseCode],
+          retry_after: 60,
+        }
+        if (responseCode === 503) {
+          responseHeaders.push({ name: 'Retry-After', value: '1' })
+        }
       } else if (url.pathname === '/api/auth/verification/confirm') {
         result = { code: verification.confirmCode }
         responseCode = {
@@ -286,6 +296,7 @@ async function noOverflow () {
 try {
   await send('Page.enable')
   await send('Runtime.enable')
+  if (process.env.CATALOG_VERIFY_PWA === '1') await send('Network.enable')
   await send('Fetch.enable', {
     patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*']
       .map(urlPattern => ({ urlPattern })),
@@ -699,7 +710,7 @@ try {
     el.dispatchEvent(new Event("input", { bubbles: true }));
   })`)
   await click('.register-grid button[type=submit]')
-  await waitFor(`location.pathname === "/verify-email" && ${verificationText('Мы отправили ссылку')}`)
+  await waitFor(`location.pathname === "/verify-email" && ${verificationText('Почтовый сервис принял письмо подтверждения')}`)
   assert.equal(await evaluate('document.querySelector(".verification-card input").value'), activationEmail)
   assert.ok(await evaluate('document.querySelector(".verification-card button[type=submit]").disabled'))
   assert.equal(await evaluate('location.search'), '')
@@ -723,10 +734,11 @@ try {
   const resendButton = '.verification-card button[type=submit]'
   verification.resendStatus = 503
   await click(resendButton)
-  await waitFor(verificationText('We couldn’t submit your request'))
-  verification.resendStatus = 202
+  await waitFor(verificationText('The mail service couldn’t send a new verification email'))
+  await waitFor('!document.querySelector(".verification-card button[type=submit]").disabled')
+  verification.resendStatus = 200
   await click(resendButton)
-  await waitFor(verificationText('If this address needs verification'))
+  await waitFor(verificationText('The mail service accepted the new verification email'))
   const verificationResend = writes.findLast(write => write.path === '/api/auth/verification/resend')
   assert.deepEqual(JSON.parse(verificationResend.body), { email: activationEmail, locale: 'en' })
   assert.equal(verificationResend.authorization, null)
@@ -759,6 +771,15 @@ try {
   await input('.auth-form-card input[autocomplete=current-password]', activationPassword)
   await click('.auth-form-card button[type=submit]')
   await waitFor('location.pathname === "/" && localStorage.getItem("token") === "verified-token"')
+  if (process.env.CATALOG_VERIFY_PWA === '1') {
+    await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the application')
+    for (const path of ['/auth', '/verify-email']) {
+      const url = `${base}${path}?pwa-check=1`
+      await send('Page.navigate', { url })
+      await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === "complete"`)
+      assert.equal(documentsFromServiceWorker.get(url), false, `${path} loads its document from the network`)
+    }
+  }
   assert.equal(failures.length, 0, JSON.stringify(failures))
   console.log('PASS: email registration and activation, signed-out confirmation, resend countdown and recovery, LV/RU/EN and responsive layout.')
   console.log(`Screenshots: ${artifacts}`)

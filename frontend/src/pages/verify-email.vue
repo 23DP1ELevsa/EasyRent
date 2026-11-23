@@ -96,8 +96,9 @@
   const now = ref(Date.now())
   const remaining = computed(() => Math.max(0, Math.ceil((cooldownUntil.value - now.value) / 1000)))
   const alertType = computed(() => {
-    if (status.value === 'mailUnavailable' || status.value === 'rateLimited') return 'warning'
-    return ['verified', 'sent', 'resent'].includes(status.value) ? 'success' : 'error'
+    if (['mailUnavailable', 'resendMailUnavailable', 'rateLimited'].includes(status.value)) return 'warning'
+    if (status.value === 'resent') return 'info'
+    return ['verified', 'sent', 'resentConfirmed'].includes(status.value) ? 'success' : 'error'
   })
 
   let link = null
@@ -175,10 +176,13 @@
       if (response.ok) {
         const result = await response.json()
         link = null
-        status.value = 'resent'
+        status.value = result.code === 'verification_mail_sent' ? 'resentConfirmed' : 'resent'
         cooldown(Number(result.retry_after) || 60)
       } else if (response.status === 429) {
         status.value = 'rateLimited'
+        cooldown(Number(response.headers.get('Retry-After')) || 60)
+      } else if (response.status === 503 && response.headers.has('Retry-After')) {
+        status.value = 'resendMailUnavailable'
         cooldown(Number(response.headers.get('Retry-After')) || 60)
       } else if (response.status === 422) {
         emailError.value = 'auth.messages.emailInvalid'

@@ -10,6 +10,8 @@ return [
     'verification_link_expired' => 'This verification link has expired. Request a new link.',
     'invalid_verification_request' => 'Enter a valid email address and select a supported language.',
     'verification_requested' => 'If this address needs verification, we’ll send a new link.',
+    'verification_mail_sent' => 'The mail service accepted the new verification email. Check your inbox and spam folder.',
+    'verification_mail_rate_limited' => 'Wait before requesting another verification email.',
     'mail' => [
         'subject' => 'Verify your EasyRent email address',
         'greeting' => 'Hello, :name!',

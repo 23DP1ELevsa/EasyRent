@@ -75,7 +75,7 @@
               color="primary"
               rounded="pill"
               variant="flat"
-              @click="goAuth"
+              :href="AUTH_ROUTE"
             >{{ t('app.auth.loginRegister') }}<v-icon end size="18">mdi-arrow-right</v-icon></v-btn>
           </nav>
           <v-btn
@@ -121,7 +121,7 @@
           <v-list-item :active="route.path === PROFILE_ROUTE" prepend-icon="mdi-account-circle-outline" :title="t('app.auth.profile')" @click="goProfileFromDrawer" />
           <v-list-item prepend-icon="mdi-logout" :title="t('app.auth.logout')" @click="logout" />
         </template>
-        <v-list-item v-else-if="!profileLocked" prepend-icon="mdi-login" :title="t('app.auth.loginRegister')" @click="goAuthFromDrawer" />
+        <v-list-item v-else-if="!profileLocked" :href="AUTH_ROUTE" prepend-icon="mdi-login" :title="t('app.auth.loginRegister')" />
       </v-list>
       <div class="drawer-preferences">
         <div class="drawer-language__label">{{ t('app.language.select') }}</div>
@@ -283,10 +283,6 @@
     navigateTo(MAP_ROUTE)
   }
 
-  function goAuth () {
-    navigateTo(AUTH_ROUTE)
-  }
-
   function goProfile () {
     if (user.value) {
       navigateTo(PROFILE_ROUTE)
@@ -303,10 +299,6 @@
 
   function goHomeFromDrawer () {
     closeDrawerAndRun(goHome)
-  }
-
-  function goAuthFromDrawer () {
-    closeDrawerAndRun(goAuth)
   }
 
   async function logout () {

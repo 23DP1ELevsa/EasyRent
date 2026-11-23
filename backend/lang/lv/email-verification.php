@@ -10,6 +10,8 @@ return [
     'verification_link_expired' => 'Apstiprināšanas saites derīguma termiņš ir beidzies. Pieprasiet jaunu saiti.',
     'invalid_verification_request' => 'Ievadiet derīgu e-pasta adresi un izvēlieties atbalstītu valodu.',
     'verification_requested' => 'Ja šī e-pasta adrese jāapstiprina, nosūtīsim jaunu saiti.',
+    'verification_mail_sent' => 'Pasta pakalpojums pieņēma jauno apstiprināšanas e-pastu. Pārbaudiet iesūtni un mēstuļu mapi.',
+    'verification_mail_rate_limited' => 'Uzgaidiet, pirms pieprasāt vēl vienu apstiprināšanas e-pastu.',
     'mail' => [
         'subject' => 'Apstipriniet savu EasyRent e-pasta adresi',
         'greeting' => 'Sveiki, :name!',

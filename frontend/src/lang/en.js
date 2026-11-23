@@ -46,8 +46,10 @@ export default {
   emailVerification: {
     title: 'Verify your email address',
     ready: 'To sign in, open the verification link in your inbox. You can request a new link below.',
-    sent: 'Your account is ready. We sent a verification link to your email address.',
+    sent: 'Your account was created. The mail service accepted the verification email. Check your inbox and spam folder.',
     resent: 'If this address needs verification, we’ll send a new link.',
+    resentConfirmed: 'The mail service accepted the new verification email. Check your inbox and spam folder.',
+    resendMailUnavailable: 'The mail service couldn’t send a new verification email. Try again when the timer ends.',
     verified: 'Your email address is verified. You can now sign in.',
     invalid: 'This link is invalid or has already been used. You can request a new link below.',
     expired: 'This link has expired. Request a new link below.',

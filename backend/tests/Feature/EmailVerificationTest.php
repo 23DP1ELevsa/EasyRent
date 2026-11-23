@@ -3,9 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Persona;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Transport\ResendTransport;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -16,6 +22,11 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Resend\Client as ResendClient;
+use Resend\Transporters\HttpTransporter;
+use Resend\ValueObjects\ApiKey;
+use Resend\ValueObjects\Transporter\BaseUri;
+use Resend\ValueObjects\Transporter\Headers;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Tests\TestCase;
@@ -198,6 +209,80 @@ class EmailVerificationTest extends TestCase
         config(['mail.default' => 'array']);
         $this->postJson(self::RESEND, ['email' => self::EMAIL])->assertAccepted();
         $this->postJson(self::CONFIRM, $this->link())->assertOk();
+    }
+
+    public function test_resend_in_the_signup_session_reports_acceptance_or_transport_failure_and_preserves_the_previous_link(): void
+    {
+        config([
+            'session.driver' => 'database',
+            'sanctum.stateful' => ['easyrent.vip'],
+        ]);
+        $headers = ['Referer' => self::FRONTEND.'/auth'];
+        $register = $this->postJson('/api/auth/register', $this->registration(), $headers)
+            ->assertCreated()->assertJsonPath('mail_status', 'sent');
+        $first = $this->link();
+        $this->resetRequestState();
+        $this->withCredentials()->withCookie(config('session.cookie'), $register->getCookie(config('session.cookie'))->getValue());
+        $this->postJson(self::RESEND, ['email' => 'missing@example.com'], $headers)->assertAccepted();
+        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+            ->assertTooManyRequests()->assertJsonPath('code', 'verification_mail_rate_limited');
+
+        $this->travel(60)->seconds();
+        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+            ->assertOk()->assertJsonPath('code', 'verification_mail_sent');
+        $recent = $this->link(1);
+        $this->postJson(self::CONFIRM, $first, $headers)->assertUnprocessable();
+        $this->getJson('/api/auth/me', $headers)->assertUnauthorized();
+
+        $this->travel(60)->seconds();
+        Event::listen(\Illuminate\Mail\Events\MessageSending::class, fn () => false);
+        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+            ->assertStatus(503)->assertHeader('Retry-After', '60')->assertJsonPath('code', 'mail_unavailable');
+        $this->assertCount(2, $this->messages());
+        $this->postJson(self::CONFIRM, $recent, $headers)->assertOk();
+    }
+
+    public function test_pending_login_grants_mail_feedback_to_the_current_session_only(): void
+    {
+        config(['session.driver' => 'database', 'sanctum.stateful' => ['easyrent.vip']]);
+        $this->account(self::EMAIL);
+        $headers = ['Referer' => self::FRONTEND.'/auth'];
+        $login = $this->postJson('/api/auth/login', ['email' => self::EMAIL, 'password' => self::PASSWORD], $headers)
+            ->assertForbidden()->assertJsonPath('code', 'email_not_verified');
+        $this->resetRequestState();
+        $this->withCredentials()->withCookie(config('session.cookie'), $login->getCookie(config('session.cookie'))->getValue());
+        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)->assertOk();
+        $this->resetRequestState();
+        $this->postJson(self::RESEND, ['email' => self::EMAIL])->assertAccepted()->assertJsonPath('code', 'verification_requested');
+    }
+
+    public function test_resend_transport_logs_only_the_provider_id_for_a_verification_email(): void
+    {
+        $providerId = '49a862af-016a-45a8-8f72-c18eefb7f503';
+        $requests = [];
+        $handler = HandlerStack::create(new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode(['id' => $providerId])),
+        ]));
+        $handler->push(Middleware::history($requests));
+        $resend = new ResendClient(new HttpTransporter(
+            new Client(['handler' => $handler]),
+            BaseUri::from('api.resend.com'),
+            Headers::withAuthorization(ApiKey::from('re_test_key')),
+        ));
+        config(['mail.default' => 'resend', 'services.resend.key' => 're_test_key']);
+        Mail::extend('resend', fn () => new ResendTransport($resend));
+        Log::spy();
+
+        $this->postJson('/api/auth/register', $this->registration())
+            ->assertCreated()->assertJsonPath('mail_status', 'sent')->assertJsonMissingPath('resend_id');
+        $this->assertCount(1, $requests);
+        $request = $requests[0]['request'];
+        $this->assertSame('https://api.resend.com/emails', (string) $request->getUri());
+        $message = json_decode((string) $request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertContains(self::EMAIL, $message['to']);
+        $this->assertStringContainsString(self::FRONTEND.'/verify-email#id=', $message['text']);
+        $this->assertStringContainsString(self::FRONTEND.'/verify-email#id=', $message['html']);
+        Log::shouldHaveReceived('info')->with('Email verification accepted by Resend.', ['resend_id' => $providerId])->once();
     }
 
     public function test_password_reset_does_not_verify_email_or_bypass_login_gate(): void

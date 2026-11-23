@@ -6,80 +6,142 @@ use App\Models\Persona;
 use App\Notifications\VerifyPersonaEmail;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Traits\Localizable;
 use RuntimeException;
 use Throwable;
 
 class EmailVerification
 {
+    use Localizable;
+
     public const VALID_HOURS = 24;
 
     public const COOLDOWN = 60;
 
-    public function requestFor(Persona $persona): array
+    private const PENDING_SESSION = 'email_verification.pending';
+
+    public function requestFor(Request $request, Persona $persona): array
     {
-        $sent = $this->send($persona->epasts, app()->getLocale(), $persona->getKey());
+        $this->rememberPending($request, $persona);
+        $status = $this->send($persona->epasts, app()->getLocale(), $persona->getKey());
 
         return [
             'code' => 'verification_required',
-            'message' => __($sent ? 'email-verification.registered' : 'email-verification.mail_unavailable'),
+            'message' => __($status === 'unavailable' ? 'email-verification.mail_unavailable' : 'email-verification.registered'),
             'email' => $persona->epasts,
-            'mail_status' => $sent ? 'sent' : 'unavailable',
+            'mail_status' => $status,
             'retry_after' => self::COOLDOWN,
         ];
     }
 
-    public function send(string $email, string $locale, ?int $personaId = null): bool
+    public function rememberPending(Request $request, Persona $persona): void
     {
+        if ($request->hasSession()) {
+            $request->session()->put(self::PENDING_SESSION, [
+                'id' => $persona->getKey(),
+                'email' => mb_strtolower($persona->epasts),
+                'expires_at' => now()->addMinutes(30)->timestamp,
+            ]);
+        }
+    }
+
+    public function pendingId(Request $request, string $email): ?int
+    {
+        $pending = $request->hasSession() ? $request->session()->get(self::PENDING_SESSION) : null;
+
+        return $pending && $pending['expires_at'] > now()->timestamp && $pending['email'] === $email
+            ? $pending['id'] : null;
+    }
+
+    public function send(string $email, string $locale, ?int $personaId = null): string
+    {
+        $delivery = null;
         try {
             if (! AccountMail::available()) {
                 Log::warning('Email verification requires a configured Resend mailer.');
 
-                return false;
+                return 'unavailable';
             }
 
-            $delivery = DB::transaction(function () use ($email, $personaId) {
+            $prepared = DB::transaction(function () use ($email, $personaId) {
                 $query = Persona::forEmail($email)->whereNull('email_verified_at');
                 if ($personaId !== null) {
                     $query->whereKey($personaId);
                 }
                 $persona = $query->lockForUpdate()->first();
                 if (! $persona) {
-                    return null;
+                    return 'not_eligible';
                 }
 
                 $address = $persona->getEmailForVerification();
                 $key = 'email-verification:'.hash_hmac('sha256', mb_strtolower($address), config('app.key'));
                 if (! Cache::add($key, true, self::COOLDOWN)) {
-                    return null;
+                    return 'rate_limited';
                 }
 
                 $token = bin2hex(random_bytes(32));
+                $hash = $this->digest($persona, $token);
+                $tokens = DB::table('email_verification_tokens');
+                $previous = $tokens->where('persona_id', $persona->getKey())->first();
                 DB::table('email_verification_tokens')->updateOrInsert(['persona_id' => $persona->getKey()], [
                     'email' => $address,
-                    'token_hash' => $this->digest($persona, $token),
+                    'token_hash' => $hash,
                     'expires_at' => now()->addHours(self::VALID_HOURS),
                 ]);
 
-                return [$persona, $token];
+                return [$persona, $token, $hash, $previous];
             }, 3);
 
-            if ($delivery === null) {
-                return false;
+            if (is_string($prepared)) {
+                return $prepared;
             }
-            [$persona, $token] = $delivery;
-            $persona->notify((new VerifyPersonaEmail($token))->locale($locale));
+            [$persona, $token, $hash, $previous] = $prepared;
+            $delivery = [$persona->getKey(), $hash, $previous];
+            $sent = $this->withLocale($locale, fn () => app(MailChannel::class)->send($persona, new VerifyPersonaEmail($token)));
+            if (! $sent) {
+                throw new RuntimeException('The mailer did not accept the email verification message.');
+            }
 
-            return true;
+            $resendId = $sent->getOriginalMessage()->getHeaders()->get('X-Resend-Email-ID')?->getBodyAsString();
+            if (is_string($resendId) && preg_match('/\A[\da-f-]{36}\z/i', $resendId)) {
+                Log::info('Email verification accepted by Resend.', ['resend_id' => $resendId]);
+            }
+
+            return 'sent';
         } catch (Throwable) {
             // A transport exception may include the whole message, including the secret link.
             Log::warning('Email verification message could not be sent.');
+            if ($delivery !== null) {
+                $this->restorePreviousLink(...$delivery);
+            }
 
-            return false;
+            return 'unavailable';
+        }
+    }
+
+    private function restorePreviousLink(int $id, string $hash, ?object $previous): void
+    {
+        try {
+            DB::transaction(function () use ($id, $hash, $previous) {
+                if (! Persona::whereKey($id)->lockForUpdate()->first()) {
+                    return;
+                }
+
+                $attempt = DB::table('email_verification_tokens')->where('persona_id', $id)->where('token_hash', $hash);
+                if ($previous) {
+                    $attempt->update((array) $previous);
+                } else {
+                    $attempt->delete();
+                }
+            }, 3);
+        } catch (Throwable) {
+            Log::warning('Email verification token could not be restored after a delivery failure.');
         }
     }
 

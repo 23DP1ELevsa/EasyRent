@@ -56,6 +56,20 @@ class EmailVerificationController extends Controller
 
         $email = mb_strtolower($validator->validated()['email']);
         $locale = app()->getLocale();
+        if ($id = $verification->pendingId($request, $email)) {
+            $status = $verification->send($email, $locale, $id);
+            $details = ['retry_after' => EmailVerification::COOLDOWN];
+            $outcome = match ($status) {
+                'sent' => $this->result('verification_mail_sent', 200, $details),
+                'unavailable' => $this->result('mail_unavailable', 503, $details),
+                'rate_limited' => $this->result('verification_mail_rate_limited', 429, $details),
+                default => null,
+            };
+            if ($outcome) {
+                return $status === 'sent' ? $outcome : $outcome->header('Retry-After', EmailVerification::COOLDOWN);
+            }
+        }
+
         defer(fn () => $verification->send($email, $locale));
 
         $response = $this->result('verification_requested', 202, ['retry_after' => EmailVerification::COOLDOWN]);
