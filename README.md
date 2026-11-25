@@ -118,6 +118,37 @@ Failā `frontend/.env` jābūt:
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
+### Cloudflare Turnstile
+
+Turnstile pārbauda reģistrāciju, paroles saites pieprasījumu, atkārtotu e-pasta apstiprinājuma sūtīšanu, saziņas formu, rēķina atgūšanu un ziņojumus par pārkāpumiem. Reģistrējoties ar Google, jaunais lietotājs veic pārbaudi, pirms tiek izveidots EasyRent konts. Esošie lietotāji pierakstās ar Google uzreiz pēc OAuth. Paroles pierakstīšanās pieprasa pārbaudi pēc trim neveiksmīgiem mēģinājumiem ar to pašu normalizēto e-pastu un IP adresi desmit minūšu laikā. Administratoriem tā ir nepieciešama pirms katras jaunas pierakstīšanās ar paroli. Papildus esošajam īsajam limitam pierakstīšanās pieņem līdz 50 pieprasījumiem desmit minūtēs no vienas IP adreses.
+
+Railway backend mainīgie
+
+```env
+TURNSTILE_ENABLED=true
+TURNSTILE_SECRET_KEY=
+TURNSTILE_ALLOWED_HOSTNAMES=easyrent.vip
+TURNSTILE_LOGIN_ATTEMPTS=3
+```
+
+Railway frontend būvējuma mainīgie
+
+```env
+VITE_TURNSTILE_ENABLED=true
+VITE_TURNSTILE_SITE_KEY=
+```
+
+1. Cloudflare panelī sagatavo `Managed` logrīku vietnei `easyrent.vip`. Ja lietotāji izmanto vairākus frontend domēnus, backend sarakstā norādi katru atļauto domēnu pilnā formā, atdalot ar komatiem. Izmanto kopīgu Laravel kešatmiņu ar atomārām darbībām, piemēram, esošo `CACHE_STORE=database`.
+2. Sagatavo īsto slepeno atslēgu backend mainīgajos un atstāj `TURNSTILE_ENABLED=false`, kamēr jaunais frontend vēl nav publicēts. Iestati publisko vietnes atslēgu un `VITE_TURNSTILE_ENABLED=true` frontend servisam, tad pārbūvē un publicē frontend. Pārbaudi, vai vietnē ielādējas reģistrācijas logrīks un jaunais PWA būvējums.
+3. Iestati backend `TURNSTILE_ENABLED=true` un pārizvieto to, lai Laravel ielādētu jauno konfigurāciju. No tīras pārlūka sesijas pārbaudi reģistrāciju, paroles atkopšanu, e-pasta atkārtotu sūtīšanu, abas atbalsta formas, ziņojumu un administratora pierakstīšanos. Vecākā atvērtā PWA sesijā pēc jaunās versijas publicēšanas var būt jāatsvaidzina lapa.
+4. Ja jāatgriežas pie iepriekšējās versijas, vispirms atgriez backend versiju vai pagaidām iestati `TURNSTILE_ENABLED=false`, pēc tam pārbūvē frontend ar `VITE_TURNSTILE_ENABLED=false`. Ieslēgta aizsardzība ar trūkstošu atslēgu atgriež konfigurācijas kļūdu.
+
+Aiz starpniekservera pārbaudi, vai Laravel dažādiem klientiem atgriež atšķirīgas `Request::ip()` vērtības un ignorē klienta patvaļīgi iestatītu `X-Forwarded-For`. Ja nepieciešams, `TRUSTED_PROXIES` norādi tikai pārbaudītos IP/CIDR, kuri pārraksta pārsūtīšanas galvenes. Siteverify pieprasījumos klienta IP netiek sūtīta. Ja izvietošanas vidē tiek pievienota Content Security Policy, atļauj `https://challenges.cloudflare.com` direktīvās `script-src` un `frame-src`. [Cloudflare CSP dokumentācija](https://developers.cloudflare.com/turnstile/reference/content-security-policy/).
+
+Vietējai pārbaudei ar `npm run dev` un Laravel `APP_ENV=local` var izmantot [Cloudflare testa atslēgu pāri](https://developers.cloudflare.com/turnstile/troubleshooting/testing/). Šie testa rezultāti neietver darbības nosaukumu un katram logrīkam izmanto to pašu testa marķieri. Pārbaudes ar produkcijas atbildes struktūru izmanto `Http::fake()`.
+
+Pārlūka regresijas tests var pārbaudīt produkcijas būvējumu ar kontrolētu Turnstile aizstājēju. Pārbūvē frontend ar `VITE_TURNSTILE_ENABLED=true` un `VITE_TURNSTILE_SITE_KEY=browser-fixture-site-key` un palaid `npm run preview`. Testam `npm run test:catalog:browser` norādi `CATALOG_URL=http://127.0.0.1:4173`, `CATALOG_TURNSTILE=1` un `CATALOG_VERIFY_PWA=1`.
+
 Ja backend darbojas uz cita hosta/porta, atjauno šo vērtību un pārstartē `npm run dev`.
 
 ## Noderīgas komandas

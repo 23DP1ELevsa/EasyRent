@@ -8,6 +8,46 @@ import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const base = process.env.CATALOG_URL || 'http://127.0.0.1:3000'
+const captchaEnabled = process.env.CATALOG_TURNSTILE === '1'
+const captchaScript = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+const protectedActions = {
+  '/api/auth/register': 'register',
+  '/oauth/google/role': 'register',
+  '/api/auth/forgot-password': 'forgot_password',
+  '/api/auth/verification/resend': 'verification_resend',
+  '/api/contact': 'contact',
+  '/api/support/invoice': 'invoice_recovery',
+  '/api/reports': 'report',
+}
+const captchaFixture = `
+  (() => {
+    let id = 0;
+    const widgets = new Map();
+    const find = action => [...widgets.values()].find(widget => widget.options.action === action);
+    const solve = widget => widget.options.callback(widget.options.action + ':' + crypto.randomUUID());
+    window.turnstileQA = {
+      pause: false,
+      options: action => find(action)?.options,
+      solve: action => solve(find(action)),
+      expire: action => find(action).options['expired-callback'](),
+      timeout: action => find(action).options['timeout-callback'](),
+      widgetCount: () => widgets.size,
+    };
+    const schedule = widget => queueMicrotask(() => {
+      if (widgets.has(widget.id) && !window.turnstileQA.pause) solve(widget);
+    });
+    window.turnstile = {
+      render(element, options) {
+        const widget = { id: ++id, options };
+        widgets.set(widget.id, widget);
+        schedule(widget);
+        return widget.id;
+      },
+      reset(id) { schedule(widgets.get(id)); },
+      remove(id) { widgets.delete(id); },
+    };
+  })();
+`
 const artifacts = path.resolve('node_modules/.cache/catalog-qa')
 await mkdir(artifacts, { recursive: true })
 let browser
@@ -38,6 +78,8 @@ let sequence = 0
 const pending = new Map()
 const failures = []
 const writes = []
+const spentCaptchaTokens = new Set()
+let rejectContactOnce = false
 const documentsFromServiceWorker = new Map()
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
@@ -129,6 +171,15 @@ socket.addEventListener('message', async event => {
     const { requestId, request } = message.params
     try {
       const url = new URL(request.url)
+      if (request.url === captchaScript) {
+        await send('Fetch.fulfillRequest', {
+          requestId,
+          responseCode: 200,
+          responseHeaders: [{ name: 'Content-Type', value: 'application/javascript' }],
+          body: Buffer.from(captchaFixture).toString('base64'),
+        })
+        return
+      }
       let result = {}
       let responseCode = 200
       const responseHeaders = [{ name: 'Content-Type', value: 'application/json' }]
@@ -142,6 +193,16 @@ socket.addEventListener('message', async event => {
           authorization: headers.get('authorization'),
         })
       }
+      const challengedLogin = url.pathname === '/api/auth/login' && signIn.scenario === 'admin-login'
+      const action = challengedLogin ? 'login' : protectedActions[url.pathname]
+      const body = captchaEnabled && action && request.postData ? JSON.parse(request.postData) : {}
+      if (captchaEnabled && action && body.turnstile_token) {
+        assert.match(body.turnstile_token, new RegExp(`^${action}:`))
+        assert.ok(!spentCaptchaTokens.has(body.turnstile_token), 'A CAPTCHA token was sent twice')
+        spentCaptchaTokens.add(body.turnstile_token)
+      } else if (captchaEnabled && protectedActions[url.pathname] && request.method === 'POST') {
+        assert.fail(`Missing CAPTCHA for ${url.pathname}`)
+      }
       if (url.pathname === '/api/auth/me') {
         result = { persona: signIn.persona, google_pending: signIn.pending }
         responseCode = signIn.persona || signIn.pending ? 200 : 401
@@ -150,7 +211,10 @@ socket.addEventListener('message', async event => {
         responseCode = 201
         result = { code: 'verification_required', email, mail_status: 'sent', retry_after: 60 }
       } else if (url.pathname === '/api/auth/login') {
-        if (signIn.scenario === 'admin-login') {
+        if (captchaEnabled && challengedLogin && !body.turnstile_token) {
+          responseCode = 422
+          result = { code: 'captcha_required' }
+        } else if (signIn.scenario === 'admin-login') {
           signIn.persona = signedInPersona('administrators', true)
           result = { token: 'admin-token', persona: signIn.persona }
         } else if (signIn.scenario === 'blocked-login') {
@@ -203,6 +267,10 @@ socket.addEventListener('message', async event => {
           responseCode = 422
           result = { code: 'invalid_reset_link' }
         }
+      } else if (url.pathname === '/api/contact' && rejectContactOnce) {
+        rejectContactOnce = false
+        responseCode = 419
+        result = { message: 'Session expired' }
       } else if (url.pathname === '/oauth/google/start') {
         signIn.selectedRole = url.searchParams.get('role')
         signIn.language = url.searchParams.get('lang')
@@ -211,10 +279,10 @@ socket.addEventListener('message', async event => {
           destination = '/auth?google=cancelled'
         } else if (signIn.scenario === 'returning') {
           signIn.persona = signedInPersona(providerRole, true)
-        } else if (signIn.selectedRole) {
+        } else if (signIn.selectedRole && !captchaEnabled) {
           signIn.persona = signedInPersona(signIn.selectedRole)
         } else {
-          signIn.pending = { ...googleIdentity, purpose: 'role' }
+          signIn.pending = { ...googleIdentity, purpose: 'role', loma: signIn.selectedRole }
           destination = '/profile?google=role'
         }
         responseCode = 302
@@ -274,7 +342,13 @@ socket.addEventListener('message', async event => {
       } else if (url.pathname.startsWith('/api/atsauksmes')) {
         result = []
       }
-      await send('Fetch.fulfillRequest', { requestId, responseCode, responseHeaders, body: responseCode === 204 ? '' : Buffer.from(JSON.stringify(result)).toString('base64') })
+      await send('Fetch.fulfillRequest', {
+        requestId,
+        responseCode,
+        responseHeaders,
+        ...(responseCode === 419 ? { responsePhrase: 'Page Expired' } : {}),
+        body: responseCode === 204 ? '' : Buffer.from(JSON.stringify(result)).toString('base64'),
+      })
     } catch (error) {
       failures.push(String(error))
       await send('Fetch.failRequest', { requestId, errorReason: 'Failed' })
@@ -346,7 +420,7 @@ try {
   await send('Runtime.enable')
   if (process.env.CATALOG_VERIFY_PWA === '1') await send('Network.enable')
   await send('Fetch.enable', {
-    patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*']
+    patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*', captchaScript]
       .map(urlPattern => ({ urlPattern })),
   })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: "if (!localStorage.getItem('easy-rent-locale')) localStorage.setItem('easy-rent-locale', 'en')" })
@@ -515,6 +589,14 @@ try {
   await click('.auth-tabs [role=tab]:nth-child(2)')
   await click('.auth-role-options button:nth-child(2)')
   await click('.google-sign-in')
+  if (captchaEnabled) {
+    await waitFor('location.pathname === "/profile" && window.turnstileQA?.options("register") && !!document.querySelector(".profile-details input[type=radio]:checked")')
+    assert.equal(await evaluate('document.querySelector(".profile-details input[type=radio]:checked").value'), providerRole)
+    assert.equal(signIn.persona, null)
+    await waitFor('!document.querySelector(".profile-details button[type=submit]").disabled')
+    await click('.profile-details button[type=submit]')
+    assert.match(JSON.parse(writes.findLast(write => write.path === '/oauth/google/role').body).turnstile_token, /^register:/)
+  }
   await waitFor('location.pathname === "/profile" && !location.search && !!document.querySelector(".profile-details input")', 'Provider lands in profile')
   assert.equal(signIn.selectedRole, providerRole)
   assert.equal(signIn.language, 'lv')
@@ -569,6 +651,7 @@ try {
   await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input[type=radio]")', 'Unknown role is chosen inside the profile')
   assert.equal(signIn.selectedRole, null)
   await click('.profile-details input[value="klients"]')
+  await waitFor('!document.querySelector(".profile-details button[type=submit]").disabled')
   await click('.profile-details button[type=submit]')
   await waitFor('location.pathname === "/profile" && !!document.querySelector(".profile-details input:not([type=radio])") && !document.querySelector(".profile-details input[type=radio]")', 'Client profile loads after selection')
   assert.match(await evaluate('document.querySelector(".profile-role").textContent'), /Klients/)
@@ -690,7 +773,11 @@ try {
   await click(recoverySubmit)
   await waitFor('document.querySelector(".recovery-card [role=status]")?.textContent.includes("отправим инструкцию")')
   const requestLink = writes.findLast(write => write.path === '/api/auth/forgot-password')
-  assert.deepEqual(JSON.parse(requestLink.body), { email, locale: 'ru' })
+  const { turnstile_token: recoveryCaptcha, ...recoveryBody } = JSON.parse(requestLink.body)
+  assert.deepEqual(recoveryBody, { email, locale: 'ru' })
+  if (captchaEnabled) {
+    assert.match(recoveryCaptcha, /^forgot_password:/)
+  }
   assert.equal(requestLink.language, 'ru')
   assert.equal(requestLink.authorization, null)
   await screenshot('forgot-password-mobile')
@@ -789,7 +876,11 @@ try {
   await click(resendButton)
   await waitFor(verificationText('The mail service accepted the new verification email'))
   const verificationResend = writes.findLast(write => write.path === '/api/auth/verification/resend')
-  assert.deepEqual(JSON.parse(verificationResend.body), { email: activationEmail, locale: 'en' })
+  const { turnstile_token: resendCaptcha, ...resendBody } = JSON.parse(verificationResend.body)
+  assert.deepEqual(resendBody, { email: activationEmail, locale: 'en' })
+  if (captchaEnabled) {
+    assert.match(resendCaptcha, /^verification_resend:/)
+  }
   assert.equal(verificationResend.authorization, null)
   assert.ok(await evaluate('document.querySelector(".verification-card button[type=submit]").disabled'))
 
@@ -878,6 +969,13 @@ try {
   await input('.auth-form-card input[autocomplete=username]', 'admin@example.test')
   await input('.auth-form-card input[autocomplete=current-password]', 'SampleAdmin42!')
   await click('.auth-form-card button[type=submit]')
+  if (captchaEnabled) {
+    await waitFor('window.turnstileQA?.options("login") && !document.querySelector(".auth-form-card button[type=submit]").disabled')
+    assert.equal(await evaluate('location.pathname'), '/auth')
+    assert.ok(await evaluate('document.querySelector(".auth-form-card").innerText.includes("Security check complete.")'))
+    assert.equal(await evaluate('document.querySelector(".auth-form-card input[autocomplete=current-password]").value'), 'SampleAdmin42!')
+    await click('.auth-form-card button[type=submit]')
+  }
   await waitFor('location.pathname === "/admin" && document.querySelectorAll(".metric").length === 8', 'Admin login opens real dashboard UI')
   assert.ok(await evaluate('document.body.innerText.includes("Confirmed payment volume")'))
   await waitFor('document.querySelector(".admin-sidebar").getBoundingClientRect().left >= 0 && document.querySelector(".admin-content").getBoundingClientRect().left >= 252', 'The desktop sidebar remains open')
@@ -931,9 +1029,71 @@ try {
   await waitFor('location.pathname === "/support" && !!document.querySelector(".support-page")')
   console.log('PASS: administrator login and route guards, dashboard range, server search and sorting, restriction confirmation, mobile drawer, localization, theme, and block support.')
 
+  if (captchaEnabled) {
+    await resize(320, 760)
+    const contactSubmit = '.support-page .v-card:first-child button[type=submit]'
+    const invoiceSubmit = '.support-page .v-card:nth-child(2) button[type=submit]'
+    await waitFor('window.turnstileQA?.widgetCount() === 2')
+    await noOverflow()
+    const widgetInfo = await evaluate(`({
+      scripts: [...document.scripts].filter(script => script.src === ${JSON.stringify(captchaScript)}).length,
+      size: turnstileQA.options('contact').size,
+      language: turnstileQA.options('contact').language,
+      theme: turnstileQA.options('contact').theme,
+      appearance: turnstileQA.options('invoice_recovery').appearance,
+    })`)
+    assert.deepEqual(widgetInfo, { scripts: 1, size: 'compact', language: 'ru', theme: await evaluate('document.documentElement.dataset.theme'), appearance: 'interaction-only' })
+    await input('.support-page .v-card:first-child input[autocomplete=name]', 'QA Contact')
+    await input('.support-page .v-card:first-child input[type=email]', 'support@example.test')
+    await input('.support-page textarea', 'Please help with the reservation.')
+    await input('.support-page input[type=number]', '42')
+    await input('.support-page .v-card:nth-child(2) input[type=email]', 'invoice@example.test')
+
+    await evaluate('turnstileQA.pause = true; turnstileQA.expire("contact"); turnstileQA.timeout("invoice_recovery")')
+    await waitFor(`document.querySelector(${JSON.stringify(contactSubmit)}).disabled && document.querySelector(${JSON.stringify(invoiceSubmit)}).disabled`)
+    await screenshot('turnstile-support-mobile')
+    await evaluate('turnstileQA.solve("contact")')
+    await waitFor(`!document.querySelector(${JSON.stringify(contactSubmit)}).disabled`)
+    assert.ok(await evaluate(`document.querySelector(${JSON.stringify(invoiceSubmit)}).disabled`))
+    const contactCount = () => writes.filter(write => write.path === '/api/contact').length
+    const initialContacts = contactCount()
+    rejectContactOnce = true
+    await click(contactSubmit)
+    assert.equal(contactCount(), initialContacts + 1, '419 must not resend the token')
+    assert.deepEqual(failures, [])
+    await waitFor('document.querySelector(".support-page").innerText.includes("Session expired")')
+    assert.equal(await evaluate('document.querySelector(".support-page textarea").value'), 'Please help with the reservation.')
+    await evaluate('turnstileQA.solve("contact")')
+    await click(contactSubmit)
+    await waitFor('document.querySelector(".support-page textarea").value === ""')
+    assert.equal(contactCount(), initialContacts + 2)
+    await evaluate('turnstileQA.solve("invoice_recovery")')
+    await click(invoiceSubmit)
+    assert.match(JSON.parse(writes.findLast(write => write.path === '/api/support/invoice').body).turnstile_token, /^invoice_recovery:/)
+    await evaluate('Object.defineProperty(navigator, "onLine", { configurable: true, value: false }); window.dispatchEvent(new Event("offline"))')
+    await waitFor('turnstileQA.widgetCount() === 0 && document.querySelector(".support-page").innerText.includes("Подключитесь к интернету")')
+    await click(contactSubmit)
+    assert.equal(contactCount(), initialContacts + 2)
+    await evaluate('delete navigator.onLine; window.dispatchEvent(new Event("online"))')
+
+    signIn.persona = signedInPersona('klients', true)
+    await evaluate('localStorage.setItem("token", "reporter-token")')
+    await send('Page.navigate', { url: `${base}/company/1` })
+    await waitFor('!!document.querySelector(".vehicle-card__actions button .mdi-flag-outline")')
+    await evaluate('document.querySelector(".vehicle-card__actions button .mdi-flag-outline").closest("button").click()')
+    await waitFor('window.turnstileQA?.options("report") && !!document.querySelector(".v-dialog textarea")')
+    await input('.v-dialog textarea', 'Please review this vehicle listing.')
+    await click('.v-dialog button[type=submit]')
+    await waitFor('document.body.innerText.includes("Жалоба отправлена.")')
+    const report = writes.findLast(write => write.path === '/api/reports')
+    assert.match(JSON.parse(report.body).turnstile_token, /^report:/)
+    assert.equal(report.authorization, 'Bearer reporter-token')
+    console.log('PASS: Turnstile mobile layout, independent support widgets, timeout, expiry, offline mode, single-use 419 handling, and authenticated reporting.')
+  }
+
   if (process.env.CATALOG_VERIFY_PWA === '1') {
     await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the application')
-    for (const path of ['/auth', '/verify-email']) {
+    for (const path of ['/auth', '/verify-email', '/forgot-password', '/reset-password']) {
       const url = `${base}${path}?pwa-check=1`
       await send('Page.navigate', { url })
       await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === "complete"`)

@@ -9,10 +9,11 @@
           <v-alert v-if="error" type="error" variant="tonal" class="mb-3">{{ error }}</v-alert>
           <v-select v-model="reason" :label="label('reason')" :items="reasons" variant="outlined" />
           <v-textarea v-model="description" :label="label('reportDescription')" minlength="10" maxlength="2000" rows="4" required variant="outlined" />
+          <TurnstileCaptcha v-if="dialog && captchaEnabled" ref="captcha" v-model="captchaToken" action="report" />
         </v-card-text>
         <v-card-actions class="justify-end">
           <v-btn :disabled="saving" variant="text" @click="dialog = false">{{ label('cancel') }}</v-btn>
-          <v-btn :disabled="description.trim().length < 10" :loading="saving" color="primary" type="submit">{{ label('confirm') }}</v-btn>
+          <v-btn :disabled="description.trim().length < 10 || !captchaReady" :loading="saving" color="primary" type="submit">{{ label('confirm') }}</v-btn>
         </v-card-actions>
       </v-form>
     </v-card>
@@ -23,11 +24,15 @@
 import { computed, ref } from 'vue'
 import { useAdminFormat } from '@/admin/format'
 import { reportReasons } from '@/admin/sections'
-import { apiFetch } from '@/services/auth'
+import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
+import { captchaErrorKey, useTurnstile } from '@/services/turnstile'
+import { useLocale } from '@/stores/locale'
 import { useNotifications } from '@/stores/notifications'
 
 const props = defineProps({ target: { type: String, required: true }, targetId: { type: [Number, String], default: null } })
 const { label, status } = useAdminFormat()
+const { t } = useLocale()
+const { enabled: captchaEnabled, token: captchaToken, widget: captcha, ready: captchaReady, post: postReport } = useTurnstile()
 const { notifySuccess } = useNotifications()
 const reasons = computed(() => reportReasons.map(value => ({ value, title: status(value) })))
 const dialog = ref(false)
@@ -44,15 +49,16 @@ function open () {
 }
 
 async function submit () {
-  if (saving.value || description.value.trim().length < 10) return
+  if (saving.value || !captchaReady.value || description.value.trim().length < 10) return
   saving.value = true
   error.value = ''
   try {
-    const response = await apiFetch('/api/reports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ objekta_veids: props.target, objekta_id: props.targetId, iemesls: reason.value, apraksts: description.value.trim() }),
-    })
+    const response = await postReport('/api/reports', {
+      objekta_veids: props.target,
+      objekta_id: props.targetId,
+      iemesls: reason.value,
+      apraksts: description.value.trim(),
+    }, { auth: true })
     const data = await response.json()
     if (!response.ok) {
       error.value = Object.values(data.errors ?? {})[0]?.[0] || data.message || label('saveError')
@@ -60,8 +66,9 @@ async function submit () {
     }
     dialog.value = false
     notifySuccess(label('reportSent'))
-  } catch {
-    error.value = label('saveError')
+  } catch (error_) {
+    const key = captchaErrorKey(error_)
+    error.value = key ? t(key) : label('saveError')
   } finally {
     saving.value = false
   }

@@ -50,8 +50,10 @@
                 <v-radio :label="copy.roles.client" value="klients" />
                 <v-radio :label="copy.roles.provider" value="pakalpojumu_sniedzejs" />
               </v-radio-group>
+              <TurnstileCaptcha v-if="signupCaptchaEnabled" ref="signupCaptcha" v-model="signupToken" action="register" />
               <v-btn
                 color="primary"
+                :disabled="!signupReady"
                 :loading="loading"
                 rounded="xl"
                 size="large"
@@ -613,10 +615,12 @@
 
 <script setup>
   import ReportButton from '@/components/ReportButton.vue'
+  import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { accountHome, AUTH_ROUTE, emailVerificationRoute, HOME_ROUTE } from '@/router/paths'
   import { apiFetch, clearAuthSession, getStoredUser, googlePending, logoutRequest, setAuthSession } from '@/services/auth'
+  import { captchaErrorKey, useTurnstile } from '@/services/turnstile'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
@@ -634,6 +638,16 @@
   const copy = computed(() => t('profile'))
   const selectedRole = ref(null)
   const roleError = ref('')
+  const {
+    enabled: signupCaptchaEnabled,
+    ready: signupReady,
+    token: signupToken,
+    widget: signupCaptcha,
+    post: postGoogleRegistration,
+  } = useTurnstile()
+  watch(() => rolePending.value?.loma, role => {
+    selectedRole.value = role ?? null
+  }, { immediate: true })
   const isClient = computed(() => loma.value === 'klients')
   const isProvider = computed(() => loma.value === 'pakalpojumu_sniedzejs')
   // Profila lapas pamatstāvoklis un UI darbību statusi.
@@ -756,6 +770,7 @@
   }
 
   async function chooseGoogleRole () {
+    if (loading.value || !signupReady.value) return
     if (!selectedRole.value) {
       roleError.value = copy.value.setup.chooseRoleError
       return
@@ -763,11 +778,7 @@
     loading.value = true
     roleError.value = ''
     try {
-      const response = await apiFetch('/oauth/google/role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loma: selectedRole.value }),
-      })
+      const response = await postGoogleRegistration('/oauth/google/role', { loma: selectedRole.value })
       const result = await response.json().catch(() => ({}))
       if (response.ok && result.next) {
         window.location.replace(result.next)
@@ -777,9 +788,10 @@
         await router.replace({ path: AUTH_ROUTE, query: { google: 'invalid' } })
         return
       }
-      roleError.value = result.errors?.loma?.[0] || copy.value.setup.roleError
-    } catch {
-      roleError.value = t('common.networkError')
+      roleError.value = result.errors?.loma?.[0] || result.message || copy.value.setup.roleError
+    } catch (error) {
+      const key = captchaErrorKey(error)
+      roleError.value = t(key || 'common.networkError')
     } finally {
       loading.value = false
     }

@@ -26,6 +26,7 @@ declare module 'vue' {
     ReportButton: typeof import('./src/components/ReportButton.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TurnstileCaptcha: typeof import('./src/components/TurnstileCaptcha.vue')['default']
     VehiclePhotos: typeof import('./src/components/VehiclePhotos.vue')['default']
   }
 }

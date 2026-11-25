@@ -20,13 +20,14 @@ use App\Http\Middleware\RequireActiveAccount;
 use App\Http\Middleware\RequireAdministrator;
 use App\Http\Middleware\RequireCompletedProfile;
 use App\Http\Middleware\RequireVerifiedEmail;
+use App\Http\Middleware\VerifyTurnstile;
 
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
-Route::post('/contact', [ContactController::class, 'send'])->middleware('throttle:5,1');
-Route::post('/support/invoice', [InvoiceRecoveryController::class, 'send'])->middleware('throttle:5,1');
+Route::post('/contact', [ContactController::class, 'send'])->middleware(['throttle:5,1', VerifyTurnstile::class.':contact']);
+Route::post('/support/invoice', [InvoiceRecoveryController::class, 'send'])->middleware(['throttle:5,1', VerifyTurnstile::class.':invoice_recovery']);
 
 Route::middleware(RequireCompletedProfile::class)->group(function () {
 
@@ -58,7 +59,7 @@ Route::middleware(['auth:sanctum', RequireActiveAccount::class, RequireVerifiedE
         Route::delete('/{id}', [RezervacijaController::class, 'destroy']);
     });
 
-    Route::post('/reports', [ReportController::class, 'store'])->middleware('throttle:5,1');
+    Route::post('/reports', [ReportController::class, 'store'])->middleware(['throttle:5,1', VerifyTurnstile::class.':report']);
 
     Route::prefix('atsauksmes')->group(function () {
         Route::post('/', [AtsauksmeController::class, 'store']);
@@ -100,12 +101,12 @@ Route::middleware(['auth:sanctum', RequireVerifiedEmail::class, RequireAdministr
 });
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-    Route::post('/forgot-password', [PasswordResetController::class, 'requestLink'])->middleware('throttle:password-reset-request');
+    Route::post('/register', [AuthController::class, 'register'])->middleware(['throttle:10,1', VerifyTurnstile::class.':register']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware(['throttle:10,1', 'throttle:password-login-ip']);
+    Route::post('/forgot-password', [PasswordResetController::class, 'requestLink'])->middleware(['throttle:password-reset-request', VerifyTurnstile::class.':forgot_password']);
     Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:password-reset-submit');
     Route::post('/verification/confirm', [EmailVerificationController::class, 'confirm'])->middleware('throttle:email-verification-confirm');
-    Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:email-verification-resend');
+    Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware(['throttle:email-verification-resend', VerifyTurnstile::class.':verification_resend']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });

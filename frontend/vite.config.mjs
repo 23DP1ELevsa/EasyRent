@@ -59,7 +59,7 @@ const config = {
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,svg,woff2}'],
         navigateFallbackDenylist: [
           /^\/(?:api|oauth|sanctum)(?:\/|$)/,
-          /^\/(?:auth|verify-email)(?:[/?]|$)/,
+          /^\/(?:auth|verify-email|forgot-password|reset-password)(?:[/?]|$)/,
         ],
       },
       devOptions: {

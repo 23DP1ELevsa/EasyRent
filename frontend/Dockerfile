@@ -7,6 +7,8 @@ RUN npm ci --include=dev --no-audit --no-fund
 
 COPY . .
 
+ARG VITE_TURNSTILE_ENABLED=false
+ARG VITE_TURNSTILE_SITE_KEY
 RUN npm run build
 
 FROM caddy:2-alpine AS runtime

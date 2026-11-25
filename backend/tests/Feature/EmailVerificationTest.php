@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Persona;
+use App\Support\TurnstileService;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -124,25 +126,43 @@ class EmailVerificationTest extends TestCase
         $this->postJson('/api/auth/login', $credentials)->assertUnprocessable();
     }
 
-    public function test_the_signup_browser_can_sign_in_once_via_the_email_link(): void
+    #[DataProvider('emailLinkRoles')]
+    public function test_the_signup_browser_can_sign_in_once_via_the_email_link_for_non_administrators(string $role): void
     {
-        $headers = $this->registerWithSession();
+        config(['turnstile.enabled' => true, 'turnstile.secret_key' => 'fixture-secret']);
+        Http::fake([TurnstileService::SITEVERIFY => Http::response([
+            'success' => true, 'action' => 'register', 'hostname' => 'easyrent.vip', 'challenge_ts' => now()->toISOString(),
+        ])])->preventStrayRequests();
+        $headers = $this->registerWithSession(['turnstile_token' => 'fixture-signup']);
         $link = $this->link();
+        Persona::forEmail(self::EMAIL)->firstOrFail()->forceFill(['loma' => $role])->save();
         $this->getJson(self::CONFIRM, $headers)->assertMethodNotAllowed();
         $this->assertDatabaseEmpty('personal_access_tokens');
         $response = $this->postJson(self::CONFIRM, $link, $headers)->assertOk()
-            ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('code', 'email_verified')
-            ->assertJsonPath('persona.epasts', self::EMAIL);
+            ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('code', 'email_verified');
+        Http::assertSentCount(1);
+        $this->assertDatabaseEmpty('email_verification_tokens');
+        if ($role === 'administrators') {
+            $response->assertJsonMissingPath('token')->assertJsonMissingPath('persona');
+            $this->assertDatabaseEmpty('personal_access_tokens');
+
+            return;
+        }
+        $response->assertJsonPath('persona.epasts', self::EMAIL);
         $token = $response->json('token');
         $this->assertIsString($token);
         $this->assertDatabaseCount('personal_access_tokens', 1);
-        $this->assertDatabaseEmpty('email_verification_tokens');
         $this->resetRequestState();
         $this->getJson('/api/auth/me', ['Authorization' => 'Bearer '.$token])->assertOk()
             ->assertJsonPath('persona.epasts', self::EMAIL);
         $this->resetRequestState();
         $this->postJson(self::CONFIRM, $link, $headers)->assertUnprocessable()->assertJsonMissingPath('token');
         $this->assertDatabaseCount('personal_access_tokens', 1);
+    }
+
+    public static function emailLinkRoles(): array
+    {
+        return [['klients'], ['administrators']];
     }
 
     public function test_the_signup_browser_can_still_verify_at_the_auto_login_deadline(): void
@@ -343,14 +363,19 @@ class EmailVerificationTest extends TestCase
         $register = $this->postJson('/api/auth/register', $this->registration(), $headers)
             ->assertCreated()->assertJsonPath('mail_status', 'sent');
         $first = $this->link();
+        config(['turnstile.enabled' => true, 'turnstile.secret_key' => 'fixture-secret']);
+        Http::fake([TurnstileService::SITEVERIFY => fn () => Http::response([
+            'success' => true, 'action' => 'verification_resend', 'hostname' => 'easyrent.vip', 'challenge_ts' => now()->toISOString(),
+        ])])->preventStrayRequests();
         $this->resetRequestState();
         $this->withCredentials()->withCookie(config('session.cookie'), $register->getCookie(config('session.cookie'))->getValue());
-        $this->postJson(self::RESEND, ['email' => 'missing@example.com'], $headers)->assertAccepted();
-        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)->assertUnprocessable()->assertJsonPath('code', 'captcha_required');
+        $this->postJson(self::RESEND, ['email' => 'missing@example.com', 'turnstile_token' => 'fixture-missing'], $headers)->assertAccepted();
+        $this->postJson(self::RESEND, ['email' => self::EMAIL, 'turnstile_token' => 'fixture-fast'], $headers)
             ->assertTooManyRequests()->assertJsonPath('code', 'verification_mail_rate_limited');
 
         $this->travel(60)->seconds();
-        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+        $this->postJson(self::RESEND, ['email' => self::EMAIL, 'turnstile_token' => 'fixture-resend'], $headers)
             ->assertOk()->assertJsonPath('code', 'verification_mail_sent');
         $recent = $this->link(1);
         $this->postJson(self::CONFIRM, $first, $headers)->assertUnprocessable();
@@ -358,7 +383,7 @@ class EmailVerificationTest extends TestCase
 
         $this->travel(60)->seconds();
         Event::listen(\Illuminate\Mail\Events\MessageSending::class, fn () => false);
-        $this->postJson(self::RESEND, ['email' => self::EMAIL], $headers)
+        $this->postJson(self::RESEND, ['email' => self::EMAIL, 'turnstile_token' => 'fixture-resend-error'], $headers)
             ->assertStatus(503)->assertHeader('Retry-After', '60')->assertJsonPath('code', 'mail_unavailable');
         $this->assertCount(2, $this->messages());
         $this->postJson(self::CONFIRM, $recent, $headers)->assertOk();
@@ -495,11 +520,11 @@ class EmailVerificationTest extends TestCase
         ];
     }
 
-    private function registerWithSession(): array
+    private function registerWithSession(array $extra = []): array
     {
         config(['session.driver' => 'database', 'sanctum.stateful' => ['easyrent.vip']]);
         $headers = ['Referer' => self::FRONTEND.'/auth'];
-        $response = $this->postJson('/api/auth/register', $this->registration(), $headers)->assertCreated();
+        $response = $this->postJson('/api/auth/register', $this->registration() + $extra, $headers)->assertCreated();
         $this->resetRequestState();
         $this->withCredentials()->withCookie(config('session.cookie'), $response->getCookie(config('session.cookie'))->getValue());
 

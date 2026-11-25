@@ -7,6 +7,7 @@ use App\Models\Persona;
 use App\Support\EmailVerification;
 use App\Support\AccountRestrictions;
 use App\Support\GoogleOAuth;
+use App\Support\TurnstileService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,10 @@ class GoogleOAuthController extends Controller
 {
     private const ROLES = ['klients', 'pakalpojumu_sniedzejs'];
 
-    public function __construct(private readonly EmailVerification $verification) {}
+    public function __construct(
+        private readonly EmailVerification $verification,
+        private readonly TurnstileService $turnstile,
+    ) {}
 
     public function start(Request $request, GoogleOAuth $google): RedirectResponse
     {
@@ -103,7 +107,8 @@ class GoogleOAuthController extends Controller
         ]);
 
         $pending = $this->requirePending($request, 'role');
-        $next = $this->continueSignIn($request, $pending['identity'], $data['loma']);
+        $this->turnstile->verify($request, 'register');
+        $next = $this->continueSignIn($request, $pending['identity'], $data['loma'], registrationVerified: true);
 
         return response()->json(['next' => $next])->header('Cache-Control', 'no-store');
     }
@@ -131,7 +136,7 @@ class GoogleOAuthController extends Controller
         try {
             $persona = DB::transaction(function () use ($pending, $identity, $data) {
                 $persona = Persona::whereKey($pending['persona_id'])->lockForUpdate()->first();
-                if (! $persona || ! $persona->parole || strcasecmp($persona->epasts ?? '', $identity['epasts']) !== 0
+                if (! $persona || $persona->loma === 'administrators' || ! $persona->parole || strcasecmp($persona->epasts ?? '', $identity['epasts']) !== 0
                     || ($persona->google_id !== null && $persona->google_id !== $identity['google_id'])
                     || ! Hash::check($data['password'], $persona->parole)) {
                     throw ValidationException::withMessages(['password' => __('app.googleLinkWrongPassword')]);
@@ -166,7 +171,7 @@ class GoogleOAuthController extends Controller
         return response()->json(['message' => 'OK']);
     }
 
-    private function continueSignIn(Request $request, array $identity, ?string $role): string
+    private function continueSignIn(Request $request, array $identity, ?string $role, bool $registrationVerified = false): string
     {
         $persona = Persona::where('google_id', $identity['google_id'])->first();
         if ($persona) {
@@ -178,8 +183,8 @@ class GoogleOAuthController extends Controller
             return $this->confirmOwner($request, $identity, $owner);
         }
 
-        if ($role === null) {
-            $this->setPending($request, $identity, 'role');
+        if ($role === null || ($this->turnstile->enabled() && ! $registrationVerified)) {
+            $this->setPending($request, $identity, 'role', role: $role);
 
             return '/profile?google=role';
         }
@@ -222,7 +227,7 @@ class GoogleOAuthController extends Controller
         if (AccountRestrictions::block($owner)) {
             return $this->blockedSignIn($request, $owner);
         }
-        if ($owner->google_id !== null || ! $owner->parole) {
+        if ($owner->loma === 'administrators' || $owner->google_id !== null || ! $owner->parole) {
             $request->session()->forget(GoogleOAuth::PENDING);
 
             return '/auth?google=conflict';
@@ -233,7 +238,7 @@ class GoogleOAuthController extends Controller
         return '/auth?google=link';
     }
 
-    private function setPending(Request $request, array $identity, string $purpose, ?int $owner = null): void
+    private function setPending(Request $request, array $identity, string $purpose, ?int $owner = null, ?string $role = null): void
     {
         Auth::guard('web')->logout();
         $request->session()->invalidate();
@@ -242,6 +247,7 @@ class GoogleOAuthController extends Controller
             'purpose' => $purpose,
             'identity' => $identity,
             'persona_id' => $owner,
+            'loma' => $role,
             'expires_at' => now()->addMinutes(10)->timestamp,
         ]);
     }
@@ -256,6 +262,10 @@ class GoogleOAuthController extends Controller
 
     private function signIn(Request $request, Persona $persona, ?string $googleEmail = null): string
     {
+        if ($persona->loma === 'administrators') {
+            return '/auth?google=conflict';
+        }
+
         if ($googleEmail !== null && ($persona->epasts === null || ! $persona->hasVerifiedEmail()) && ! AccountRestrictions::block($persona)) {
             $persona = $this->applyVerifiedGoogleEmail($persona, $googleEmail);
             if (! $persona) {
@@ -267,6 +277,9 @@ class GoogleOAuthController extends Controller
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
             if (! $active || $active->google_id !== $persona->google_id) {
                 return '/auth?google=invalid';
+            }
+            if ($active->loma === 'administrators') {
+                return '/auth?google=conflict';
             }
             if (AccountRestrictions::block($active)) {
                 return $this->blockedSignIn($request, $active);
@@ -313,6 +326,9 @@ class GoogleOAuthController extends Controller
                 $active = (clone $account)->lockForUpdate()->first();
                 if (! $active) {
                     return null;
+                }
+                if ($active->loma === 'administrators') {
+                    return $active;
                 }
                 if (AccountRestrictions::block($active)) {
                     return $active;

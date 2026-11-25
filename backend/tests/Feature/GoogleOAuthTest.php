@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Persona;
+use App\Support\TurnstileService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -402,6 +403,52 @@ class GoogleOAuthTest extends TestCase
                 'email_verified' => true,
             ]),
         ]);
+    }
+
+    public function test_google_cannot_link_or_sign_in_to_an_administrator_account(): void
+    {
+        config(['turnstile.enabled' => true, 'turnstile.secret_key' => 'fixture-secret']);
+        $admin = Persona::forceCreate([
+            'epasts' => 'anna@example.com',
+            'loma' => 'administrators',
+            'parole' => Hash::make('Example123!'),
+            'email_verified_at' => now(),
+        ]);
+        $this->fakeGoogle();
+        $this->finishGoogle('unlinked', $this->start('unlinked'))->assertRedirect('/auth?google=conflict');
+        $this->browser('unlinked', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->browser('unlinked', 'POST', '/oauth/google/link', ['password' => 'Example123!'])->assertGone();
+        $this->assertNull($admin->fresh()->google_id);
+
+        $admin->forceFill(['google_id' => '123456'])->save();
+        $this->finishGoogle('linked', $this->start('linked'))->assertRedirect('/auth?google=conflict');
+        $this->browser('linked', 'GET', '/api/auth/me')->assertUnauthorized();
+        Http::assertNotSent(fn (Request $request) => $request->url() === TurnstileService::SITEVERIFY);
+    }
+
+    public function test_google_requires_captcha_for_account_creation_and_signs_in_returning_users_directly(): void
+    {
+        config(['turnstile.enabled' => true, 'turnstile.secret_key' => 'fixture-secret']);
+        $this->fakeGoogle();
+        Http::fake([TurnstileService::SITEVERIFY => Http::response([
+            'success' => true, 'action' => 'register', 'hostname' => 'easyrent.vip', 'challenge_ts' => now()->toISOString(),
+        ])]);
+
+        $this->finishGoogle('new', $this->start('new', 'pakalpojumu_sniedzejs'))->assertRedirect('/profile?google=role');
+        $this->browser('new', 'GET', '/api/auth/me')->assertOk()->assertJsonPath('persona', null)
+            ->assertJsonPath('google_pending.loma', 'pakalpojumu_sniedzejs');
+        $role = ['loma' => 'pakalpojumu_sniedzejs'];
+        $this->browser('new', 'POST', '/oauth/google/role', $role)->assertUnprocessable()
+            ->assertJsonPath('code', 'captcha_required');
+        $this->assertDatabaseEmpty('persona');
+        $this->browser('new', 'POST', '/oauth/google/role', $role + ['turnstile_token' => 'fixture-google'])
+            ->assertOk()->assertJsonPath('next', '/profile?google=ok');
+
+        $this->finishGoogle('returning', $this->start('returning'))->assertRedirect('/profile?google=ok');
+        $this->browser('returning', 'GET', '/api/auth/me')->assertOk()
+            ->assertJsonPath('persona.loma', 'pakalpojumu_sniedzejs');
+        $this->assertDatabaseCount('persona', 1);
+        $this->assertCount(1, Http::recorded(fn (Request $request) => $request->url() === TurnstileService::SITEVERIFY));
     }
 
     public function test_administrator_role_cannot_be_selected_and_a_block_revokes_google_sessions(): void

@@ -17,6 +17,11 @@
 
 	route {
 		@backend path /api /api/* /oauth /oauth/* /sanctum /sanctum/*
+		@turnstile {
+			method POST
+			path /api/auth/register /api/auth/login /api/auth/forgot-password /api/auth/verification/resend /api/contact /api/support/invoice /api/reports /oauth/google/role
+		}
+		header @turnstile >Cache-Control "no-store"
 		reverse_proxy @backend {$API_UPSTREAM} {
 			header_up Host {upstream_hostport}
 			header_up X-Forwarded-For {client_ip}

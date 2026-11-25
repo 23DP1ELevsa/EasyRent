@@ -8,11 +8,13 @@ use App\Models\Persona;
 use App\Models\TransportliedzieklsVeids;
 use App\Models\Transportlidzeklis;
 use App\Support\AccountMail;
+use App\Support\TurnstileService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -181,8 +183,14 @@ class AdministrationTest extends TestCase
         $this->api($client, 'GET', "/api/rezervacijas/$bookingId/invoice")->assertOk();
 
         $count = count($this->messages());
-        $real = $this->api(null, 'POST', '/api/support/invoice', ['booking_id' => $bookingId, 'email' => $owner->epasts])->assertAccepted();
-        $fake = $this->api(null, 'POST', '/api/support/invoice', ['booking_id' => $bookingId, 'email' => 'outsider@example.test'])->assertAccepted();
+        $this->enableTurnstile('invoice_recovery');
+        $invoice = ['booking_id' => $bookingId, 'email' => $owner->epasts];
+        $this->api(null, 'POST', '/api/support/invoice', $invoice)->assertUnprocessable()->assertJsonPath('code', 'captcha_required');
+        $this->assertCount($count, $this->messages());
+        $real = $this->api(null, 'POST', '/api/support/invoice', $invoice + ['turnstile_token' => 'fixture-invoice'])->assertAccepted();
+        $fake = $this->api(null, 'POST', '/api/support/invoice', [
+            'booking_id' => $bookingId, 'email' => 'outsider@example.test', 'turnstile_token' => 'fixture-invoice-other',
+        ])->assertAccepted();
         $this->assertSame($real->json(), $fake->json());
         $this->assertCount($count + 1, $this->messages());
         $messages = $this->messages();
@@ -240,14 +248,23 @@ class AdministrationTest extends TestCase
 
     public function test_reports_validate_targets_deduplicate_and_require_an_audited_decision(): void
     {
+        $this->enableTurnstile('report');
         $admin = $this->account('administrators');
         [$client, $owner, $vehicle] = $this->rental();
         $description = ['iemesls' => 'misinformation', 'apraksts' => 'Listing information does not match'];
-        $this->api($client, 'POST', '/api/reports', ['objekta_veids' => 'user', 'objekta_id' => $admin->getKey()] + $description)->assertNotFound();
-        $id = $this->api($client, 'POST', '/api/reports', ['objekta_veids' => 'vehicle', 'objekta_id' => $vehicle->getKey()] + $description)
+        $vehicleReport = ['objekta_veids' => 'vehicle', 'objekta_id' => $vehicle->getKey()] + $description;
+        $this->api(null, 'POST', '/api/reports', $vehicleReport)->assertUnauthorized();
+        $this->api($client, 'POST', '/api/reports', $vehicleReport)->assertUnprocessable()->assertJsonPath('code', 'captcha_required');
+        $this->assertDatabaseEmpty('parkapuma_zinojums');
+        $this->api($client, 'POST', '/api/reports', [
+            'objekta_veids' => 'user', 'objekta_id' => $admin->getKey(), 'turnstile_token' => 'fixture-report-hidden',
+        ] + $description)->assertNotFound();
+        $id = $this->api($client, 'POST', '/api/reports', $vehicleReport + ['turnstile_token' => 'fixture-report-vehicle'])
             ->assertCreated()->assertJsonPath('statuss', 'jauns')->json('id');
-        $this->api($client, 'POST', '/api/reports', ['objekta_veids' => 'vehicle', 'objekta_id' => $vehicle->getKey()] + $description)->assertConflict();
-        $this->api($client, 'POST', '/api/reports', ['objekta_veids' => 'user', 'objekta_id' => $owner->getKey()] + $description)->assertCreated();
+        $this->api($client, 'POST', '/api/reports', $vehicleReport + ['turnstile_token' => 'fixture-report-conflict'])->assertConflict();
+        $this->api($client, 'POST', '/api/reports', [
+            'objekta_veids' => 'user', 'objekta_id' => $owner->getKey(), 'turnstile_token' => 'fixture-report-user',
+        ] + $description)->assertCreated();
         $this->api($admin, 'GET', '/api/admin/reports?status=open&target=vehicle')->assertOk()->assertJsonPath('total', 1);
         $path = "/api/admin/reports/$id";
         $this->api($admin, 'GET', $path)->assertOk()->assertJsonPath('target.transportlidzeklis_id', $vehicle->getKey())
@@ -264,6 +281,15 @@ class AdministrationTest extends TestCase
             ->assertJsonPath('data.0.iemesls', 'Listing verified […] […]');
         $this->api($admin, 'DELETE', '/api/admin/audit/1')->assertNotFound();
         $this->assertDatabaseEmpty('lietotaja_ierobezojums');
+        Http::assertSentCount(4);
+    }
+
+    private function enableTurnstile(string $action): void
+    {
+        config(['turnstile.enabled' => true, 'turnstile.secret_key' => 'fixture-secret']);
+        Http::fake([TurnstileService::SITEVERIFY => Http::response([
+            'success' => true, 'action' => $action, 'hostname' => 'easyrent.vip', 'challenge_ts' => now()->toISOString(),
+        ])])->preventStrayRequests();
     }
 
     #[DataProvider('locales')]

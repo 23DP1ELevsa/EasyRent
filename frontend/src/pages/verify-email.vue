@@ -53,11 +53,13 @@
           variant="outlined"
           @update:model-value="emailError = ''"
         />
+        <TurnstileCaptcha v-if="captchaEnabled" ref="captcha" v-model="captchaToken" action="verification_resend" />
+        <v-alert v-if="captchaError" class="mb-3" type="error" variant="tonal" role="alert">{{ t(captchaError) }}</v-alert>
         <v-btn
           block
           class="account-action-submit"
           color="primary"
-          :disabled="remaining > 0 || resending"
+          :disabled="remaining > 0 || resending || !captchaReady"
           :loading="resending"
           type="submit"
         >
@@ -85,13 +87,17 @@
 <script setup>
   import { computed, onBeforeUnmount, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
+  import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
   import { accountHome, AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, PROFILE_ROUTE, VERIFY_EMAIL_ROUTE } from '@/router/paths'
   import { apiFetch, hasAuthSession, setAuthSession } from '@/services/auth'
+  import { captchaErrorKey, useTurnstile } from '@/services/turnstile'
   import { useLocale } from '@/stores/locale'
 
   const route = useRoute()
   const router = useRouter()
   const { locale, setLocale, t } = useLocale()
+  const { enabled: captchaEnabled, token: captchaToken, widget: captcha, ready: captchaReady, post: postResend } = useTurnstile()
+  const captchaError = ref('')
   const receipt = window.history.state?.emailVerification
   const email = ref(receipt?.email || '')
   const status = ref({ sent: 'sent', unavailable: 'mailUnavailable' }[receipt?.mailStatus] || 'ready')
@@ -129,15 +135,6 @@
     cooldownUntil.value = now.value + seconds * 1000
   }
 
-  function submit (action, data) {
-    return apiFetch(`/api/auth/verification/${action}`, {
-      auth: action === 'confirm',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-  }
-
   function confirmVisibleLink () {
     if (document.visibilityState === 'visible' && status.value === 'checking') {
       void confirm()
@@ -151,10 +148,10 @@
     lastInteractive = interactive
     status.value = 'checking'
     try {
-      const response = await submit('confirm', {
-        ...attempt,
-        interactive,
-        auto_login: !hasAuthSession(),
+      const response = await apiFetch('/api/auth/verification/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...attempt, interactive, auto_login: !hasAuthSession() }),
       })
       const result = await response.json()
       if (link !== attempt) return
@@ -214,16 +211,19 @@
   }, { immediate: true })
 
   async function resend () {
-    if (resending.value || remaining.value > 0) return
+    if (resending.value || remaining.value > 0 || !captchaReady.value) return
+    captchaError.value = ''
     if (!email.value || email.value.length > 255 || !/^[^\s@]+@[^\s@]+$/.test(email.value)) {
       emailError.value = email.value ? 'auth.messages.emailInvalid' : 'auth.messages.emailRequired'
       return
     }
     resending.value = true
     try {
-      const response = await submit('resend', { email: email.value, locale: locale.value })
+      const response = await postResend('/api/auth/verification/resend', { email: email.value, locale: locale.value })
+      const result = await response.json().catch(() => ({}))
+      captchaError.value = captchaErrorKey(result)
+      if (captchaError.value) return
       if (response.ok) {
-        const result = await response.json()
         link = null
         status.value = result.code === 'verification_mail_sent' ? 'resentConfirmed' : 'resent'
         cooldown(Number(result.retry_after) || 60)
@@ -238,8 +238,9 @@
       } else {
         status.value = 'resendError'
       }
-    } catch {
-      status.value = 'resendError'
+    } catch (error) {
+      captchaError.value = captchaErrorKey(error)
+      if (!captchaError.value) status.value = 'resendError'
     } finally {
       resending.value = false
     }

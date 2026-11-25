@@ -43,7 +43,7 @@ async function refreshCsrf () {
   await csrfRequest
 }
 
-export async function apiFetch (path, { auth = true, ...options } = {}) {
+export async function apiFetch (path, { auth = true, singleAttempt = false, ...options } = {}) {
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json')
   headers.set('Accept-Language', getLocale())
@@ -76,7 +76,7 @@ export async function apiFetch (path, { auth = true, ...options } = {}) {
   }
 
   await refreshCsrf()
-  return send()
+  return singleAttempt ? response : send()
 }
 
 export function setAuthSession ({ token, persona }) {

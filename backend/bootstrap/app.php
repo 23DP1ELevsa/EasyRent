@@ -23,8 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/auth');
         $middleware->api(prepend: [SetRequestLocale::class, StatefulFrontendRequests::class]);
         $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
+        $middleware->trimStrings(except: ['turnstile_token']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['turnstile_token']);
         $expectsJson = fn (Request $request) => $request->expectsJson() || $request->is('api/*');
         $exceptions->shouldRenderJsonWhen($expectsJson);
         $exceptions->render(function (Throwable $exception, Request $request) use ($expectsJson) {

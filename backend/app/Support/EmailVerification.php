@@ -182,7 +182,7 @@ class EmailVerification
             $this->markVerified($persona);
 
             $result = ['code' => 'email_verified'];
-            if ($autoLogin && ! $signedIn && $sameBrowser
+            if ($autoLogin && ! $signedIn && $sameBrowser && $persona->loma !== 'administrators'
                 && $expiresAt->subHours(self::VALID_HOURS)->addMinutes(self::AUTO_LOGIN_MINUTES)->isAfter($now)) {
                 return $result + [
                     'token' => $persona->createToken('frontend')->plainTextToken,

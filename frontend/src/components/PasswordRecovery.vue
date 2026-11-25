@@ -62,11 +62,12 @@
               @update:model-value="serverField = ''"
             />
           </template>
+          <TurnstileCaptcha v-if="!reset && captchaEnabled" ref="captcha" v-model="captchaToken" action="forgot_password" />
           <v-btn
             block
             class="account-action-submit"
             color="primary"
-            :disabled="pending"
+            :disabled="pending || (!reset && !captchaReady)"
             :loading="pending"
             type="submit"
           >
@@ -91,11 +92,14 @@
 <script setup>
   import { computed, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
+  import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
   import { AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, RESET_PASSWORD_ROUTE } from '@/router/paths'
   import { apiFetch, syncCurrentUser } from '@/services/auth'
+  import { captchaErrorKey, useTurnstile } from '@/services/turnstile'
   import { useLocale } from '@/stores/locale'
 
   const props = defineProps({ reset: Boolean })
+  const { enabled: captchaEnabled, token: captchaToken, widget: captcha, ready: captchaReady, post: postRecovery } = useTurnstile()
   const route = useRoute()
   const router = useRouter()
   const { locale, setLocale, t } = useLocale()
@@ -151,7 +155,7 @@
   }
 
   async function submit () {
-    if (pending.value || complete.value || (props.reset && !token.value)) return
+    if (pending.value || complete.value || (props.reset ? !token.value : !captchaReady.value)) return
 
     attempted.value = true
     requestError.value = ''
@@ -160,25 +164,29 @@
 
     pending.value = true
     try {
-      const endpoint = props.reset ? '/api/auth/reset-password' : '/api/auth/forgot-password'
-      const body = props.reset
-        ? { email: email.value, token: token.value, password: password.value, password_confirmation: confirmation.value }
-        : { email: email.value, locale: locale.value }
-      const response = await apiFetch(endpoint, {
-        auth: false,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      const response = props.reset
+        ? await apiFetch('/api/auth/reset-password', {
+          auth: false,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.value, token: token.value, password: password.value, password_confirmation: confirmation.value }),
+        })
+        : await postRecovery('/api/auth/forgot-password', { email: email.value, locale: locale.value })
 
       if (response.ok) {
         complete.value = true
         token.value = password.value = confirmation.value = ''
         if (props.reset) void syncCurrentUser()
+        return
+      }
+
+      const result = await response.json().catch(() => ({}))
+      const securityError = captchaErrorKey(result)
+      if (securityError) {
+        requestError.value = securityError
       } else if (response.status === 429) {
         requestError.value = 'common.retryLater'
       } else if (response.status === 422) {
-        const result = await response.json()
         if (result.code === 'invalid_reset_link' || result.errors?.token || (props.reset && result.errors?.email)) {
           token.value = password.value = confirmation.value = ''
         } else if (result.errors?.email) {
@@ -191,8 +199,8 @@
       } else {
         requestError.value = 'passwordRecovery.failed'
       }
-    } catch {
-      requestError.value = 'passwordRecovery.failed'
+    } catch (error) {
+      requestError.value = captchaErrorKey(error) || 'passwordRecovery.failed'
     } finally {
       pending.value = false
     }

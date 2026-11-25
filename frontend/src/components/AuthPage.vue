@@ -154,10 +154,15 @@
                 {{ t('passwordRecovery.forgot') }}
               </RouterLink>
 
+              <TurnstileCaptcha v-if="loginChallengeRequired" ref="loginCaptcha" v-model="loginToken" action="login" />
+              <p v-if="loginChallengeRequired && loginReady && !errorText" class="mb-3 text-body-2" role="status">
+                {{ t('turnstile.loginReady') }}
+              </p>
               <v-btn
                 block
                 class="submit-btn"
                 color="primary"
+                :disabled="!loginReady"
                 elevation="4"
                 :loading="loading"
                 rounded="xl"
@@ -327,10 +332,12 @@
                 </v-col>
 
                 <v-col cols="12">
+                  <TurnstileCaptcha v-if="registrationCaptchaEnabled" ref="registrationCaptcha" v-model="registrationToken" action="register" />
                   <v-btn
                     block
                     class="submit-btn"
                     color="primary"
+                    :disabled="!registrationReady"
                     elevation="4"
                     :loading="loading"
                     rounded="xl"
@@ -355,7 +362,9 @@
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import AccountBlockNotice from '@/components/AccountBlockNotice.vue'
+  import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
   import { apiFetch, blockedLogin, clearAuthSession, googlePending, setAuthSession } from '@/services/auth'
+  import { captchaErrorKey, useTurnstile } from '@/services/turnstile'
   import { emailVerificationRoute, FORGOT_PASSWORD_ROUTE } from '@/router/paths'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
@@ -369,6 +378,15 @@
   const copy = computed(() => t('auth'))
 
   const tab = ref('login')
+  const loginChallengeRequired = ref(false)
+  const { token: loginToken, widget: loginCaptcha, ready: loginReady, post: postLogin } = useTurnstile(loginChallengeRequired)
+  const {
+    enabled: registrationCaptchaEnabled,
+    token: registrationToken,
+    widget: registrationCaptcha,
+    ready: registrationReady,
+    post: postRegistration,
+  } = useTurnstile()
   const loading = ref(false)
   useLoadingState(loading)
   const errorText = ref('')
@@ -621,7 +639,7 @@
   ]
 
   async function submitRegister () {
-    if (loading.value) return
+    if (loading.value || !registrationReady.value) return
     errorText.value = ''
     okText.value = ''
     loading.value = true
@@ -675,15 +693,7 @@
         }
       }
 
-      const r = await apiFetch('/api/auth/register', {
-        auth: false,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      const r = await postRegistration('/api/auth/register', payload)
 
       const data = await r.json().catch(() => ({}))
 
@@ -698,32 +708,29 @@
       clearAuthSession({ emitLogout: false })
       await router.replace(emailVerificationRoute(data.email || payload.email, data))
     } catch (error) {
-      errorText.value = error?.message || copy.value.messages.serverConnection
+      const key = captchaErrorKey(error)
+      errorText.value = key ? t(key) : error?.message || copy.value.messages.serverConnection
     } finally {
       loading.value = false
     }
   }
 
   async function submitLogin () {
-    if (loading.value) return
+    if (loading.value || !loginReady.value) return
     blockedLogin.value = null
     errorText.value = ''
     okText.value = ''
     loading.value = true
     try {
-      const r = await apiFetch('/api/auth/login', {
-        auth: false,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(login.value),
-      })
+      const r = await postLogin('/api/auth/login', login.value)
 
       const data = await r.json().catch(() => ({}))
 
       if (!r.ok) {
+        if (data.code === 'captcha_required') {
+          loginChallengeRequired.value = true
+          return
+        }
         if (data.code === 'account_blocked') {
           blockedLogin.value = data
           login.value.password = ''
@@ -738,6 +745,7 @@
       }
 
       setAuthSession({ token: data.token, persona: data.persona })
+      loginChallengeRequired.value = false
 
       okText.value = copy.value.messages.loggedIn
 
@@ -746,7 +754,8 @@
 
       emit('auth-success')
     } catch (error) {
-      errorText.value = error?.message || copy.value.messages.serverConnection
+      const key = captchaErrorKey(error)
+      errorText.value = key ? t(key) : error?.message || copy.value.messages.serverConnection
     } finally {
       loading.value = false
     }

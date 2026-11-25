@@ -8,16 +8,21 @@ use App\Http\Middleware\RequireVerifiedEmail;
 use App\Support\EmailVerification;
 use App\Support\AccountRestrictions;
 use App\Support\GoogleOAuth;
+use App\Support\TurnstileService;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Sanctum\TransientToken;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class AuthController extends Controller
 {
@@ -131,20 +136,60 @@ class AuthController extends Controller
             ->header('Cache-Control', 'no-store')->header('X-Request-ID', $requestId);
     }
 
-    public function login(Request $request, EmailVerification $verification)
+    public function login(Request $request, EmailVerification $verification, TurnstileService $turnstile)
     {
         $data = $request->validate([
             'email' => ['required','email'],
             'password' => ['required', 'string'],
         ]);
 
-        $persona = Persona::forEmail($data['email'])->first();
-
-        if (!$persona?->parole || !Hash::check($data['password'], $persona->parole)) {
-            return response()->json(['message' => __('app.invalidCredentials')], 422);
+        if (! $turnstile->enabled()) {
+            return $this->attemptLogin($request, $data, $verification, $turnstile);
         }
 
-        return $this->issueToken($request, $persona, $verification);
+        $key = 'password-login:'.hash_hmac('sha256', Persona::normalizeEmail($data['email']).'|'.$request->ip(), config('app.key'));
+        try {
+            // Serialize failures for this email and IP so parallel requests cannot all use the first three attempts.
+            return Cache::lock($key.':lock', 15)->block(2, fn () => $this->attemptLogin($request, $data, $verification, $turnstile, $key));
+        } catch (LockTimeoutException) {
+            throw new TooManyRequestsHttpException(2);
+        }
+    }
+
+    private function attemptLogin(Request $request, #[\SensitiveParameter] array $data, EmailVerification $verification, TurnstileService $turnstile, ?string $key = null)
+    {
+        $captchaVerified = $key !== null && RateLimiter::tooManyAttempts($key, max(1, config('turnstile.login_attempts')));
+        if ($captchaVerified) {
+            $turnstile->verify($request, 'login');
+        }
+
+        $persona = Persona::forEmail($data['email'])->first();
+        $validPassword = $persona?->parole
+            ? Hash::check($data['password'], $persona->parole)
+            : false;
+        if (! $validPassword) {
+            if (! $persona?->parole) {
+                // Match the password hashing cost for unknown accounts and accounts without a password.
+                Hash::make(Str::random(32));
+            }
+            if ($key !== null) {
+                RateLimiter::hit($key, 600);
+            }
+
+            return response()->json(['message' => __('app.invalidCredentials')], 422)->header('Cache-Control', 'no-store');
+        }
+
+        if ($turnstile->enabled() && ! $captchaVerified && $persona->loma === 'administrators') {
+            $turnstile->verify($request, 'login');
+            $captchaVerified = true;
+        }
+
+        $response = $this->issueToken($request, $persona, $verification, $turnstile, $captchaVerified);
+        if ($key !== null) {
+            RateLimiter::clear($key);
+        }
+
+        return $response;
     }
 
     public function logout(Request $request)
@@ -184,6 +229,7 @@ class AuthController extends Controller
             'vards' => $pending['identity']['vards'],
             'uzvards' => $pending['identity']['uzvards'],
             'epasts' => $pending['identity']['epasts'],
+            'loma' => $pending['loma'] ?? null,
         ] : null;
 
         return response()->json([
@@ -192,13 +238,16 @@ class AuthController extends Controller
         ], $persona || $pending ? 200 : 401)->header('Cache-Control', 'no-store');
     }
 
-    private function issueToken(Request $request, Persona $persona, EmailVerification $verification)
+    private function issueToken(Request $request, Persona $persona, EmailVerification $verification, TurnstileService $turnstile, bool $captchaVerified)
     {
-        [$persona, $token] = DB::transaction(function () use ($persona, $request, $verification) {
+        [$persona, $token] = DB::transaction(function () use ($persona, $request, $verification, $turnstile, $captchaVerified) {
             $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
             abort_unless($active, 401, __('app.authenticationRequired'));
             if (! hash_equals($persona->getAuthPassword(), $active->getAuthPassword())) {
                 abort(response()->json(['message' => __('app.invalidCredentials')], 422));
+            }
+            if ($turnstile->enabled() && ! $captchaVerified && $active->loma === 'administrators') {
+                $turnstile->requireChallenge();
             }
             AccountRestrictions::assertUnblocked($active);
             if (! $active->hasVerifiedEmail()) {
