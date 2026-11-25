@@ -80,6 +80,7 @@ const failures = []
 const writes = []
 const spentCaptchaTokens = new Set()
 let rejectContactOnce = false
+let showPickupReservations = false
 const documentsFromServiceWorker = new Map()
 const signIn = { scenario: null, persona: null, pending: null, selectedRole: null, language: null, lastProfile: null }
 const deletion = { blockers: 0, conflict: false, google: false, confirmed: false, checks: 0 }
@@ -127,6 +128,8 @@ function verificationResponse (postData) {
 
 const types = ['Automašīna', 'Motocikls', 'Kvadracikls', 'Laiva', 'Velosipēds', 'Furgons'].map((nosaukums, index) => ({ veids_id: index + 1, nosaukums }))
 const providerCoordinates = [[56.95, 24.1], [56.96, 24.12], [56.94, 24.09], [56.58, 21.08], [56.59, 21.09], [56.6, 21.1], [56.61, 21.11]]
+const pickupAddress = { address: 'Brīvības iela 10', city: 'Rīga', postalCode: 'LV-1010' }
+const fullPickupAddress = 'Brīvības iela 10, Rīga, LV-1010'
 const vehicles = Array.from({ length: 12 }, (_, index) => ({
   transportlidzeklis_id: index + 1,
   sniedzejs_id: index < 6 ? 1 : index - 4,
@@ -142,7 +145,8 @@ const vehicles = Array.from({ length: 12 }, (_, index) => ({
   atsauksmju_skaits: 3,
   videjais_vertejums: 4.7,
   rezervacijas: [],
-  sniedzejs: { sniedzejs_id: index < 6 ? 1 : index - 4, persona: { vards: 'Rental', uzvards: String(index < 6 ? 1 : index - 4) }, pilseta: 'Rīga', iela: 'Brīvības', maja: '1', latitude: providerCoordinates[index < 6 ? 0 : index - 5][0], longitude: providerCoordinates[index < 6 ? 0 : index - 5][1] },
+  sniedzejs: { sniedzejs_id: index < 6 ? 1 : index - 4, persona: { vards: 'Rental', uzvards: String(index < 6 ? 1 : index - 4) } },
+  pickup_location: { ...pickupAddress, latitude: providerCoordinates[index < 6 ? 0 : index - 5][0], longitude: providerCoordinates[index < 6 ? 0 : index - 5][1] },
 }))
 
 function send (method, params = {}) {
@@ -171,6 +175,15 @@ socket.addEventListener('message', async event => {
     const { requestId, request } = message.params
     try {
       const url = new URL(request.url)
+      if (url.origin === 'https://www.google.com' && url.pathname === '/maps/dir/') {
+        await send('Fetch.fulfillRequest', {
+          requestId,
+          responseCode: 200,
+          responseHeaders: [{ name: 'Content-Type', value: 'text/html' }],
+          body: Buffer.from('<title>External navigation destination</title>').toString('base64'),
+        })
+        return
+      }
       if (request.url === captchaScript) {
         await send('Fetch.fulfillRequest', {
           requestId,
@@ -319,6 +332,19 @@ socket.addEventListener('message', async event => {
           transportlidzeklis: { marka: 'Audi', modelis: 'A4', sniedzejs: { persona_deleted: true, persona: null } },
           klients: { persona_deleted: true, persona: null },
         }]
+        if (showPickupReservations) {
+          const upcoming = {
+            transportlidzeklis: vehicles[0],
+            sakuma_laiks: new Date(Date.now() + 86400000).toISOString(),
+            beigu_laiks: new Date(Date.now() + 172800000).toISOString(),
+            kopa_summa: '49.99',
+          }
+          result.push(
+            { ...upcoming, rezervacija_id: 2, apmaksas_statuss: 'apmaksata', pickup_location: pickupAddress },
+            { ...upcoming, rezervacija_id: 3, apmaksas_statuss: 'neapmaksata', pickup_location: pickupAddress },
+            { ...upcoming, rezervacija_id: 4, apmaksas_statuss: 'apmaksata' },
+          )
+        }
       } else if (url.pathname === '/api/profile/99') {
         signIn.lastProfile = JSON.parse(request.postData)
         signIn.persona = { ...signIn.persona, ...signIn.lastProfile, profile_completed: true, profile_missing_fields: [] }
@@ -355,8 +381,8 @@ socket.addEventListener('message', async event => {
     }
   }
 })
-async function evaluate (expression) {
-  const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
+async function evaluate (expression, userGesture = false) {
+  const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture })
   if (result.exceptionDetails) {
     throw new Error(JSON.stringify(result.exceptionDetails))
   }
@@ -420,7 +446,7 @@ try {
   await send('Runtime.enable')
   if (process.env.CATALOG_VERIFY_PWA === '1') await send('Network.enable')
   await send('Fetch.enable', {
-    patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*', captchaScript]
+    patterns: [`${base}/api/*`, `${base}/oauth/google/*`, `${base}/sanctum/*`, 'https://nominatim.openstreetmap.org/search*', 'https://www.google.com/maps/dir/*', captchaScript]
       .map(urlPattern => ({ urlPattern })),
   })
   await send('Page.addScriptToEvaluateOnNewDocument', { source: "if (!localStorage.getItem('easy-rent-locale')) localStorage.setItem('easy-rent-locale', 'en')" })
@@ -430,6 +456,33 @@ try {
   assert.equal(await evaluate('Math.round(document.querySelector(".map-workspace").getBoundingClientRect().width)'), 380)
   assert.ok(await evaluate('!document.querySelector(".quick-filters, .map-hud, .map-hud-toggle, .map-toolbar")'), 'Map controls stay in the sidebar without quick filters or HUD')
   assert.ok(await evaluate('!!document.querySelector(".map-workspace .workspace-sort")'), 'Map sorting lives in the sidebar')
+  const navigationTrigger = '.address-navigation__trigger'
+  const navigationMenu = '.v-overlay--active .address-navigation__list'
+  const googleDirections = 'https://www.google.com/maps/dir/?api=1&destination=56.95%2C24.1'
+  await click(`.point-row ${navigationTrigger}`)
+  assert.ok(await evaluate(`!!document.querySelector('.v-menu${navigationMenu}')`))
+  assert.ok(await evaluate('!document.querySelector(".marker-point.is-selected")'), 'Opening directions leaves the selection alone')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('${navigationMenu} a')].map(link => link.href)`), [
+    googleDirections,
+    'https://waze.com/ul?ll=56.95%2C24.1&navigate=yes',
+    'https://maps.apple.com/?daddr=56.95%2C24.1&dirflg=d',
+  ])
+  assert.equal(await evaluate(`new Set([...document.querySelectorAll('${navigationMenu} a .v-icon')].map(icon => icon.className)).size`), 3)
+  const lightMenuBackground = await evaluate(`getComputedStyle(document.querySelector('${navigationMenu}')).backgroundColor`)
+  await send('Page.bringToFront')
+  await send('Browser.grantPermissions', { origin: base, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] })
+  await evaluate(`document.querySelector('${navigationMenu} button').click()`, true)
+  await waitFor('document.querySelector(".app-notification__text")?.textContent === "Address copied"')
+  assert.equal(await evaluate('navigator.clipboard.readText()', true), fullPickupAddress)
+  await waitFor(`!document.querySelector('${navigationMenu}')`, 'Copy closes the navigation menu')
+  await click(`.point-row ${navigationTrigger}`)
+  await waitFor(`!!document.querySelector('${navigationMenu} button')`, 'Navigation menu opens again after copying')
+  await evaluate(`(() => {
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: () => Promise.reject(new Error('Clipboard unavailable')) })
+    document.querySelector('${navigationMenu} button').click()
+    delete navigator.clipboard.writeText
+  })()`)
+  await waitFor('document.querySelector(".app-notification__text")?.textContent === "Could not copy the address."')
   await click('.map-workspace .header-close-btn')
   assert.ok(await evaluate('document.querySelector(".map-menu-btn").getBoundingClientRect().left < 50'), 'Filter trigger stays on the left of the map')
   await click('.map-menu-btn')
@@ -443,8 +496,14 @@ try {
   await click('.map-workspace .filter-expansions .v-expansion-panel-title')
   await click('.rental-points > .v-btn')
   assert.equal(await evaluate('document.querySelectorAll(".point-row").length'), 7)
-  await click('.point-row')
+  await click('.point-row__select')
   await waitFor('!!document.querySelector(".marker-point.is-selected")')
+  await click(`.map-popup-content ${navigationTrigger} .mdi-navigation-outline`)
+  await waitFor(`!!document.querySelector('${navigationMenu} a')`, 'Marker popup opens the navigation menu')
+  await key('Escape')
+  await click(`.panel-catalog .catalog-heading ${navigationTrigger}`)
+  await waitFor(`!!document.querySelector('${navigationMenu} a')`, 'Selected supplier card opens the navigation menu')
+  await key('Escape')
   await waitFor('document.querySelector(".workspace-stats > div:first-child strong").textContent === "3"', 'Zooming into Riga shows its three providers')
   assert.equal(await evaluate('document.querySelectorAll(".point-row").length'), 3)
   assert.equal(await evaluate('document.querySelectorAll(".marker-point").length'), 7, 'Other markers remain available when panning')
@@ -456,7 +515,7 @@ try {
   await screenshot('empty-map-area')
   await click('.points-section .dialog-state .v-btn')
   await waitFor('document.querySelector(".workspace-stats > div:first-child strong").textContent === "7"', 'Show all restores every located provider')
-  await click('.point-row')
+  await click('.point-row__select')
   await screenshot('desktop-map')
   await click('.desktop-view-switch button:nth-child(2)')
   assert.equal(await evaluate('document.querySelectorAll(".list-catalog .rental-vehicle").length'), 6)
@@ -526,7 +585,31 @@ try {
   await click('.map-menu-btn')
   await noOverflow()
   await screenshot('mobile-map-sheet')
+  await click(`.point-row ${navigationTrigger}`)
+  assert.ok(await evaluate(`!!document.querySelector('.v-bottom-sheet.v-overlay--active .address-navigation__list')`))
+  assert.equal(await evaluate(`document.querySelector('${navigationMenu} a').target`), '', 'Mobile links use the current browsing context')
   await key('Escape')
+  assert.ok(await evaluate('document.querySelector(".map-workspace").getClientRects().length > 0'), 'Dismissing navigation leaves the sidebar open')
+  await click('.map-workspace .header-close-btn')
+  const markerPosition = await evaluate(`(() => {
+    for (const marker of document.querySelectorAll('.marker-point')) {
+      const rect = marker.getBoundingClientRect()
+      const x = rect.left + rect.width / 2
+      const y = rect.top + rect.height / 2
+      if (marker.contains(document.elementFromPoint(x, y))) return { x, y }
+    }
+    return null
+  })()`)
+  assert.ok(markerPosition, 'A mobile marker can be tapped after closing the sidebar')
+  await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [markerPosition] })
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await waitFor(`!!document.querySelector('.map-popup-content ${navigationTrigger}')`, 'Tapping a mobile marker opens its popup')
+  assert.ok(await evaluate('!document.querySelector(".map-viewport").inert'), 'The marker popup remains tappable')
+  await click(`.map-popup-content ${navigationTrigger}`)
+  assert.ok(await evaluate('!!document.querySelector(".v-bottom-sheet.v-overlay--active .address-navigation__list")'))
+  await key('Escape')
+  await send('Emulation.setTouchEmulationEnabled', { enabled: false })
   await resize(1440, 1000)
   await click('.desktop-view-switch button:nth-child(2)')
   await evaluate('window.dispatchEvent(new CustomEvent(\'user-updated\', { detail: { persona_id: 1, loma: \'pakalpojumu_sniedzejs\', pakalpojumu_sniedzejs: { sniedzejs_id: 1 }, sniedzejs: { sniedzejs_id: 1 } } }))')
@@ -556,12 +639,19 @@ try {
   await click('.utility-controls .theme-toggle')
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark')
   await screenshot('desktop-dark')
-  for (const [locale, type, zoomLabel] of [
-    ['ru', 'Легковой автомобиль', 'Приблизить'],
-    ['lv', 'Automašīna', 'Tuvināt'],
-    ['en', 'Passenger car', 'Zoom in'],
+  for (const [locale, type, zoomLabel, directions, opening, copying] of [
+    ['ru', 'Легковой автомобиль', 'Приблизить', 'Построить маршрут', 'Открыть в навигаторе', 'Скопировать адрес'],
+    ['lv', 'Automašīna', 'Tuvināt', 'Saņemt norādes', 'Atvērt navigācijā', 'Kopēt adresi'],
+    ['en', 'Passenger car', 'Zoom in', 'Get directions', 'Open in navigation app', 'Copy address'],
   ]) {
     await changeLanguage(locale)
+    const vehicleNavigation = `.list-catalog .rental-vehicle ${navigationTrigger}`
+    assert.equal(await evaluate(`document.querySelector('${vehicleNavigation}').title`), directions)
+    await click(vehicleNavigation)
+    assert.equal(await evaluate(`document.querySelector('${navigationMenu}').getAttribute('aria-label')`), opening)
+    assert.equal(await evaluate(`document.querySelector('${navigationMenu} button').textContent.trim()`), copying)
+    assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('${navigationMenu}')).backgroundColor`), lightMenuBackground)
+    await key('Escape')
     await click('.toolbar-filter')
     assert.ok(await evaluate(`document.querySelector('.slide-over-card').textContent.includes(${JSON.stringify(type)})`))
     assert.equal(await evaluate('document.querySelector(".leaflet-control-zoom-in").getAttribute("aria-label")'), zoomLabel)
@@ -578,6 +668,16 @@ try {
   console.log('PASS: map markers/selection, 4/3/2/1-column grids, draft/apply/reset/Escape/outside click, focus, view persistence, details, provider forms/permissions, mobile sheets, LV/RU/EN, light/dark, no overflow or runtime exceptions.')
 
   await resize(390, 844)
+  await send('Page.navigate', { url: `${base}/company/1` })
+  await waitFor(`!!document.querySelector('.company-hero ${navigationTrigger}')`)
+  if (process.env.CATALOG_VERIFY_PWA === '1') await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the company page')
+  await click(`.company-hero ${navigationTrigger}`)
+  await screenshot('navigation-mobile-dark')
+  await click(`${navigationMenu} a`)
+  await waitFor('document.title === "External navigation destination"', 'The external HTTPS link leaves EasyRent')
+  assert.equal(await evaluate('location.href'), googleDirections)
+  if (process.env.CATALOG_VERIFY_PWA === '1') assert.equal(documentsFromServiceWorker.get(googleDirections), false)
+
   await send('Page.navigate', { url: `${base}/auth` })
   await waitFor('!!document.querySelector(".google-sign-in")')
   assert.match(await evaluate('document.querySelector(".google-sign-in").textContent'), /Continue with Google/)
@@ -693,8 +793,16 @@ try {
 
   signIn.persona = signedInPersona('klients', true)
   deletion.blockers = 0
+  showPickupReservations = true
   await send('Page.navigate', { url: `${base}/profile?qa=client` })
   await waitFor('document.querySelector(".reservation-card-history")?.textContent.includes("Dzēsts pakalpojumu sniedzējs")')
+  assert.equal(await evaluate(`document.querySelectorAll('#profile-reservations ${navigationTrigger}').length`), 1)
+  assert.ok(await evaluate(`!document.querySelector('.profile-details ${navigationTrigger}, .reservation-card-unpaid ${navigationTrigger}')`))
+  await click(`#profile-reservations ${navigationTrigger}`)
+  assert.equal(await evaluate(`new URL(document.querySelector('${navigationMenu} a[href*="waze.com"]').href).searchParams.get('q')`), fullPickupAddress)
+  await key('Escape')
+  showPickupReservations = false
+  console.log('PASS: pickup navigation in the map sidebar, selected supplier, marker popup, vehicle catalog, company and paid reservations. Verified clipboard, external navigation, LV/RU/EN, light/dark and the mobile bottom sheet.')
   const history = await evaluate('document.querySelector(".reservation-card-history").textContent')
   assert.match(history, /Volkswagen Golf/)
   assert.match(history, /Lejupielādēt rēķinu/)

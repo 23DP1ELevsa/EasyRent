@@ -20,6 +20,7 @@ export default {
     startInFuture: 'Время начала должно быть в будущем.', endAfterStart: 'Время окончания должно быть позже времени начала.', datePlaceholder: 'ДД/ММ/ГГГГ',
   },
   mapControls: { zoomIn: 'Приблизить', zoomOut: 'Отдалить' },
+  addressNavigation: { directions: 'Построить маршрут', openInApp: 'Открыть в навигаторе', copyAddress: 'Скопировать адрес', addressCopied: 'Адрес скопирован', copyFailed: 'Не удалось скопировать адрес.' },
   vehicle: {
     name: 'Транспортное средство', typeWithId: 'Тип №{id}', automatic: 'Автомат', manual: 'Механика',
     petrol: 'Бензин', diesel: 'Дизель', electric: 'Электро', other: 'Не указано',

@@ -147,6 +147,53 @@ class ApiCriteriaTest extends TestCase
         });
     }
 
+    public function test_pickup_location_excludes_apartments_and_requires_a_paid_booking_to_appear_in_the_client_profile(): void
+    {
+        $client = $this->createClientPersona();
+        $provider = $this->createProviderPersona(providerOverrides: [
+            'iela' => 'Brīvības iela 10-42',
+            'dzivokla_numurs' => '42',
+            'pilseta' => 'Rīga',
+        ]);
+        $vehicle = $this->createVehicle($provider->pakalpojumuSniedzejs, $this->createVehicleType(), [
+            'adrese' => 'Brīvības iela 10-42, Rīga',
+        ]);
+
+        $catalog = $this->getJson('/api/transport')->assertOk()
+            ->assertJsonPath('0.pickup_location.address', 'Brīvības iela 10')
+            ->assertJsonPath('0.pickup_location.city', 'Rīga')
+            ->assertJsonPath('0.pickup_location.postalCode', 'LV-1010')
+            ->assertJsonPath('0.adrese', 'Brīvības iela 10, Rīga')
+            ->assertJsonPath('0.sniedzejs.iela', 'Brīvības iela 10')
+            ->assertJsonMissingPath('0.sniedzejs.dzivokla_numurs');
+        $location = $catalog->json('0.pickup_location');
+        $this->assertEquals(56.9496, $location['latitude']);
+        $this->assertEquals(24.1052, $location['longitude']);
+        $this->getJson('/api/transport/'.$vehicle->getKey())->assertOk()
+            ->assertJsonPath('pickup_location', $location)->assertJsonMissingPath('sniedzejs.dzivokla_numurs');
+
+        Mail::fake();
+        Sanctum::actingAs($client);
+        $booking = $this->postJson('/api/rezervacijas', [
+            'transportlidzeklis_id' => $vehicle->getKey(),
+            'sakuma_laiks' => now()->addDay()->toISOString(),
+            'beigu_laiks' => now()->addDays(2)->toISOString(),
+        ])->assertCreated()->assertJsonMissingPath('transportlidzeklis.adrese')
+            ->assertJsonMissingPath('transportlidzeklis.sniedzejs.dzivokla_numurs');
+        $this->getJson('/api/rezervacijas')->assertOk()->assertJsonMissingPath('0.pickup_location');
+
+        $this->postJson('/api/rezervacijas/'.$booking->json('rezervacija_id').'/pay')->assertOk();
+        $this->getJson('/api/rezervacijas')->assertOk()->assertJsonPath('0.pickup_location', $location)
+            ->assertJsonMissingPath('0.transportlidzeklis.adrese');
+
+        Sanctum::actingAs($provider);
+        $this->getJson('/api/rezervacijas')->assertOk()->assertJsonMissingPath('0.pickup_location');
+
+        $vehicle->forceFill(['moderation_hidden_at' => now()])->save();
+        Sanctum::actingAs($client);
+        $this->getJson('/api/rezervacijas')->assertOk()->assertJsonMissingPath('0.pickup_location');
+    }
+
     public function test_provider_can_create_transport_but_client_cannot(): void
     {
         $client = $this->createClientPersona(['epasts' => 'blocked@example.com']);

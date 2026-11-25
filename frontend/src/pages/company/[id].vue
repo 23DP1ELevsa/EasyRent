@@ -10,8 +10,9 @@
             <div>
               <h1>{{ company.name }}</h1>
               <ReportButton v-if="user && vehicles[0] && !isOwnVehicle(vehicles[0])" target="user" :target-id="vehicles[0]?.sniedzejs?.persona?.persona_id" />
-              <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
-              <div class="text-body-2 opacity-80">{{ company.city }}</div>
+              <div class="text-body-2 opacity-80">
+                <AddressNavigation v-bind="company.pickupLocation">{{ company.pickupLocation.address || t('map.addressMissing') }} · {{ company.pickupLocation.city || t('map.cityMissing') }}</AddressNavigation>
+              </div>
               <div v-if="company.phone" class="text-body-2 mt-2">
                 <a class="company-phone-link" :href="`tel:${company.phone}`">
                   {{ copy.phoneLabel }}: {{ company.phone }}
@@ -583,6 +584,7 @@
 </template>
 
 <script setup>
+import AddressNavigation from '@/components/AddressNavigation.vue'
 import ReportButton from '@/components/ReportButton.vue'
 import VehiclePhotos from '@/components/VehiclePhotos.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -1103,12 +1105,9 @@ const company = computed(() => {
   const name = persona
     ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim()
     : t('company.providerWithId', { id: sniedzejs.sniedzejs_id })
-  const address = formatCompanyAddress(sniedzejs)
-
   return {
     name,
-    address: address || t('map.addressMissing'),
-    city: sniedzejs.pilseta || t('map.cityMissing'),
+    pickupLocation: firstVehicle.pickup_location || {},
     phone,
   }
 })
@@ -1162,29 +1161,6 @@ function resetReviewForm() {
     vertejums: 0,
     komentars: '',
   }
-}
-
-function formatCompanyAddress(provider) {
-  const street = provider?.iela?.trim?.() || ''
-  const houseNumber = String(provider?.majas_numurs || '').trim()
-  const apartmentNumber = String(provider?.dzivokla_numurs || '').trim()
-  const houseWithApartment = apartmentNumber
-    ? `${houseNumber}${houseNumber ? '-' : ''}${apartmentNumber}`
-    : houseNumber
-
-  if (!street) return houseWithApartment
-  if (!houseWithApartment) return street
-  if (street.endsWith(houseWithApartment)) return street
-
-  if (houseNumber && apartmentNumber && street.endsWith(houseNumber)) {
-    return `${street}-${apartmentNumber}`
-  }
-
-  if (houseNumber && street.endsWith(houseNumber)) {
-    return street
-  }
-
-  return [street, houseWithApartment].filter(Boolean).join(' ')
 }
 
 function formatDateTime(value) {

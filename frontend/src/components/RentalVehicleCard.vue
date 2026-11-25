@@ -26,7 +26,7 @@
       <button class="rental-vehicle__provider" type="button" @click="$emit('select-provider')">
         <v-icon size="16">mdi-storefront-outline</v-icon>{{ provider?.name }}
       </button>
-      <div class="rental-vehicle__address"><v-icon size="16">mdi-map-marker-outline</v-icon>{{ [provider?.address, provider?.city].filter(Boolean).join(', ') }}</div>
+      <AddressNavigation v-if="provider" class="rental-vehicle__address" v-bind="provider.pickupLocation">{{ [provider.address, provider.city].filter(Boolean).join(', ') }}</AddressNavigation>
       <div class="rental-vehicle__details">
         <span v-for="detail in visibleDetails" :key="detail.label"><v-icon size="17">{{ detail.isRegistration ? 'mdi-card-text-outline' : detail.label === t('map.vehicleFields.gearbox') ? 'mdi-car-shift-pattern' : 'mdi-gas-station-outline' }}</v-icon><span><small>{{ detail.label }}</small>{{ detail.value }}</span></span>
       </div>
@@ -49,6 +49,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import AddressNavigation from '@/components/AddressNavigation.vue'
   import { useLocale } from '@/stores/locale'
   import { useVehicleLabels } from '@/utils/vehicleLabels'
   import { getVehicleImage } from '@/utils/vehicleVisuals'
@@ -82,10 +83,10 @@
 .rental-vehicle__body { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 12px; padding: 22px; }
 .rental-vehicle__type { color: var(--er-primary-strong); font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 h3 { font-size: 1.3rem; font-weight: 800; line-height: 1.3; }
-.rental-vehicle__provider, .rental-vehicle__address { display: flex; align-items: flex-start; gap: 6px; font-size: .8rem; text-align: start; overflow-wrap: anywhere; }
+.rental-vehicle__provider { display: flex; align-items: flex-start; gap: 6px; font-size: .8rem; text-align: start; overflow-wrap: anywhere; }
 .rental-vehicle__provider { color: var(--er-primary-strong); font-weight: 700; cursor: pointer; }
-.rental-vehicle__provider .v-icon, .rental-vehicle__address .v-icon { flex-shrink: 0; }
-.rental-vehicle__address { color: var(--er-text-muted); }
+.rental-vehicle__provider .v-icon { flex-shrink: 0; }
+.rental-vehicle__address { align-self: flex-start; color: var(--er-text-muted); font-size: .8rem; }
 .rental-vehicle__details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-block: 4px; }
 .rental-vehicle__details > span { display: flex; align-items: center; gap: 7px; color: var(--er-text); font-size: .8rem; overflow-wrap: anywhere; }
 .rental-vehicle__details .v-icon { flex-shrink: 0; color: var(--er-text-muted); }

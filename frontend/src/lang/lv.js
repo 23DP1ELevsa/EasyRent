@@ -20,6 +20,7 @@ export default {
     startInFuture: 'Sākuma laikam jābūt nākotnē.', endAfterStart: 'Beigu laikam jābūt pēc sākuma laika.', datePlaceholder: 'DD/MM/GGGG',
   },
   mapControls: { zoomIn: 'Tuvināt', zoomOut: 'Tālināt' },
+  addressNavigation: { directions: 'Saņemt norādes', openInApp: 'Atvērt navigācijā', copyAddress: 'Kopēt adresi', addressCopied: 'Adrese nokopēta', copyFailed: 'Neizdevās nokopēt adresi.' },
   vehicle: {
     name: 'Transportlīdzeklis', typeWithId: 'Veids #{id}', automatic: 'Automāts', manual: 'Mehānika',
     petrol: 'Benzīns', diesel: 'Dīzelis', electric: 'Elektro', other: 'Nav norādīts',

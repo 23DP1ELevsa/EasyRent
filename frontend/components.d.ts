@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AccountBlockNotice: typeof import('./src/components/AccountBlockNotice.vue')['default']
+    AddressNavigation: typeof import('./src/components/AddressNavigation.vue')['default']
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AuthPage: typeof import('./src/components/AuthPage.vue')['default']
     BrandLogo: typeof import('./src/components/BrandLogo.vue')['default']

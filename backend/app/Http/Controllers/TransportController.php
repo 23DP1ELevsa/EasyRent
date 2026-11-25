@@ -41,7 +41,8 @@ class TransportController extends Controller
             $query->where('sniedzejs_id', $request->sniedzejs_id);
         }
 
-        return response()->json($query->get())->header('Cache-Control', 'no-store');
+        return response()->json($query->get()->each($this->exposePublicPickupLocation(...)))
+            ->header('Cache-Control', 'no-store');
     }
 
     public function show($id)
@@ -62,7 +63,25 @@ class TransportController extends Controller
             return response()->json(['error' => __('app.notFound')], 404)->header('Cache-Control', 'no-store');
         }
 
+        $this->exposePublicPickupLocation($transport);
+
         return response()->json($transport)->header('Cache-Control', 'no-store');
+    }
+
+    private function exposePublicPickupLocation(Transportlidzeklis $transport): void
+    {
+        $provider = $transport->sniedzejs;
+        if (!$provider) {
+            $transport->makeHidden('adrese');
+
+            return;
+        }
+        $location = $provider->publicPickupLocation();
+
+        $transport->setAttribute('pickup_location', $location);
+        $transport->setAttribute('adrese', implode(', ', array_filter([$location['address'], $location['city']])));
+        $provider->setAttribute('iela', $provider->publicStreet());
+        $provider->makeHidden('dzivokla_numurs');
     }
 
     public function store(Request $request)

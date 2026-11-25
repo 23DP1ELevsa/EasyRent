@@ -20,6 +20,7 @@ export default {
     startInFuture: 'The start time must be in the future.', endAfterStart: 'The end time must be after the start time.', datePlaceholder: 'DD/MM/YYYY',
   },
   mapControls: { zoomIn: 'Zoom in', zoomOut: 'Zoom out' },
+  addressNavigation: { directions: 'Get directions', openInApp: 'Open in navigation app', copyAddress: 'Copy address', addressCopied: 'Address copied', copyFailed: 'Could not copy the address.' },
   vehicle: {
     name: 'Vehicle', typeWithId: 'Type #{id}', automatic: 'Automatic', manual: 'Manual',
     petrol: 'Petrol', diesel: 'Diesel', electric: 'Electric', other: 'Not specified',

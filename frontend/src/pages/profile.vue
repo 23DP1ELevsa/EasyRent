@@ -465,6 +465,7 @@
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
                         </div>
+                        <AddressNavigation v-if="isClient && item.pickup_location" class="reservation-card-meta text-caption" v-bind="item.pickup_location" />
                       </div>
                       <div class="reservation-card-price">
                         <div class="reservation-card-amount font-weight-bold">{{ formatPrice(item.kopa_summa) }}</div>
@@ -563,6 +564,11 @@
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ copy.reservations.bookedAt }}: {{ reservationBookedAt(item) }}
                         </div>
+                        <AddressNavigation
+                          v-if="isClient && item.apmaksas_statuss === 'apmaksata' && item.pickup_location"
+                          class="reservation-card-meta text-caption"
+                          v-bind="item.pickup_location"
+                        />
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ formatDateTime(item.sakuma_laiks) }} - {{ formatDateTime(item.beigu_laiks) }}
                         </div>
@@ -614,6 +620,7 @@
 </template>
 
 <script setup>
+  import AddressNavigation from '@/components/AddressNavigation.vue'
   import ReportButton from '@/components/ReportButton.vue'
   import TurnstileCaptcha from '@/components/TurnstileCaptcha.vue'
   import { computed, onMounted, ref, watch } from 'vue'

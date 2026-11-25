@@ -59,6 +59,14 @@
       <div v-show="viewMode === 'map'" ref="mapViewport" class="map-viewport" :inert="isMobile && panelOpen ? true : undefined">
 
         <div id="map" class="map-canvas" />
+        <Teleport v-if="markerPopup" :to="markerPopup.target">
+          <strong>{{ markerPopup.point.name }}</strong>
+          <div>
+            <AddressNavigation v-bind="markerPopup.point.pickupLocation">{{ markerPopup.point.address }}, {{ markerPopup.point.city }}</AddressNavigation>
+          </div>
+          <div>{{ t('map.popupVehicles', { count: markerPopup.point.vehicles.length, available: markerPopup.point.availableCount }) }}</div>
+          <button class="popup-company-link" type="button" @click="openCompany(markerPopup.point.id)">{{ copy.viewProvider }}</button>
+        </Teleport>
 
         <v-btn
           v-if="!mapPanelOpen"
@@ -189,7 +197,10 @@
           </div>
           <section v-if="mapSelectedPoint && catalogVehicles.length > 0" ref="panelCatalog" class="panel-catalog">
             <div class="catalog-heading">
-              <div><h2>{{ mapSelectedPoint.name }}</h2><p>{{ mapSelectedPoint.address }} &middot; {{ mapSelectedPoint.city }}</p></div>
+              <div>
+                <h2>{{ mapSelectedPoint.name }}</h2>
+                <p><AddressNavigation v-bind="mapSelectedPoint.pickupLocation">{{ mapSelectedPoint.address }} · {{ mapSelectedPoint.city }}</AddressNavigation></p>
+              </div>
               <v-btn
                 v-if="selectedPoint"
                 :aria-label="copy.allResults"
@@ -249,7 +260,11 @@
 
       <section v-show="viewMode === 'list'" :aria-label="copy.listView" class="list-catalog">
         <div class="catalog-heading">
-          <div><h2>{{ selectedPoint ? selectedPoint.name : copy.allVehicles }}</h2><p v-if="selectedPoint">{{ selectedPoint.address }} &middot; {{ selectedPoint.city }}</p><p v-else>{{ copy.catalogSubtitle }}</p></div>
+          <div>
+            <h2>{{ selectedPoint ? selectedPoint.name : copy.allVehicles }}</h2>
+            <p v-if="selectedPoint"><AddressNavigation v-bind="selectedPoint.pickupLocation">{{ selectedPoint.address }} · {{ selectedPoint.city }}</AddressNavigation></p>
+            <p v-else>{{ copy.catalogSubtitle }}</p>
+          </div>
           <v-btn
             v-if="selectedPointId !== null || filters.companyId"
             prepend-icon="mdi-arrow-left"
@@ -744,10 +759,11 @@
 </template>
 
 <script setup>
+  import AddressNavigation from '@/components/AddressNavigation.vue'
   import ReportButton from '@/components/ReportButton.vue'
   import VehiclePhotos from '@/components/VehiclePhotos.vue'
   import L from 'leaflet'
-  import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import MapViewSwitch from '@/components/MapViewSwitch.vue'
   import RentalFilterGroups from '@/components/RentalFilterGroups.vue'
@@ -759,6 +775,7 @@
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
+  import { formatPublicAddress, toValidCoordinate } from '@/utils/addressNavigation'
   import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, pointsInMapBounds, sortRentalVehicles } from '@/utils/rentalFilters'
   import { useVehicleLabels } from '@/utils/vehicleLabels'
   import 'leaflet/dist/leaflet.css'
@@ -796,6 +813,7 @@
   const userPosition = ref(null)
   const locating = ref(false)
   const mapViewport = ref(null)
+  const markerPopup = shallowRef(null)
   const panelElement = ref(null)
   const panelToggle = ref(null)
   const panelScroll = ref(null)
@@ -1150,15 +1168,6 @@
   const publicGearboxOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'atrumkarba'))
   const publicFuelOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'degvielas_veids'))
 
-  function toValidCoordinate (value, type) {
-    if (value === null || value === undefined || value === '') return null
-    const num = Number(value)
-    if (!Number.isFinite(num)) return null
-    if (type === 'lat' && (num < -90 || num > 90)) return null
-    if (type === 'lng' && (num < -180 || num > 180)) return null
-    return num
-  }
-
   function normalizeVehicleField (value) {
     if (value === null || value === undefined) return ''
     const normalized = String(value).trim()
@@ -1184,29 +1193,6 @@
   }
 
   // Pārvērš API transporta sarakstu kompāniju punktos kartei/sarakstam.
-  function formatProviderAddress (provider) {
-    const street = provider?.iela?.trim?.() || ''
-    const houseNumber = String(provider?.majas_numurs || '').trim()
-    const apartmentNumber = String(provider?.dzivokla_numurs || '').trim()
-    const houseWithApartment = apartmentNumber
-      ? `${houseNumber}${houseNumber ? '-' : ''}${apartmentNumber}`
-      : houseNumber
-
-    if (!street) return houseWithApartment
-    if (!houseWithApartment) return street
-    if (street.endsWith(houseWithApartment)) return street
-
-    if (houseNumber && apartmentNumber && street.endsWith(houseNumber)) {
-      return `${street}-${apartmentNumber}`
-    }
-
-    if (houseNumber && street.endsWith(houseNumber)) {
-      return street
-    }
-
-    return [street, houseWithApartment].filter(Boolean).join(' ')
-  }
-
   function buildVehicleReviewStats (vehicles) {
     const reviewCount = vehicles.reduce((total, vehicle) => total + Number(vehicle.atsauksmju_skaits || 0), 0)
     if (!reviewCount) {
@@ -1235,17 +1221,19 @@
       if (!sniedzejs) continue
       const id = sniedzejs.sniedzejs_id
       if (!map.has(id)) {
-        const lat = toValidCoordinate(sniedzejs.latitude, 'lat')
-        const lng = toValidCoordinate(sniedzejs.longitude, 'lng')
+        const pickupLocation = item.pickup_location || {}
+        const lat = toValidCoordinate(pickupLocation.latitude, 90)
+        const lng = toValidCoordinate(pickupLocation.longitude, 180)
         const persona = sniedzejs.persona
         const name = persona ? `${persona.vards || ''} ${persona.uzvards || ''}`.trim() : `${copy.value.providerFallback} #${id}`
-        const address = formatProviderAddress(sniedzejs)
+        const fullAddress = formatPublicAddress(pickupLocation)
         map.set(id, {
           id,
           name,
-          address: address || copy.value.addressMissing,
-          city: sniedzejs.pilseta || copy.value.cityMissing,
-          geocodeQuery: address && sniedzejs.pilseta ? `${address}, ${sniedzejs.pilseta}, Latvia` : '',
+          address: pickupLocation.address || copy.value.addressMissing,
+          city: pickupLocation.city || copy.value.cityMissing,
+          pickupLocation,
+          geocodeQuery: fullAddress && pickupLocation.city ? `${fullAddress}, Latvia` : '',
           lat,
           lng,
           hasCoords: lat !== null && lng !== null,
@@ -1534,11 +1522,11 @@
     marker.openPopup()
   }
 
-  async function selectPoint (id) {
+  async function selectPoint (id, showPanel = true) {
     if (id === undefined || id === null) return
     selectedPointId.value = id
     selectedPointVehiclePage.value = 1
-    if (viewMode.value === 'map') panelOpen.value = true
+    if (viewMode.value === 'map' && showPanel) panelOpen.value = true
     await nextTick()
     invalidateMapSize()
     updateMarkerSelection()
@@ -2073,6 +2061,7 @@
   // Pārzīmē marķierus pēc aktīvajiem filtriem un punktiem.
   function renderMarkers () {
     if (!mapInstance || disposed) return
+    markerPopup.value = null
     for (const marker of markers) {
       marker.off()
       marker.remove()
@@ -2084,23 +2073,18 @@
         title: point.name,
         alt: point.name,
       }).addTo(mapInstance)
-      // API data is text, never interpolated HTML. Each button has one handler.
       const content = document.createElement('div')
       content.className = 'map-popup-content'
-      const name = document.createElement('strong')
-      name.textContent = point.name
-      const address = document.createElement('div')
-      address.textContent = `${point.address}, ${point.city}`
-      const count = document.createElement('div')
-      count.textContent = copy.value.popupVehicles.replace('{count}', point.vehicles.length).replace('{available}', point.availableCount)
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'popup-company-link'
-      button.textContent = copy.value.viewProvider
-      button.addEventListener('click', () => openCompany(point.id))
-      content.append(name, address, count, button)
       marker.bindPopup(content, { autoPan: false })
-      marker.on('click', () => selectPoint(point.id))
+      marker.on('popupopen', async () => {
+        markerPopup.value = { point, target: content }
+        await nextTick()
+        if (markerPopup.value?.target === content) marker.getPopup().update()
+      })
+      marker.on('popupclose', () => {
+        if (markerPopup.value?.target === content) markerPopup.value = null
+      })
+      marker.on('click', () => selectPoint(point.id, !isMobile.value))
       return marker
     })
     updateMarkerSelection()
@@ -2124,8 +2108,8 @@
         const result = await response.json()
         const first = result?.[0]
         if (!first || disposed) continue
-        const lat = toValidCoordinate(first.lat, 'lat')
-        const lng = toValidCoordinate(first.lon, 'lng')
+        const lat = toValidCoordinate(first.lat, 90)
+        const lng = toValidCoordinate(first.lon, 180)
         if (lat === null || lng === null) continue
 
         pointCoordsOverride.value = {

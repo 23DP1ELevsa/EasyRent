@@ -92,6 +92,21 @@ class RezervacijaController extends Controller
             $reservation->transportlidzeklis?->makeHidden('adrese');
         });
 
+        if ($persona->loma === 'klients') {
+            $paid = $reservations->where('apmaksas_statuss', 'apmaksata');
+            if ($paid->isNotEmpty()) {
+                $publicVehicles = Transportlidzeklis::listed()->with('sniedzejs')
+                    ->whereKey($paid->pluck('transportlidzeklis_id')->unique()->all())->get()->keyBy('transportlidzeklis_id');
+
+                foreach ($paid as $reservation) {
+                    $location = $publicVehicles->get($reservation->transportlidzeklis_id)?->sniedzejs?->publicPickupLocation();
+                    if ($location && $location['address'] !== '') {
+                        $reservation->setAttribute('pickup_location', $location);
+                    }
+                }
+            }
+        }
+
         return response()->json($reservations)->header('Cache-Control', 'no-store');
     }
 
@@ -133,7 +148,14 @@ class RezervacijaController extends Controller
                 'transporta_snapshot' => $transport->bookingSnapshot(),
             ]);
 
-            return response()->json($reservation->load(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona']), 201);
+            $reservation->load([
+                'transportlidzeklis.veids',
+                'transportlidzeklis.sniedzejs:sniedzejs_id,persona_id',
+                'transportlidzeklis.sniedzejs.persona',
+            ]);
+            $reservation->transportlidzeklis->makeHidden('adrese');
+
+            return response()->json($reservation, 201);
         }, newRental: true);
     }
 
