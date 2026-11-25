@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Persona;
 use App\Models\Rezervacija;
 use App\Support\EmailVerification;
+use App\Support\AccountRestrictions;
+use App\Support\AdminChanges;
 use App\Support\GoogleOAuth;
 use App\Support\ReservationInvoice;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +24,10 @@ class AccountDeletionController extends Controller
     public function check(Request $request, GoogleOAuth $google): JsonResponse
     {
         $persona = $request->user();
+
+        if ($persona->loma === 'administrators') {
+            AdminChanges::run($persona, fn ($administrators) => AdminChanges::protectLastAdministrator($administrators, $persona));
+        }
 
         return response()->json($this->eligibility($persona) + [
             'confirmation_method' => $persona->parole !== null ? 'password' : 'google',
@@ -44,9 +50,13 @@ class AccountDeletionController extends Controller
         ]);
 
         $blocked = DB::transaction(function () use ($request, $data, $google, $verification) {
+            $administrators = $request->user()->loma === 'administrators' ? AdminChanges::lockAdministrators() : collect();
             $persona = Persona::whereKey($request->user()->getKey())->lockForUpdate()->first();
             abort_unless($persona, 401, __('app.authenticationRequired'));
 
+            AccountRestrictions::assertCurrent($request->user(), $persona);
+            AccountRestrictions::assertUnblocked($persona);
+            AdminChanges::protectLastAdministrator($administrators, $persona);
             $eligibility = $this->eligibility($persona);
             if (! $eligibility['can_delete']) {
                 return $eligibility;

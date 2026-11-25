@@ -13,7 +13,7 @@
   function handleAuthSuccess ({ google = false } = {}) {
     const userData = getStoredUser()
     if (!userData) return
-    const home = google ? accountHome(userData) : HOME_ROUTE
+    const home = google || userData.loma === 'administrators' ? accountHome(userData) : HOME_ROUTE
     const destination = userData?.profile_completed === false ? PROFILE_ROUTE : home
     router.replace(destination)
     window.scrollTo({ top: 0, behavior: 'smooth' })

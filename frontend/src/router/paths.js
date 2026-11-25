@@ -5,8 +5,15 @@ export const FORGOT_PASSWORD_ROUTE = '/forgot-password'
 export const RESET_PASSWORD_ROUTE = '/reset-password'
 export const VERIFY_EMAIL_ROUTE = '/verify-email'
 export const PROFILE_ROUTE = '/profile'
+export const ADMIN_ROUTE = '/admin'
+export const SUPPORT_ROUTE = '/support'
+
+export function isAdminPath (path) {
+  return path === ADMIN_ROUTE || path.startsWith(`${ADMIN_ROUTE}/`)
+}
 
 export function accountHome (persona) {
+  if (persona?.loma === 'administrators') return ADMIN_ROUTE
   return persona?.loma === 'pakalpojumu_sniedzejs' ? MAP_ROUTE : HOME_ROUTE
 }
 

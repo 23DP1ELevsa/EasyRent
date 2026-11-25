@@ -45,6 +45,9 @@ const recovery = { requestLimit: false, invalidLink: false }
 const verification = { resendStatus: 202, confirmCode: 'invalid_verification_link', active: false, autoPersona: null, resetRequired: false }
 const googleIdentity = { vards: 'Anna', uzvards: 'Ozola', epasts: 'anna@example.com' }
 const providerRole = 'pakalpojumu_sniedzejs'
+const adminQueries = []
+const adminUser = { persona_id: 18, vards: 'QA', uzvards: 'User', epasts: 'qa@example.test',
+  loma: 'klients', verified_at: '2026-11-01T12:00:00Z', created_at: '2026-11-01T12:00:00Z', active_restrictions: 0 }
 function signedInPersona (role, completed = false) {
   return {
     ...googleIdentity,
@@ -147,13 +150,40 @@ socket.addEventListener('message', async event => {
         responseCode = 201
         result = { code: 'verification_required', email, mail_status: 'sent', retry_after: 60 }
       } else if (url.pathname === '/api/auth/login') {
-        if (verification.active) {
+        if (signIn.scenario === 'admin-login') {
+          signIn.persona = signedInPersona('administrators', true)
+          result = { token: 'admin-token', persona: signIn.persona }
+        } else if (signIn.scenario === 'blocked-login') {
+          responseCode = 403
+          result = { code: 'account_blocked', reason: 'QA account hold', ends_at: null }
+        } else if (verification.active) {
           signIn.persona = signedInPersona('klients', true)
           result = { token: 'verified-token', persona: signIn.persona }
         } else {
           responseCode = 403
           result = { code: 'email_not_verified' }
         }
+      } else if (url.pathname === '/api/admin/dashboard') {
+        const days = Number(url.searchParams.get('days') || 30)
+        result = {
+          users: 8, roles: { klients: 5, pakalpojumu_sniedzejs: 2 }, new_registrations: 3, vehicles: 9, active_vehicles: 7,
+          hidden_vehicles: 2, bookings: { apmaksata: 4, neapmaksata: 2 }, confirmed_payment_volume: '140.00',
+          active_restrictions: 1, open_reports: 2, recent_bookings: [], recent_actions: [],
+          series: Array.from({ length: days }, (_, day) => ({
+            date: new Date(Date.UTC(2026, 10, 25 - days + day)).toISOString().slice(0, 10),
+            registrations: day % 4, paid_bookings: day % 3,
+          })),
+        }
+      } else if (url.pathname === '/api/admin/users') {
+        adminQueries.push(Object.fromEntries(url.searchParams))
+        result = { last_page: 2, data: url.searchParams.get('page') === '2' ? [] : [adminUser] }
+      } else if (url.pathname === '/api/admin/users/18') {
+        result = { user: adminUser, bookings: 0, vehicles: 0, reviews: 0, reports: 0, audit: 0, restrictions: { data: [], last_page: 1, current_page: 1 } }
+      } else if (url.pathname === '/api/admin/users/18/restrictions') {
+        responseCode = 201
+        result = { ierobezojums_id: 1 }
+      } else if (url.pathname.startsWith('/api/admin/')) {
+        result = { last_page: 1, data: [] }
       } else if (url.pathname === '/api/auth/verification/resend') {
         responseCode = verification.resendStatus
         result = {
@@ -239,6 +269,8 @@ socket.addEventListener('message', async event => {
         result = types
       } else if (url.pathname === '/api/transport') {
         result = vehicles
+      } else if (/^\/api\/transport\/\d+\/photos$/.test(url.pathname)) {
+        result = []
       } else if (url.pathname.startsWith('/api/atsauksmes')) {
         result = []
       }
@@ -426,8 +458,8 @@ try {
   await evaluate('window.dispatchEvent(new CustomEvent(\'user-updated\', { detail: { persona_id: 1, loma: \'pakalpojumu_sniedzejs\', pakalpojumu_sniedzejs: { sniedzejs_id: 1 }, sniedzejs: { sniedzejs_id: 1 } } }))')
   await waitFor('!!document.querySelector(".toolbar-add")')
   await click('.toolbar-add')
-  assert.equal(await evaluate('document.querySelectorAll(".provider-panel form").length'), 2, 'Both existing provider forms remain')
-  assert.equal(await evaluate('document.querySelectorAll(".provider-panel .v-select").length'), 5, 'Type management and all vehicle selects remain')
+  assert.equal(await evaluate('document.querySelectorAll(".provider-panel form").length'), 1, 'Providers only see the vehicle form')
+  assert.equal(await evaluate('document.querySelectorAll(".provider-panel .v-select").length'), 4, 'Vehicle fields use existing categories')
   await screenshot('provider-panel')
   await key('Escape')
   await click('.list-catalog .rental-vehicle:first-child .rental-vehicle__actions .v-btn:last-child')
@@ -825,6 +857,80 @@ try {
   await waitFor('location.pathname === "/map" && localStorage.getItem("token") === "activation-auto-token"')
   assert.equal(await evaluate('JSON.parse(localStorage.getItem("user")).loma'), providerRole)
   assert.equal(confirmationWrites().length, confirmationCount + 1)
+  // The guard relies on the server identity even when local storage contains an obsolete admin.
+  signIn.persona = null
+  await evaluate('localStorage.setItem("user", JSON.stringify({loma:"administrators"}))')
+  await send('Page.navigate', { url: `${base}/admin/users` })
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-form-card")')
+  signIn.persona = signedInPersona('klients', true)
+  await send('Page.navigate', { url: `${base}/admin/payments` })
+  await waitFor('location.pathname === "/" && !document.querySelector(".admin-layout")')
+  signIn.persona = signedInPersona(providerRole, true)
+  await send('Page.navigate', { url: `${base}/admin/categories` })
+  await waitFor('location.pathname === "/map" && !document.querySelector(".admin-layout")')
+
+  signIn.persona = null
+  signIn.scenario = 'admin-login'
+  await resize(1440, 960)
+  await send('Page.navigate', { url: `${base}/auth` })
+  await waitFor('location.pathname === "/auth" && !!document.querySelector(".auth-form-card input[autocomplete=username]")')
+  await changeLanguage('en')
+  await input('.auth-form-card input[autocomplete=username]', 'admin@example.test')
+  await input('.auth-form-card input[autocomplete=current-password]', 'SampleAdmin42!')
+  await click('.auth-form-card button[type=submit]')
+  await waitFor('location.pathname === "/admin" && document.querySelectorAll(".metric").length === 8', 'Admin login opens real dashboard UI')
+  assert.ok(await evaluate('document.body.innerText.includes("Confirmed payment volume")'))
+  await waitFor('document.querySelector(".admin-sidebar").getBoundingClientRect().left >= 0 && document.querySelector(".admin-content").getBoundingClientRect().left >= 252', 'The desktop sidebar remains open')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".admin-navigation")).backgroundColor'), 'rgba(0, 0, 0, 0)')
+  assert.equal(await evaluate('document.querySelector(".chart-value").getBoundingClientRect().width'), 1)
+  await screenshot('admin-desktop')
+  await click('.admin-content__header .v-btn-toggle button')
+  await waitFor('document.querySelectorAll(".chart-bar").length === 14', 'Seven-day charts rerender')
+
+  await click('.admin-navigation a[href="/admin/users"]')
+  await waitFor('document.querySelector(".records-table tbody").innerText.includes("QA User")')
+  await input('.admin-filters input', 'qa')
+  await click('.records-table th:nth-child(2) button')
+  assert.equal(adminQueries.at(-1).q, 'qa')
+  assert.equal(adminQueries.at(-1).sort, 'vards')
+  assert.equal(adminQueries.at(-1).direction, 'asc')
+  await click('button[aria-label="View #18"]')
+  await waitFor('document.body.innerText.includes("Restriction history")')
+  await evaluate('[...document.querySelectorAll(".v-dialog button")].find(button => button.textContent.trim() === "Apply restriction").click()')
+  await waitFor('!!document.querySelector(".v-dialog textarea")')
+  assert.ok(await evaluate('document.querySelector(".v-dialog button[type=submit]").disabled'))
+  await input('.v-dialog textarea', 'QA moderation reason')
+  await click('.v-dialog button[type=submit]')
+  await waitFor('document.body.innerText.includes("Changes saved.")')
+  const restrictionWrite = writes.findLast(write => write.path === '/api/admin/users/18/restrictions')
+  assert.equal(restrictionWrite.authorization, 'Bearer admin-token')
+  assert.equal(JSON.parse(restrictionWrite.body).iemesls, 'QA moderation reason')
+
+  await resize(390, 844)
+  await noOverflow()
+  await click('.admin-bar button[aria-label="Administration navigation"]')
+  await waitFor('document.querySelector(".admin-sidebar").classList.contains("v-navigation-drawer--active")')
+  await click('.admin-navigation a[href="/admin/reports"]')
+  await waitFor('location.pathname === "/admin/reports" && document.querySelector(".table-empty")?.textContent.includes("No records")')
+  await click('.admin-bar button[aria-label="Language"]')
+  await evaluate('[...document.querySelectorAll(".v-overlay .v-list-item")].find(item => item.textContent.includes("Русский")).click()')
+  await waitFor('document.documentElement.lang === "ru" && document.querySelector(".admin-content h1")?.textContent === "Жалобы"')
+  await noOverflow()
+  const themeBefore = await evaluate('document.documentElement.dataset.theme')
+  await click('.admin-bar button:nth-last-child(2)')
+  await waitFor(`document.documentElement.dataset.theme !== ${JSON.stringify(themeBefore)}`)
+  await screenshot('admin-mobile-ru')
+  await click('.admin-bar button:last-child')
+  await waitFor('location.pathname === "/auth" && !document.querySelector(".admin-layout")')
+  signIn.scenario = 'blocked-login'
+  await input('.auth-form-card input[autocomplete=username]', 'blocked@example.test')
+  await input('.auth-form-card input[autocomplete=current-password]', 'SampleAdmin42!')
+  await click('.auth-form-card button[type=submit]')
+  await waitFor('document.body.innerText.includes("QA account hold") && !!document.querySelector(".auth-form-card a[href=\'/support\']")')
+  await click('.auth-form-card a[href="/support"]')
+  await waitFor('location.pathname === "/support" && !!document.querySelector(".support-page")')
+  console.log('PASS: administrator login and route guards, dashboard range, server search and sorting, restriction confirmation, mobile drawer, localization, theme, and block support.')
+
   if (process.env.CATALOG_VERIFY_PWA === '1') {
     await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the application')
     for (const path of ['/auth', '/verify-email']) {

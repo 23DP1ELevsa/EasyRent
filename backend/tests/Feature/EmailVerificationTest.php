@@ -467,6 +467,25 @@ class EmailVerificationTest extends TestCase
         }
     }
 
+    public function test_block_invalidates_verification_link_and_prevents_automatic_login(): void
+    {
+        $headers = $this->registerWithSession();
+        $link = $this->link();
+        $persona = Persona::forEmail(self::EMAIL)->firstOrFail();
+        $admin = Persona::forceCreate(['loma' => 'administrators', 'epasts' => 'admin@example.test', 'email_verified_at' => now()]);
+        $token = $admin->createToken('admin-test')->plainTextToken;
+        $this->postJson('/api/admin/users/'.$persona->getKey().'/restrictions', [
+            'veids' => 'konta_blokesana', 'duration' => 'indefinite', 'iemesls' => 'Account review',
+        ], ['Authorization' => 'Bearer '.$token])->assertCreated();
+
+        $this->resetRequestState();
+        $this->postJson(self::CONFIRM, $link + ['interactive' => true, 'auto_login' => true], $headers)
+            ->assertUnprocessable()->assertJsonPath('code', 'invalid_verification_link')->assertJsonMissingPath('token');
+        $this->assertFalse($persona->fresh()->hasVerifiedEmail());
+        $this->assertDatabaseEmpty('email_verification_tokens');
+        $this->assertSame(0, $persona->tokens()->count());
+    }
+
     private function registration(): array
     {
         return [

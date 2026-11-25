@@ -29,6 +29,8 @@
             <v-tab value="register">{{ copy.tabs.register }}</v-tab>
           </v-tabs>
 
+          <AccountBlockNotice :block="blockedLogin" />
+
           <v-alert
             v-if="errorText"
             class="auth-feedback"
@@ -352,7 +354,8 @@
 <script setup>
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { apiFetch, clearAuthSession, googlePending, setAuthSession } from '@/services/auth'
+  import AccountBlockNotice from '@/components/AccountBlockNotice.vue'
+  import { apiFetch, blockedLogin, clearAuthSession, googlePending, setAuthSession } from '@/services/auth'
   import { emailVerificationRoute, FORGOT_PASSWORD_ROUTE } from '@/router/paths'
   import { useLoadingState } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
@@ -379,6 +382,7 @@
   const googleError = computed(() => {
     const errors = t('google.errors')
     const status = route.query.google
+    if (status === 'blocked' && !blockedLogin.value) return t('admin.blocked')
     if (status === 'link' && !linkEmail.value) return errors.invalid
     return typeof status === 'string' && Object.hasOwn(errors, status) ? errors[status] : ''
   })
@@ -409,6 +413,11 @@
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) {
+        if (result.code === 'account_blocked') {
+          blockedLogin.value = result
+          linkPassword.value = ''
+          return
+        }
         linkPasswordError.value = result.errors?.password?.[0] || ''
         if (!linkPasswordError.value) {
           errorText.value = response.status === 429
@@ -697,6 +706,7 @@
 
   async function submitLogin () {
     if (loading.value) return
+    blockedLogin.value = null
     errorText.value = ''
     okText.value = ''
     loading.value = true
@@ -714,6 +724,11 @@
       const data = await r.json().catch(() => ({}))
 
       if (!r.ok) {
+        if (data.code === 'account_blocked') {
+          blockedLogin.value = data
+          login.value.password = ''
+          return
+        }
         if (data.code === 'email_not_verified') {
           await router.replace(emailVerificationRoute(login.value.email.trim()))
           return

@@ -80,7 +80,7 @@ class EmailVerification
                     $query->whereKey($personaId);
                 }
                 $persona = $query->lockForUpdate()->first();
-                if (! $persona) {
+                if (! $persona || AccountRestrictions::block($persona)) {
                     return 'not_eligible';
                 }
 
@@ -152,7 +152,7 @@ class EmailVerification
 
         return DB::transaction(function () use ($id, $token, $initiator, $interactive, $autoLogin, $signedIn) {
             $persona = Persona::whereKey($id)->lockForUpdate()->first();
-            if (! $persona || $persona->hasVerifiedEmail()) {
+            if (! $persona || $persona->hasVerifiedEmail() || AccountRestrictions::block($persona)) {
                 return ['code' => 'invalid_verification_link'];
             }
 

@@ -55,6 +55,7 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     'frontend_url' => env('FRONTEND_URL'),
+    'support_email' => env('CONTACT_TO_EMAIL', env('MAIL_REPLY_TO_ADDRESS', env('MAIL_FROM_ADDRESS'))),
 
     /*
     |--------------------------------------------------------------------------

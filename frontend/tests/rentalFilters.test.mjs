@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import admin from '../src/lang/admin.js'
 import en from '../src/lang/en.js'
 import lv from '../src/lang/lv.js'
 import ru from '../src/lang/ru.js'
@@ -99,6 +100,7 @@ test('all three dictionaries have the same entries and interpolation parameters'
     const parameters = [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort()
     return [[path, parameters]]
   })
-  assert.deepEqual(new Map(entries(en)), new Map(entries(lv)))
-  assert.deepEqual(new Map(entries(ru)), new Map(entries(lv)))
+  const latvian = new Map(entries({ ...lv, admin: admin.lv }))
+  assert.deepEqual(new Map(entries({ ...en, admin: admin.en })), latvian)
+  assert.deepEqual(new Map(entries({ ...ru, admin: admin.ru })), latvian)
 })

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Persona;
 use App\Support\AccountMail;
+use App\Support\AccountRestrictions;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -60,7 +61,7 @@ class PasswordResetController extends Controller
 
         $delivery = DB::transaction(function () use ($email) {
             $persona = Persona::forEmail($email)->whereNotNull('parole')->lockForUpdate()->first();
-            if (! $persona || Password::getRepository()->recentlyCreatedToken($persona)) {
+            if (! $persona || AccountRestrictions::block($persona) || Password::getRepository()->recentlyCreatedToken($persona)) {
                 return null;
             }
 
@@ -93,6 +94,9 @@ class PasswordResetController extends Controller
         $persona = DB::transaction(function () use ($data) {
             // Serialize token issuance, consumption and account deletion on the same account row.
             $persona = Persona::forEmail($data['email'])->whereNotNull('parole')->lockForUpdate()->first();
+            if ($persona && AccountRestrictions::block($persona)) {
+                $persona = null;
+            }
             // A null primary key still goes through the broker's timing protection.
             Password::getTimebox()->dontReturnEarly();
             $status = Password::reset([

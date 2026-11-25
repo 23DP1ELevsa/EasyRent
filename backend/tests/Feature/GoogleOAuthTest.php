@@ -7,6 +7,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -403,6 +404,39 @@ class GoogleOAuthTest extends TestCase
         ]);
     }
 
+    public function test_administrator_role_cannot_be_selected_and_a_block_revokes_google_sessions(): void
+    {
+        $this->fakeGoogle();
+        $this->browser('invalid', 'GET', '/oauth/google/start?role=administrators')->assertRedirect('/auth?google=invalid');
+
+        $this->finishGoogle('client', $this->start('client', 'klients'))->assertRedirect('/profile?google=ok');
+        $client = Persona::where('google_id', '123456')->firstOrFail();
+        $oldSession = DB::table('sessions')->where('user_id', $client->getKey())->first();
+        $oldCookies = $this->browsers['client'];
+        $admin = Persona::forceCreate(['epasts' => 'admin@example.test', 'loma' => 'administrators', 'email_verified_at' => now()]);
+        $token = $admin->createToken('admin-test')->plainTextToken;
+        $path = '/api/admin/users/'.$client->getKey().'/restrictions';
+        $this->resetBrowserRequest();
+        $block = $this->postJson($path, [
+            'veids' => 'konta_blokesana', 'duration' => 'indefinite', 'iemesls' => 'Account review',
+        ], ['Authorization' => 'Bearer '.$token])->assertCreated()->json('ierobezojums_id');
+        $this->assertDatabaseMissing('sessions', ['id' => $oldSession->id]);
+        $this->browser('client', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->finishGoogle('returning', $this->start('returning'))->assertRedirect('/auth?google=blocked');
+        $this->browser('returning', 'GET', '/api/auth/me')->assertForbidden()
+            ->assertJsonPath('code', 'account_blocked')->assertJsonPath('reason', 'Account review')->assertJsonMissingPath('token');
+        $this->assertDatabaseMissing('sessions', ['user_id' => $client->getKey()]);
+
+        $this->resetBrowserRequest();
+        $this->patchJson($path.'/'.$block, ['iemesls' => 'Review complete'], ['Authorization' => 'Bearer '.$token])->assertOk();
+        // Simulate an in-flight request persisting its old session after the purge.
+        DB::table('sessions')->updateOrInsert(['id' => $oldSession->id], (array) $oldSession);
+        $this->browsers['stale'] = $oldCookies;
+        $this->browser('stale', 'GET', '/api/auth/me')->assertUnauthorized();
+        $this->finishGoogle('new', $this->start('new'))->assertRedirect('/profile?google=ok');
+        $this->browser('new', 'GET', '/api/auth/me')->assertOk()->assertJsonPath('persona.persona_id', $client->getKey());
+    }
+
     private function start(string $browser, ?string $role = null): array
     {
         $redirect = $this->browser($browser, 'GET', '/oauth/google/start'.($role ? '?role='.$role : ''))->assertRedirect();
@@ -420,12 +454,18 @@ class GoogleOAuthTest extends TestCase
         ]), referer: false);
     }
 
+    private function resetBrowserRequest(): void
+    {
+        Auth::forgetGuards();
+        $this->app->forgetInstance('auth.driver');
+        $this->app['session']->forgetDrivers();
+        $this->app->forgetInstance('session.store');
+    }
+
     private function browser(string $browser, string $method, string $path, array $data = [], bool $referer = true, bool $csrf = true): TestResponse
     {
         // Refresh request-scoped guards and the session store, as a real browser request would.
-        Auth::forgetGuards();
-        $this->app['session']->forgetDrivers();
-        $this->app->forgetInstance('session.store');
+        $this->resetBrowserRequest();
         $cookies = $this->browsers[$browser] ?? [];
         $headers = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'];
         if ($referer) {

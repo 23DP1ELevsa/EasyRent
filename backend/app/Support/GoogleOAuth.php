@@ -32,6 +32,7 @@ class GoogleOAuth
             'state' => $state,
             'verifier' => $verifier,
             'role' => $role,
+            'locale' => app()->getLocale(),
             'deletion_account' => $deletionAccount,
             'expires_at' => now()->addMinutes(10)->timestamp,
         ]);
@@ -52,7 +53,8 @@ class GoogleOAuth
     public function confirmDeletion(Request $request, int $account, string $subject): bool
     {
         $persona = Auth::guard('web')->user();
-        if (! $persona || (int) $persona->getKey() !== $account || $persona->google_id !== $subject) {
+        if (! $persona || (int) $persona->getKey() !== $account || $persona->google_id !== $subject
+            || AccountRestrictions::authenticationError($request, $persona)) {
             return false;
         }
 

@@ -12,6 +12,8 @@ class TransportliedzieklsVeids extends Model
 
     protected $fillable = ['nosaukums', 'tips'];
 
+    protected $casts = ['deactivated_at' => 'datetime'];
+
     public function transportlidzekli(): HasMany
     {
         return $this->hasMany(Transportlidzeklis::class, 'veids_id', 'veids_id');

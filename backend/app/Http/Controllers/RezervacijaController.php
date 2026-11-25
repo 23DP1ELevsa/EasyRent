@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Mail\ReservationInvoiceMail;
 use App\Models\Maksajums;
+use App\Models\LietotajaIerobezojums as Restriction;
+use App\Support\AccountRestrictions;
 use App\Models\Klients;
 use App\Models\PakalpojumuSniedzejs;
 use App\Models\Persona;
@@ -111,8 +113,8 @@ class RezervacijaController extends Controller
         $start = $this->parseClientDateTime($data['sakuma_laiks'], $request);
         $end = $this->parseClientDateTime($data['beigu_laiks'], $request);
 
-        return $this->withLockedVehicle($klients, $data['transportlidzeklis_id'], function (Transportlidzeklis $transport) use ($klients, $start, $end) {
-            abort_if($transport->archived_at || $transport->statuss !== 'pieejams', 409, __('app.vehicleUnavailable'));
+        return $this->withLockedVehicle($request->user(), $klients, $data['transportlidzeklis_id'], function (Transportlidzeklis $transport) use ($klients, $start, $end) {
+            abort_if($transport->archived_at || $transport->moderation_hidden_at || $transport->statuss !== 'pieejams', 409, __('app.vehicleUnavailable'));
             abort_if($start->lessThanOrEqualTo(Carbon::now()), 422, __('app.bookingStartInFuture'));
             abort_if($end->lessThanOrEqualTo($start), 422, __('app.bookingEndAfterStart'));
 
@@ -132,7 +134,7 @@ class RezervacijaController extends Controller
             ]);
 
             return response()->json($reservation->load(['transportlidzeklis.veids', 'transportlidzeklis.sniedzejs.persona']), 201);
-        });
+        }, newRental: true);
     }
 
     public function pay(Request $request, $id)
@@ -147,9 +149,10 @@ class RezervacijaController extends Controller
         $reservation = Rezervacija::findOrFail($id);
         abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, __('app.bookingPayForbidden'));
 
-        [$rezervacija, $maksajums] = $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
+        [$rezervacija, $maksajums] = $this->withLockedVehicle($request->user(), $klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
             $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
             abort_if($reservation->apmaksas_statuss === 'apmaksata', 409, __('app.bookingAlreadyPaid'));
+            abort_if($transport->archived_at || $transport->moderation_hidden_at, 409, __('app.vehicleUnavailable'));
             abort_if($reservation->maksajumi()->exists(), 409, __('app.bookingPaymentExists'));
             abort_if(now()->greaterThanOrEqualTo($reservation->sakuma_laiks), 409, __('app.bookingPaymentExpired'));
 
@@ -167,7 +170,7 @@ class RezervacijaController extends Controller
             ReservationInvoice::archive($reservation, $payment);
 
             return [$reservation, $payment];
-        });
+        }, newRental: true);
         $this->sendReservationInvoiceEmails($rezervacija, $maksajums);
 
         return response()->json([
@@ -208,7 +211,7 @@ class RezervacijaController extends Controller
         $reservation = Rezervacija::findOrFail($id);
         abort_unless((int) $reservation->klients_id === (int) $klients->getKey(), 403, __('app.bookingCancelForbidden'));
 
-        return $this->withLockedVehicle($klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
+        return $this->withLockedVehicle($request->user(), $klients, $reservation->transportlidzeklis_id, function (Transportlidzeklis $transport) use ($id) {
             $reservation = $transport->rezervacijas()->lockForUpdate()->findOrFail($id);
             abort_if($reservation->apmaksas_statuss === 'apmaksata' || $reservation->maksajumi()->exists(), 409, __('app.bookingHasPayment'));
             $reservation->delete();
@@ -217,14 +220,24 @@ class RezervacijaController extends Controller
         });
     }
 
-    private function withLockedVehicle(Klients $client, int $vehicleId, Closure $operation): mixed
+    private function withLockedVehicle(Persona $actor, Klients $client, int $vehicleId, Closure $operation, bool $newRental = false): mixed
     {
         $vehicle = Transportlidzeklis::with('sniedzejs')->findOrFail($vehicleId);
 
-        return DB::transaction(function () use ($client, $vehicle, $operation) {
-            Persona::lockActiveAccounts($client->persona_id, $vehicle->sniedzejs->persona_id);
+        return DB::transaction(function () use ($actor, $client, $vehicle, $operation, $newRental) {
+            $ownerId = $vehicle->sniedzejs->persona_id;
+            $accounts = Persona::lockActiveAccounts($client->persona_id, $ownerId);
+            $transport = Transportlidzeklis::whereKey($vehicle->getKey())->lockForUpdate()->firstOrFail();
+            $account = $accounts[$client->persona_id];
+            AccountRestrictions::assertCurrent($actor, $account);
+            if ($newRental) {
+                AccountRestrictions::assertAllowed($account, Restriction::BOOKING);
+                abort_if(AccountRestrictions::block($accounts[$ownerId]), 409, __('app.vehicleUnavailable'));
+            } else {
+                AccountRestrictions::assertUnblocked($account);
+            }
 
-            return $operation(Transportlidzeklis::whereKey($vehicle->getKey())->lockForUpdate()->firstOrFail());
+            return $operation($transport);
         }, 3);
     }
 

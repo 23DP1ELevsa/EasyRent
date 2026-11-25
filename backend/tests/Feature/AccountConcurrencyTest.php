@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Persona;
+use App\Support\AdminChanges;
 use App\Models\TransportliedzieklsVeids;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,100 @@ class AccountConcurrencyTest extends TestCase
         }
     }
 
+    #[Group('mysql-race')]
+    public function test_moderation_is_serialized_with_booking_payment_and_other_administrators(): void
+    {
+        $this->migrateDisposableDatabase();
+        config(['app.key' => 'base64:'.base64_encode(random_bytes(32))]);
+
+        $admin = $this->account('administrators');
+        $otherAdmin = $this->account('administrators');
+        $client = $this->account('klients');
+        $provider = $this->account('pakalpojumu_sniedzejs');
+        $client->klients()->create([]);
+        $type = TransportliedzieklsVeids::create(['nosaukums' => 'Auto', 'tips' => 'auto']);
+        $vehicle = $provider->pakalpojumuSniedzejs()->create([])->transportlidzekli()->create([
+            'veids_id' => $type->getKey(), 'marka' => 'BMW', 'modelis' => '320d',
+            'dienas_nomas_cena' => 40, 'adrese' => 'Rīga', 'statuss' => 'pieejams',
+            'registracijas_numurs' => 'TEST-42',
+        ]);
+        $adminToken = $admin->createToken('moderation')->plainTextToken;
+        $otherToken = $otherAdmin->createToken('moderation')->plainTextToken;
+        $clientToken = $client->createToken('booking')->plainTextToken;
+        $vehicleId = $vehicle->getKey();
+        $book = [
+            'transportlidzeklis_id' => $vehicleId,
+            'sakuma_laiks' => now()->addDay()->toISOString(),
+            'beigu_laiks' => now()->addDays(2)->toISOString(),
+        ];
+
+        $this->assertModerationRace(
+            ['method' => 'POST', 'path' => '/api/rezervacijas', 'body' => $book, 'token' => $clientToken, 'wait_for_vehicle' => true],
+            function (Process $worker) use ($vehicle, $adminToken, $vehicleId) {
+                $vehicle->newQuery()->whereKey($vehicleId)->lockForUpdate()->firstOrFail();
+                $this->startBlockedRequest($worker);
+                $this->patchJson("/api/admin/vehicles/$vehicleId/visibility", ['hidden' => true, 'iemesls' => 'Concurrent hide'],
+                    ['Authorization' => 'Bearer '.$adminToken])->assertOk();
+            },
+            409
+        );
+        $this->assertDatabaseEmpty('rezervacija');
+        Auth::forgetGuards();
+        $this->patchJson("/api/admin/vehicles/$vehicleId/visibility", ['hidden' => false, 'iemesls' => 'Restored'],
+            ['Authorization' => 'Bearer '.$adminToken])->assertOk();
+        Auth::forgetGuards();
+        $bookingId = $this->postJson('/api/rezervacijas', $book, ['Authorization' => 'Bearer '.$clientToken])
+            ->assertCreated()->json('rezervacija_id');
+        $reason = ['duration' => 'indefinite', 'iemesls' => 'Concurrent restriction'];
+
+        $this->assertModerationRace(
+            ['method' => 'POST', 'path' => "/api/rezervacijas/$bookingId/pay", 'body' => [], 'token' => $clientToken],
+            function (Process $worker) use ($client, $adminToken, $reason) {
+                Persona::lockActiveAccounts($client->getKey());
+                $this->startBlockedRequest($worker);
+                $this->postJson('/api/admin/users/'.$client->getKey().'/restrictions', ['veids' => 'rezervaciju_aizliegums'] + $reason,
+                    ['Authorization' => 'Bearer '.$adminToken])->assertCreated();
+            },
+            403
+        );
+        $this->assertDatabaseEmpty('maksajums');
+        $this->assertDatabaseHas('rezervacija', ['rezervacija_id' => $bookingId, 'apmaksas_statuss' => 'neapmaksata']);
+
+        $block = ['veids' => 'konta_blokesana'] + $reason;
+        $this->assertModerationRace(
+            ['method' => 'POST', 'path' => '/api/admin/users/'.$otherAdmin->getKey().'/restrictions', 'body' => $block, 'token' => $otherToken],
+            function (Process $worker) use ($admin, $block, $adminToken) {
+                AdminChanges::lockAdministrators();
+                $this->startBlockedRequest($worker);
+                $this->postJson('/api/admin/users/'.$admin->getKey().'/restrictions', $block,
+                    ['Authorization' => 'Bearer '.$adminToken])->assertCreated();
+            },
+            409
+        );
+        $this->assertSame(0, $otherAdmin->restrictions()->blocking()->count());
+    }
+
+    private function assertModerationRace(array $request, \Closure $adminAction, int $status): void
+    {
+        $worker = $this->worker($request, ['APP_ENV' => 'testing', 'APP_KEY' => config('app.key')]);
+        try {
+            DB::transaction(fn () => $adminAction($worker));
+            $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
+            $this->assertStringContainsString('STATUS='.$status, $worker->getOutput());
+        } finally {
+            $worker->stop(0);
+        }
+    }
+
+    private function startBlockedRequest(Process $worker): void
+    {
+        $worker->start();
+        $this->assertTrue($worker->waitUntil(fn ($type, $lines) => str_contains($lines, "WAITING\n")),
+            $worker->getErrorOutput().$worker->getOutput());
+        $this->assertTrue($worker->isRunning());
+        Auth::forgetGuards();
+    }
+
     private function migrateDisposableDatabase(): void
     {
         if (getenv('EASYRENT_TEST_MYSQL_RACE') !== '1') {
@@ -176,13 +271,15 @@ class AccountConcurrencyTest extends TestCase
             $app = require 'bootstrap/app.php';
             $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
             $kernel->bootstrap();
-            Illuminate\Support\Facades\DB::connection()->beforeExecuting(function ($sql) {
-                if (str_contains($sql, 'from `persona`') && str_ends_with($sql, 'for update')) {
+            $data = json_decode($argv[1], true, flags: JSON_THROW_ON_ERROR);
+            Illuminate\Support\Facades\DB::connection()->beforeExecuting(function ($sql) use ($data) {
+                $accountLock = str_contains($sql, 'from `persona`') && str_ends_with($sql, 'for update');
+                $vehicleWrite = ($data['wait_for_vehicle'] ?? false) && str_starts_with($sql, 'update `transportlidzeklis`');
+                if ($accountLock || $vehicleWrite) {
                     echo "WAITING\n";
                     flush();
                 }
             });
-            $data = json_decode($argv[1], true, flags: JSON_THROW_ON_ERROR);
             $server = [
                 'HTTP_ACCEPT' => 'application/json',
                 'CONTENT_TYPE' => 'application/json',

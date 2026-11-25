@@ -28,11 +28,13 @@ class Transportlidzeklis extends Model
     protected $casts = [
         'dienas_nomas_cena' => 'decimal:2',
         'archived_at' => 'datetime',
+        'moderation_hidden_at' => 'datetime',
     ];
 
     public function scopeListed(Builder $query): void
     {
-        $query->whereNull('archived_at')->whereHas('sniedzejs.persona');
+        $query->whereNull('archived_at')->whereNull('moderation_hidden_at')
+            ->whereHas('sniedzejs.persona', fn ($persona) => $persona->whereDoesntHave('restrictions', fn ($restrictions) => $restrictions->blocking()));
     }
 
     public function bookingSnapshot(): array
@@ -54,6 +56,11 @@ class Transportlidzeklis extends Model
     public function rezervacijas(): HasMany
     {
         return $this->hasMany(Rezervacija::class, 'transportlidzeklis_id', 'transportlidzeklis_id');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(TransportlidzeklaFoto::class, 'transportlidzeklis_id');
     }
 
     public function atsauksmes(): HasMany

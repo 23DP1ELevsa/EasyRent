@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\PakalpojumuSniedzejs;
+use App\Models\ParkapumaZinojums;
+use App\Models\LietotajaIerobezojums as Restriction;
+use App\Models\TransportliedzieklsVeids;
+use App\Support\AccountRestrictions;
 use App\Models\Persona;
 use App\Models\Rezervacija;
 use App\Models\Transportlidzeklis;
@@ -17,8 +21,8 @@ class TransportController extends Controller
         Rezervacija::cleanupAvailability();
 
         $query = Transportlidzeklis::listed()->with(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()])
-            ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
-            ->withCount('atsauksmes as atsauksmju_skaits');
+            ->withAvg(['atsauksmes as videjais_vertejums' => fn ($query) => $query->visible()], 'vertejums')
+            ->withCount(['atsauksmes as atsauksmju_skaits' => fn ($query) => $query->visible()]);
         
         // Filtri
         if ($request->has('veids_id')) {
@@ -48,10 +52,10 @@ class TransportController extends Controller
             'sniedzejs.persona',
             'veids',
             'rezervacijas' => $this->availability(),
-            'atsauksmes.klients.persona',
+            'atsauksmes' => fn ($query) => $query->visible()->with('klients.persona'),
         ])
-            ->withAvg('atsauksmes as videjais_vertejums', 'vertejums')
-            ->withCount('atsauksmes as atsauksmju_skaits')
+            ->withAvg(['atsauksmes as videjais_vertejums' => fn ($query) => $query->visible()], 'vertejums')
+            ->withCount(['atsauksmes as atsauksmju_skaits' => fn ($query) => $query->visible()])
             ->find($id);
         
         if (!$transport) {
@@ -84,6 +88,8 @@ class TransportController extends Controller
             'registracijas_numurs' => ['required', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs'],
         ]);
 
+        AccountRestrictions::assertAllowed($request->user(), Restriction::LISTING);
+        $this->requireActiveCategory($data['veids_id']);
         $data['sniedzejs_id'] = $provider->sniedzejs_id;
         $data['adrese'] = $this->buildProviderAddress($provider);
 
@@ -104,7 +110,7 @@ class TransportController extends Controller
             return $provider;
         }
 
-        $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
+        $transport = Transportlidzeklis::whereNull('archived_at')->lockForUpdate()->find($id);
 
         if (!$transport) {
             return response()->json(['error' => __('app.notFound')], 404);
@@ -129,6 +135,14 @@ class TransportController extends Controller
             $data['adrese'] = $this->buildProviderAddress($provider);
         }
 
+        $publishing = $transport->statuss === 'neaktivs' && isset($data['statuss']) && $data['statuss'] !== 'neaktivs';
+        if ($publishing) {
+            AccountRestrictions::assertAllowed($request->user(), Restriction::LISTING);
+        }
+        if ($publishing || (isset($data['veids_id']) && (int) $data['veids_id'] !== (int) $transport->veids_id)) {
+            $this->requireActiveCategory($data['veids_id'] ?? $transport->veids_id);
+        }
+
         $transport->update($data);
 
         return response()->json($transport->load(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()]));
@@ -148,7 +162,7 @@ class TransportController extends Controller
             return $provider;
         }
 
-        $transport = Transportlidzeklis::whereNull('archived_at')->find($id);
+        $transport = Transportlidzeklis::whereNull('archived_at')->lockForUpdate()->find($id);
 
         if (!$transport) {
             return response()->json(['error' => __('app.notFound')], 404);
@@ -168,13 +182,22 @@ class TransportController extends Controller
             ], 409);
         }
 
-        if ($transport->rezervacijas()->exists() || $transport->atsauksmes()->exists()) {
+        if ($transport->moderation_hidden_at || $transport->rezervacijas()->exists() || $transport->atsauksmes()->exists()
+            || ParkapumaZinojums::where('objekta_veids', 'vehicle')->where('objekta_id', $id)->lockForUpdate()->first(['zinojums_id'])) {
             $transport->forceFill(['archived_at' => now(), 'statuss' => 'neaktivs'])->save();
         } else {
             $transport->delete();
         }
 
         return response()->json(['message' => __('app.vehicleDeleted')]);
+    }
+
+    private function requireActiveCategory(int $id): void
+    {
+        $category = TransportliedzieklsVeids::whereKey($id)->lockForUpdate()->firstOrFail();
+        if ($category->deactivated_at !== null) {
+            throw ValidationException::withMessages(['veids_id' => __('admin.inactive_category')]);
+        }
     }
 
     private function availability(): \Closure
@@ -215,6 +238,9 @@ class TransportController extends Controller
         if ($persona->loma !== 'pakalpojumu_sniedzejs' || !$persona->pakalpojumuSniedzejs) {
             return response()->json(['message' => __('app.providerOnly')], 403);
         }
+
+        AccountRestrictions::assertUnblocked($persona);
+        AccountRestrictions::assertCurrent($request->user(), $persona);
 
         return $persona->pakalpojumuSniedzejs;
     }

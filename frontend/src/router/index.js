@@ -9,7 +9,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { routes } from 'vue-router/auto-routes'
 import { googlePending, syncCurrentUser } from '@/services/auth'
 import { startLoading } from '@/stores/loading'
-import { accountHome, AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, PROFILE_ROUTE, RESET_PASSWORD_ROUTE, VERIFY_EMAIL_ROUTE } from './paths'
+import { accountHome, AUTH_ROUTE, FORGOT_PASSWORD_ROUTE, PROFILE_ROUTE, RESET_PASSWORD_ROUTE, VERIFY_EMAIL_ROUTE, SUPPORT_ROUTE, isAdminPath } from './paths'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,12 +18,13 @@ const router = createRouter({
 
 const navigationTasks = new WeakMap()
 router.beforeEach(async to => {
-  if ([FORGOT_PASSWORD_ROUTE, RESET_PASSWORD_ROUTE, VERIFY_EMAIL_ROUTE].includes(to.path)) {
+  if ([FORGOT_PASSWORD_ROUTE, RESET_PASSWORD_ROUTE, VERIFY_EMAIL_ROUTE, SUPPORT_ROUTE].includes(to.path)) {
     return
   }
 
-  const googleCallback = ['ok', 'role', 'link'].includes(to.query.google)
-  const persona = await syncCurrentUser({ useBearer: !googleCallback })
+  const googleCallback = ['ok', 'role', 'link', 'blocked'].includes(to.query.google)
+  const administration = isAdminPath(to.path)
+  const persona = await syncCurrentUser({ useBearer: !googleCallback, allowStoredUser: !administration })
   const pending = googlePending.value
 
   if (pending?.purpose === 'role' || persona?.profile_completed === false) {
@@ -33,6 +34,9 @@ router.beforeEach(async to => {
     return
   }
 
+  if (administration && persona?.loma !== 'administrators') {
+    return { path: persona ? accountHome(persona) : AUTH_ROUTE, replace: true }
+  }
   if (to.path === PROFILE_ROUTE && to.query.google === 'ok' && persona) {
     return { path: accountHome(persona), replace: true }
   }

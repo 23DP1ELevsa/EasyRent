@@ -320,52 +320,6 @@
       width="540"
     >
       <div class="provider-panel">
-        <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleType }}</div>
-        <v-form class="d-flex flex-column ga-3 mb-5" @submit.prevent="submitVehicleType">
-          <v-text-field
-            v-model="newVehicleType.nosaukums"
-            density="compact"
-            :hint="copy.vehicleTypeHint"
-            :label="copy.newVehicleType"
-            persistent-hint
-            variant="outlined"
-          />
-          <v-btn
-            block
-            color="primary"
-            :loading="vehicleTypeLoading"
-            type="submit"
-            variant="tonal"
-          >
-            {{ copy.saveNewType }}
-          </v-btn>
-        </v-form>
-
-        <div v-if="transportTypes.length > 0" class="mb-5">
-          <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.existingVehicleTypes }}</div>
-          <v-select
-            v-model="editingVehicleTypeId"
-            clearable
-            density="compact"
-            item-title="title"
-            item-value="value"
-            :items="typeOptions"
-            :label="copy.selectVehicleType"
-            variant="outlined"
-          />
-          <div class="d-flex justify-end mt-2">
-            <v-btn
-              :disabled="!selectedVehicleTypeToEdit"
-              size="small"
-              variant="tonal"
-              @click="startEditingVehicleType"
-            >
-              {{ copy.editSelectedType }}
-            </v-btn>
-          </div>
-        </div>
-
-        <v-divider class="mb-4" />
         <div class="text-subtitle-2 font-weight-bold mb-2">{{ copy.addVehicleItem }}</div>
         <v-form @submit.prevent="submitVehicle">
           <v-select
@@ -646,6 +600,7 @@
             :label="copy.vehicleFields.registrationNumber"
             variant="outlined"
           />
+          <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" />
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-btn
@@ -678,27 +633,6 @@
           <v-spacer />
           <v-btn :disabled="deleteVehicleLoading" variant="text" @click="cancelDeleteVehicle">{{ copy.cancel }}</v-btn>
           <v-btn color="error" :loading="deleteVehicleLoading" @click="confirmDeleteVehicle">{{ copy.delete }}</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="vehicleTypeDialog" max-width="420">
-      <v-card class="rental-dialog__card">
-        <v-card-title class="font-weight-bold">{{ copy.editVehicleTypeTitle }}</v-card-title>
-        <v-divider />
-        <v-card-text class="pa-4 d-flex flex-column ga-3">
-          <v-text-field
-            v-model="editingVehicleTypeName"
-            density="compact"
-            hide-details
-            :label="copy.vehicleTypeName"
-            variant="outlined"
-          />
-        </v-card-text>
-        <v-card-actions class="px-4 pb-4">
-          <v-spacer />
-          <v-btn :disabled="vehicleTypeEditLoading" variant="text" @click="cancelEditingVehicleType">{{ copy.cancel }}</v-btn>
-          <v-btn color="primary" :loading="vehicleTypeEditLoading" @click="saveVehicleType">{{ copy.save }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -790,6 +724,10 @@
                   <span class="text-caption">{{ review.vertejums }}/5</span>
                 </div>
                 <div class="mt-2 text-body-2">{{ review.komentars || copy.reviewNoComment }}</div>
+                <template v-if="user && Number(review.klients_id) !== Number(clientId)">
+                  <ReportButton target="review" :target-id="review.atsauksme_id" />
+                  <ReportButton target="user" :target-id="review.klients?.persona?.persona_id" />
+                </template>
               </v-card-text>
             </v-card>
           </div>
@@ -806,6 +744,8 @@
 </template>
 
 <script setup>
+  import ReportButton from '@/components/ReportButton.vue'
+  import VehiclePhotos from '@/components/VehiclePhotos.vue'
   import L from 'leaflet'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -1095,14 +1035,6 @@
   const providerLoading = ref(false)
   const providerError = ref('')
   const providerSuccess = ref('')
-  const vehicleTypeLoading = ref(false)
-  const vehicleTypeError = ref('')
-  const vehicleTypeSuccess = ref('')
-  const vehicleTypeEditLoading = ref(false)
-  const editingVehicleTypeId = ref(null)
-  const editingVehicleTypeName = ref('')
-  const vehicleTypeDialog = ref(false)
-
   const editDialog = ref(false)
   const editLoading = ref(false)
   const editError = ref('')
@@ -1123,15 +1055,7 @@
   })
 
   const snackbar = ref({ show: false, text: '', color: 'error' })
-  useLoadingState(isWorkspaceLoading, providerLoading, vehicleTypeLoading, vehicleTypeEditLoading, reservationLoading, paymentLoading, editLoading, deleteVehicleLoading, reviewLoading, reviewSaving)
-
-  watch(vehicleTypeError, value => {
-    if (value) notifyError(value)
-  })
-
-  watch(vehicleTypeSuccess, value => {
-    if (value) notifySuccess(value)
-  })
+  useLoadingState(isWorkspaceLoading, providerLoading, reservationLoading, paymentLoading, editLoading, deleteVehicleLoading, reviewLoading, reviewSaving)
 
   watch(providerError, value => {
     if (value) notifyError(value)
@@ -1206,10 +1130,6 @@
     statuss: 'pieejams',
   })
 
-  const newVehicleType = ref({
-    nosaukums: '',
-  })
-
   const statusOptions = computed(() => attributeOptions(['pieejams', 'aiznemts', 'neaktivs']))
   const gearboxOptions = computed(() => attributeOptions(['Automāts', 'Mehānika', '-']))
   const fuelOptions = computed(() => attributeOptions(['Benzīns', 'Dīzelis', 'Elektro', '-']))
@@ -1227,7 +1147,6 @@
   const typeOptions = computed(() => transportTypes.value.map(type => ({
     title: typeLabel(type.nosaukums), name: type.nosaukums, value: type.veids_id,
   })))
-  const selectedVehicleTypeToEdit = computed(() => transportTypes.value.find(type => type.veids_id === editingVehicleTypeId.value) || null)
   const publicGearboxOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'atrumkarba'))
   const publicFuelOptions = computed(() => buildVehicleAttributeOptions(transportItems.value, 'degvielas_veids'))
 
@@ -1684,19 +1603,6 @@
     }
   }
 
-  function startEditingVehicleType () {
-    if (!selectedVehicleTypeToEdit.value) return
-    editingVehicleTypeName.value = selectedVehicleTypeToEdit.value.nosaukums || ''
-    vehicleTypeError.value = ''
-    vehicleTypeSuccess.value = ''
-    vehicleTypeDialog.value = true
-  }
-
-  function cancelEditingVehicleType () {
-    editingVehicleTypeName.value = ''
-    vehicleTypeDialog.value = false
-  }
-
   async function loadVehicleReviews (transportlidzeklisId) {
     reviewLoading.value = true
     reviewError.value = ''
@@ -2090,81 +1996,6 @@
       providerError.value = copy.value.messages.addVehicleError
     } finally {
       providerLoading.value = false
-    }
-  }
-
-  async function submitVehicleType () {
-    vehicleTypeLoading.value = true
-    vehicleTypeError.value = ''
-    vehicleTypeSuccess.value = ''
-
-    const nosaukums = (newVehicleType.value.nosaukums || '').trim()
-    if (!nosaukums) {
-      vehicleTypeError.value = copy.value.messages.vehicleTypeNameRequired
-      vehicleTypeLoading.value = false
-      return
-    }
-
-    try {
-      const response = await apiFetch(`/api/transport/veidi`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nosaukums }),
-      })
-
-      const result = await response.json()
-      if (!response.ok) {
-        vehicleTypeError.value = result?.message || copy.value.messages.addVehicleTypeFailed
-        return
-      }
-
-      vehicleTypeSuccess.value = copy.value.messages.vehicleTypeAdded
-      newVehicleType.value = { nosaukums: '' }
-      newVehicle.value.veids_id = result?.veids_id ?? null
-      await loadTypes()
-    } catch {
-      vehicleTypeError.value = copy.value.messages.addVehicleTypeError
-    } finally {
-      vehicleTypeLoading.value = false
-    }
-  }
-
-  async function saveVehicleType () {
-    if (!editingVehicleTypeId.value) {
-      vehicleTypeError.value = copy.value.messages.selectVehicleType
-      return
-    }
-
-    const nosaukums = (editingVehicleTypeName.value || '').trim()
-    if (!nosaukums) {
-      vehicleTypeError.value = copy.value.messages.vehicleTypeNameRequired
-      return
-    }
-
-    vehicleTypeEditLoading.value = true
-    vehicleTypeError.value = ''
-    vehicleTypeSuccess.value = ''
-
-    try {
-      const response = await apiFetch(`/api/transport/veidi/${editingVehicleTypeId.value}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nosaukums }),
-      })
-
-      const result = await response.json()
-      if (!response.ok) {
-        vehicleTypeError.value = result?.message || copy.value.messages.updateVehicleTypeFailed
-        return
-      }
-
-      vehicleTypeSuccess.value = copy.value.messages.updateVehicleTypeSuccess
-      cancelEditingVehicleType()
-      await loadTypes()
-    } catch {
-      vehicleTypeError.value = copy.value.messages.updateVehicleTypeError
-    } finally {
-      vehicleTypeEditLoading.value = false
     }
   }
 

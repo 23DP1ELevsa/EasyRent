@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Klients;
 use App\Models\Persona;
 use App\Support\EmailVerification;
+use App\Support\AccountRestrictions;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,8 @@ class ProfileController extends Controller
         try {
             $persona = DB::transaction(function () use ($request, $personaId) {
                 $persona = Persona::whereKey($personaId)->lockForUpdate()->firstOrFail();
+                AccountRestrictions::assertCurrent($request->user(), $persona);
+                AccountRestrictions::assertUnblocked($persona);
                 if ($request->exists('loma')) {
                     throw ValidationException::withMessages(['loma' => __('app.profileRoleFixed')]);
                 }

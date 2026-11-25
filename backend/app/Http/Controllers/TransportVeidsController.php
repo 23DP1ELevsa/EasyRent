@@ -3,106 +3,76 @@
 namespace App\Http\Controllers;
 
 use App\Models\TransportliedzieklsVeids;
-use App\Models\Persona;
+use App\Support\AdminChanges;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TransportVeidsController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
-        return response()->json(TransportliedzieklsVeids::orderBy('nosaukums')->get());
+        return response()->json(TransportliedzieklsVeids::whereNull('deactivated_at')->orderBy('nosaukums')->get());
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        if ($response = $this->ensureProvider($request)) {
-            return $response;
-        }
-
-        $data = $request->validate([
-            'nosaukums' => ['required', 'string', 'max:50', 'unique:transportlidzekla_veids,nosaukums'],
-            'tips' => ['nullable', 'string', 'max:50'],
-        ]);
-
-        $data['nosaukums'] = trim($data['nosaukums']);
-
-        if (empty($data['tips'])) {
-            $data['tips'] = Str::slug($data['nosaukums'], '_');
-        } else {
-            $data['tips'] = Str::slug(trim($data['tips']), '_');
-        }
-
-        if ($data['tips'] === '') {
-            $data['tips'] = Str::slug(Str::ascii($data['nosaukums']), '_');
-        }
-
-        if ($data['tips'] === '') {
-            $data['tips'] = 'transporta_veids';
-        }
-
-        $veids = TransportliedzieklsVeids::create($data);
-
-        return response()->json($veids, 201);
+        return $this->save($request);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, int $id): JsonResponse
     {
-        if ($response = $this->ensureProvider($request)) {
-            return $response;
-        }
-
-        $veids = TransportliedzieklsVeids::find($id);
-
-        if (!$veids) {
-            return response()->json(['message' => __('app.typeMissing')], 404);
-        }
-
-        $data = $request->validate([
-            'nosaukums' => [
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('transportlidzekla_veids', 'nosaukums')->ignore($veids->veids_id, 'veids_id'),
-            ],
-            'tips' => ['nullable', 'string', 'max:50'],
-        ]);
-
-        $data['nosaukums'] = trim($data['nosaukums']);
-
-        if (empty($data['tips'])) {
-            $data['tips'] = Str::slug($data['nosaukums'], '_');
-        } else {
-            $data['tips'] = Str::slug(trim($data['tips']), '_');
-        }
-
-        if ($data['tips'] === '') {
-            $data['tips'] = Str::slug(Str::ascii($data['nosaukums']), '_');
-        }
-
-        if ($data['tips'] === '') {
-            $data['tips'] = 'transporta_veids';
-        }
-
-        $veids->update($data);
-
-        return response()->json($veids->refresh());
+        return $this->save($request, $id);
     }
 
-    private function ensureProvider(Request $request): ?\Illuminate\Http\JsonResponse
+    public function availability(Request $request, int $id): JsonResponse
     {
-        /** @var Persona|null $persona */
-        $persona = $request->user();
+        $data = $request->validate(['active' => ['required', 'boolean'], 'iemesls' => ['required', 'string', 'max:2000']]);
+        $actor = $request->user();
 
-        if (!$persona) {
-            return response()->json(['message' => __('app.authenticationRequired')], 401);
+        return AdminChanges::run($actor, function () use ($actor, $id, $data) {
+            $category = TransportliedzieklsVeids::whereKey($id)->lockForUpdate()->firstOrFail();
+            $before = $category->deactivated_at?->toISOString();
+            $active = (bool) $data['active'];
+            abort_if($active === ($before === null), 409, __('admin.state_unchanged'));
+            $category->forceFill(['deactivated_at' => $active ? null : now()])->save();
+
+            AdminChanges::record($actor, $active ? 'category_restored' : 'category_deactivated', 'category', $id, $data['iemesls'],
+                ['deactivated_at' => $before], ['deactivated_at' => $category->deactivated_at?->toISOString()]);
+
+            return response()->json($category);
+        });
+    }
+
+    private function save(Request $request, ?int $id = null): JsonResponse
+    {
+        $actor = $request->user();
+
+        try {
+            return AdminChanges::run($actor, function () use ($request, $actor, $id) {
+                $category = $id === null ? new TransportliedzieklsVeids : TransportliedzieklsVeids::whereKey($id)->lockForUpdate()->firstOrFail();
+                $unique = Rule::unique('transportlidzekla_veids', 'nosaukums');
+                $data = $request->validate([
+                    'nosaukums' => ['required', 'string', 'max:50', $id === null ? $unique : $unique->ignore($id, 'veids_id')],
+                    'tips' => ['nullable', 'string', 'max:50'],
+                    'iemesls' => ['required', 'string', 'max:2000'],
+                ]);
+                $before = $id === null ? null : $category->only(['nosaukums', 'tips']);
+                $category->fill([
+                    'nosaukums' => $data['nosaukums'],
+                    'tips' => Str::limit(Str::slug($data['tips'] ?? $data['nosaukums'], '_') ?: 'transporta_veids', 50, ''),
+                ])->save();
+
+                AdminChanges::record($actor, $id === null ? 'category_created' : 'category_updated', 'category',
+                    $category->getKey(), $data['iemesls'], $before, $category->only(['nosaukums', 'tips']));
+
+                return response()->json($category, $id === null ? 201 : 200);
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['nosaukums' => __('validation.unique', ['attribute' => __('admin.category_name')])]);
         }
-
-        if ($persona->loma !== 'pakalpojumu_sniedzejs') {
-            return response()->json(['message' => __('app.providerOnly')], 403);
-        }
-
-        return null;
     }
 }

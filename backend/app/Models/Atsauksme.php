@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Atsauksme extends Model
@@ -20,7 +21,13 @@ class Atsauksme extends Model
 
     protected $casts = [
         'datums' => 'date',
+        'moderation_hidden_at' => 'datetime',
     ];
+
+    public function scopeVisible(Builder $query): void
+    {
+        $query->whereNull('moderation_hidden_at');
+    }
 
     public function klients(): BelongsTo
     {

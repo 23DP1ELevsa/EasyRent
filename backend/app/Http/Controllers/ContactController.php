@@ -16,7 +16,7 @@ class ContactController extends Controller
             'comment' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
-        Mail::to((string) env('CONTACT_TO_EMAIL', config('mail.from.address')))->send(new ContactMessageMail($data));
+        Mail::to((string) (config('app.support_email') ?: config('mail.from.address')))->send(new ContactMessageMail($data));
 
         return response()->json(['status' => 'ok']);
     }

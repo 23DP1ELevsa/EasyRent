@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Atsauksme;
 use App\Models\Persona;
+use App\Models\LietotajaIerobezojums as Restriction;
+use App\Support\AccountRestrictions;
 use App\Models\Transportlidzeklis;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -17,7 +19,7 @@ class AtsauksmeController extends Controller
             'transportlidzeklis_id' => ['nullable', 'integer', 'exists:transportlidzeklis,transportlidzeklis_id'],
         ]);
 
-        $baseStatsQuery = Atsauksme::whereHas('transportlidzeklis', fn ($query) => $query->listed());
+        $baseStatsQuery = Atsauksme::visible()->whereHas('transportlidzeklis', fn ($query) => $query->listed());
         $query = (clone $baseStatsQuery)->with(['klients.persona'])
             ->orderByDesc('datums')
             ->orderByDesc('created_at');
@@ -69,9 +71,8 @@ class AtsauksmeController extends Controller
         }
 
         $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($data['transportlidzeklis_id']);
-        $review = DB::transaction(function () use ($klients, $vehicle, $data) {
-            Persona::lockActiveAccounts($klients->persona_id, $vehicle->sniedzejs->persona_id);
-            Transportlidzeklis::listed()->findOrFail($vehicle->getKey());
+        $review = DB::transaction(function () use ($request, $vehicle, $klients, $data) {
+            $this->ensureCanWrite($request->user(), $vehicle);
 
             return Atsauksme::updateOrCreate(
                 [
@@ -116,9 +117,9 @@ class AtsauksmeController extends Controller
         }
 
         $vehicle = Transportlidzeklis::listed()->with('sniedzejs')->findOrFail($review->transportlidzeklis_id);
-        DB::transaction(function () use ($klients, $vehicle, $review, $data) {
-            Persona::lockActiveAccounts($klients->persona_id, $vehicle->sniedzejs->persona_id);
-            Transportlidzeklis::listed()->findOrFail($vehicle->getKey());
+        DB::transaction(function () use ($request, $vehicle, $review, $data) {
+            $this->ensureCanWrite($request->user(), $vehicle);
+            $review = Atsauksme::whereKey($review->getKey())->lockForUpdate()->firstOrFail();
             $review->update([
                 'vertejums' => $data['vertejums'],
                 'komentars' => $data['komentars'] ?? null,
@@ -130,6 +131,17 @@ class AtsauksmeController extends Controller
             'message' => __('app.reviewUpdated'),
             'atsauksme' => $review->refresh()->load(['klients.persona', 'transportlidzeklis']),
         ]);
+    }
+
+    private function ensureCanWrite(Persona $actor, Transportlidzeklis $vehicle): void
+    {
+        $ownerId = $vehicle->sniedzejs->persona_id;
+        $accounts = Persona::lockActiveAccounts($actor->getKey(), $ownerId);
+        $locked = Transportlidzeklis::whereKey($vehicle->getKey())->lockForUpdate()->firstOrFail();
+        AccountRestrictions::assertCurrent($actor, $accounts[$actor->getKey()]);
+        AccountRestrictions::assertAllowed($accounts[$actor->getKey()], Restriction::REVIEW);
+        abort_if($locked->archived_at || $locked->moderation_hidden_at || AccountRestrictions::block($accounts[$ownerId]),
+            404, __('app.notFound'));
     }
 
     private function resolveAuthorizedClient(Request $request): ?\App\Models\Klients

@@ -456,6 +456,7 @@
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
                         </div>
+                        <ReportButton target="user" :target-id="reservationCounterpartyId(item)" />
                         <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
                           {{ reservationVehicleDetails(item) }}
                         </div>
@@ -493,6 +494,7 @@
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
                         </div>
+                        <ReportButton target="user" :target-id="reservationCounterpartyId(item)" />
                         <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
                           {{ reservationVehicleDetails(item) }}
                         </div>
@@ -552,6 +554,7 @@
                         <div class="reservation-card-meta text-caption opacity-70">
                           {{ reservationCounterpartyName(item) }}
                         </div>
+                        <ReportButton target="user" :target-id="reservationCounterpartyId(item)" />
                         <div v-if="reservationVehicleDetails(item)" class="reservation-card-meta text-caption opacity-70">
                           {{ reservationVehicleDetails(item) }}
                         </div>
@@ -609,6 +612,7 @@
 </template>
 
 <script setup>
+  import ReportButton from '@/components/ReportButton.vue'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { accountHome, AUTH_ROUTE, emailVerificationRoute, HOME_ROUTE } from '@/router/paths'
@@ -1201,6 +1205,10 @@
 
   function reservationBookedAt (item) {
     return formatDateTime(item?.izveides_datums || item?.rezervacijas_datums || item?.sakuma_laiks)
+  }
+
+  function reservationCounterpartyId (item) {
+    return isProvider.value ? item.klients?.persona?.persona_id : item.transportlidzeklis?.sniedzejs?.persona?.persona_id
   }
 
   function reservationCounterpartyName (item) {

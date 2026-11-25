@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccountBlockNotice: typeof import('./src/components/AccountBlockNotice.vue')['default']
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AuthPage: typeof import('./src/components/AuthPage.vue')['default']
     BrandLogo: typeof import('./src/components/BrandLogo.vue')['default']
@@ -22,7 +23,9 @@ declare module 'vue' {
     RentalPointList: typeof import('./src/components/RentalPointList.vue')['default']
     RentalSlideOver: typeof import('./src/components/RentalSlideOver.vue')['default']
     RentalVehicleCard: typeof import('./src/components/RentalVehicleCard.vue')['default']
+    ReportButton: typeof import('./src/components/ReportButton.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    VehiclePhotos: typeof import('./src/components/VehiclePhotos.vue')['default']
   }
 }

@@ -19,12 +19,14 @@ declare module 'vue-router/auto-routes' {
    */
   export interface RouteNamedMap {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
+    '/admin/[[section]]': RouteRecordInfo<'/admin/[[section]]', '/admin/:section?', { section?: ParamValueZeroOrOne<true> }, { section?: ParamValueZeroOrOne<false> }>,
     '/auth': RouteRecordInfo<'/auth', '/auth', Record<never, never>, Record<never, never>>,
     '/company/[id]': RouteRecordInfo<'/company/[id]', '/company/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     '/forgot-password': RouteRecordInfo<'/forgot-password', '/forgot-password', Record<never, never>, Record<never, never>>,
     '/map': RouteRecordInfo<'/map', '/map', Record<never, never>, Record<never, never>>,
     '/profile': RouteRecordInfo<'/profile', '/profile', Record<never, never>, Record<never, never>>,
     '/reset-password': RouteRecordInfo<'/reset-password', '/reset-password', Record<never, never>, Record<never, never>>,
+    '/support': RouteRecordInfo<'/support', '/support', Record<never, never>, Record<never, never>>,
     '/verify-email': RouteRecordInfo<'/verify-email', '/verify-email', Record<never, never>, Record<never, never>>,
   }
 
@@ -41,6 +43,10 @@ declare module 'vue-router/auto-routes' {
   export interface _RouteFileInfoMap {
     'src/pages/index.vue': {
       routes: '/'
+      views: never
+    }
+    'src/pages/admin/[[section]].vue': {
+      routes: '/admin/[[section]]'
       views: never
     }
     'src/pages/auth.vue': {
@@ -65,6 +71,10 @@ declare module 'vue-router/auto-routes' {
     }
     'src/pages/reset-password.vue': {
       routes: '/reset-password'
+      views: never
+    }
+    'src/pages/support.vue': {
+      routes: '/support'
       views: never
     }
     'src/pages/verify-email.vue': {

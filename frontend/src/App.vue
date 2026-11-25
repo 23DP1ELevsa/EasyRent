@@ -1,6 +1,7 @@
 <template>
   <v-app :class="['app-shell', themeModeClass, { 'app-shell--home': route.path === HOME_ROUTE, 'app-shell--map': route.path === MAP_ROUTE }]">
     <v-app-bar
+      v-if="!administration"
       :absolute="route.path === HOME_ROUTE"
       class="appbar"
       :class="{ 'appbar--home': route.path === HOME_ROUTE }"
@@ -64,6 +65,7 @@
                   </v-btn>
                 </template>
                 <v-list>
+                  <v-list-item v-if="user.loma === 'administrators'" prepend-icon="mdi-shield-account-outline" :title="t('admin.administration')" :to="ADMIN_ROUTE" />
                   <v-list-item prepend-icon="mdi-account-circle-outline" :title="t('app.auth.profile')" @click="goProfile" />
                   <v-list-item prepend-icon="mdi-logout" :title="t('app.auth.logout')" @click="logout" />
                 </v-list>
@@ -91,6 +93,7 @@
     </v-app-bar>
 
     <v-navigation-drawer
+      v-if="!administration"
       v-model="drawer"
       class="drawer"
       location="right"
@@ -118,6 +121,7 @@
           @click="goMapFromDrawer"
         />
         <template v-if="user">
+          <v-list-item v-if="user.loma === 'administrators'" prepend-icon="mdi-shield-account-outline" :title="t('admin.administration')" :to="ADMIN_ROUTE" @click="drawer = false" />
           <v-list-item :active="route.path === PROFILE_ROUTE" prepend-icon="mdi-account-circle-outline" :title="t('app.auth.profile')" @click="goProfileFromDrawer" />
           <v-list-item prepend-icon="mdi-logout" :title="t('app.auth.logout')" @click="logout" />
         </template>
@@ -139,7 +143,8 @@
       </div>
     </v-navigation-drawer>
 
-    <v-main class="app-main"><RouterView /><AppFooter v-if="!profileLocked && route.path !== MAP_ROUTE" /></v-main>
+    <RouterView v-if="administration" />
+    <v-main v-else class="app-main"><RouterView /><AppFooter v-if="!profileLocked && route.path !== MAP_ROUTE" /></v-main>
 
     <v-snackbar
       v-model="notificationVisible"
@@ -158,13 +163,13 @@
 </template>
 
 <script setup>
-  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useDisplay, useLocale as useVuetifyLocale, useTheme } from 'vuetify'
   import AppFooter from '@/components/AppFooter.vue'
   import BrandLogo from '@/components/BrandLogo.vue'
   import LoadingScreen from '@/components/LoadingScreen.vue'
-  import { AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE } from '@/router/paths'
+  import { ADMIN_ROUTE, AUTH_ROUTE, HOME_ROUTE, MAP_ROUTE, PROFILE_ROUTE, SUPPORT_ROUTE, isAdminPath } from '@/router/paths'
   import { clearAuthSession, getStoredUser, googlePending, logoutRequest, syncCurrentUser } from '@/services/auth'
   import { useLoading } from '@/stores/loading'
   import { useLocale } from '@/stores/locale'
@@ -172,6 +177,7 @@
 
   const router = useRouter()
   const route = useRoute()
+  const administration = computed(() => isAdminPath(route.path))
   const theme = useTheme()
   const { isLoading } = useLoading()
   const { mdAndUp } = useDisplay()
@@ -209,6 +215,8 @@
     applyTheme(themeMode.value === 'dark' ? 'light' : 'dark')
   }
 
+  provide('easyRentAppearance', { themeMode, toggleTheme })
+
   function syncUserFromStorage () {
     user.value = getStoredUser()
   }
@@ -237,7 +245,7 @@
   }
 
   function redirectLockedProfile () {
-    if (profileLocked.value && route.path !== PROFILE_ROUTE) {
+    if (profileLocked.value && ![PROFILE_ROUTE, SUPPORT_ROUTE].includes(route.path)) {
       router.replace(PROFILE_ROUTE)
     }
   }

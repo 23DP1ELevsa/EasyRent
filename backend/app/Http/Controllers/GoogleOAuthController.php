@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Middleware\RequireVerifiedEmail;
 use App\Models\Persona;
 use App\Support\EmailVerification;
+use App\Support\AccountRestrictions;
 use App\Support\GoogleOAuth;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
@@ -47,6 +48,7 @@ class GoogleOAuthController extends Controller
             return $this->redirect('/auth?google=invalid');
         }
 
+        app()->setLocale($flow['locale'] ?? app()->getLocale());
         $deletionAccount = $flow['deletion_account'] ?? null;
         $returnPath = $deletionAccount === null ? '/auth?google=' : '/profile?delete_google=';
 
@@ -78,6 +80,9 @@ class GoogleOAuthController extends Controller
     {
         $persona = Auth::guard('web')->user();
         abort_unless($persona?->google_id, 403, __('app.googleDeletionSignIn'));
+        if ($error = AccountRestrictions::authenticationError($request, $persona)) {
+            return $error;
+        }
         if (! $persona->hasVerifiedEmail()) {
             return RequireVerifiedEmail::response();
         }
@@ -132,6 +137,7 @@ class GoogleOAuthController extends Controller
                     throw ValidationException::withMessages(['password' => __('app.googleLinkWrongPassword')]);
                 }
 
+                AccountRestrictions::assertUnblocked($persona);
                 $persona->forceFill(['google_id' => $identity['google_id']])->save();
                 $this->verification->markVerified($persona);
 
@@ -144,9 +150,13 @@ class GoogleOAuthController extends Controller
         }
 
         RateLimiter::clear($limitKey);
-        $this->signIn($request, $persona);
+        $next = $this->signIn($request, $persona);
+        if ($next === '/auth?google=blocked' && ($block = AccountRestrictions::block($persona))) {
+            return response()->json(AccountRestrictions::blockDetails($block), 403)->header('Cache-Control', 'no-store');
+        }
+        abort_unless($next === '/profile?google=ok', 409, __('app.authenticationRequired'));
 
-        return response()->json(['persona' => $persona->profileData()])->header('Cache-Control', 'no-store');
+        return response()->json(['persona' => $persona->refresh()->profileData()])->header('Cache-Control', 'no-store');
     }
 
     public function cancel(Request $request): JsonResponse
@@ -209,6 +219,9 @@ class GoogleOAuthController extends Controller
 
     private function confirmOwner(Request $request, array $identity, Persona $owner): string
     {
+        if (AccountRestrictions::block($owner)) {
+            return $this->blockedSignIn($request, $owner);
+        }
         if ($owner->google_id !== null || ! $owner->parole) {
             $request->session()->forget(GoogleOAuth::PENDING);
 
@@ -243,28 +256,52 @@ class GoogleOAuthController extends Controller
 
     private function signIn(Request $request, Persona $persona, ?string $googleEmail = null): string
     {
-        if ($googleEmail !== null && ($persona->epasts === null || ! $persona->hasVerifiedEmail())) {
+        if ($googleEmail !== null && ($persona->epasts === null || ! $persona->hasVerifiedEmail()) && ! AccountRestrictions::block($persona)) {
             $persona = $this->applyVerifiedGoogleEmail($persona, $googleEmail);
             if (! $persona) {
                 return '/auth?google=invalid';
             }
         }
 
-        $guard = Auth::guard('web');
-        if (! $persona->hasVerifiedEmail() && ($persona->epasts !== null || $persona->profile_completed)) {
-            $guard->logout();
+        return DB::transaction(function () use ($request, $persona) {
+            $active = Persona::whereKey($persona->getKey())->lockForUpdate()->first();
+            if (! $active || $active->google_id !== $persona->google_id) {
+                return '/auth?google=invalid';
+            }
+            if (AccountRestrictions::block($active)) {
+                return $this->blockedSignIn($request, $active);
+            }
+
+            $guard = Auth::guard('web');
+            if (! $active->hasVerifiedEmail() && ($active->epasts !== null || $active->profile_completed)) {
+                $guard->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return '/verify-email';
+            }
+
+            $active->forceFill(['preferred_locale' => app()->getLocale()])->save();
             $request->session()->invalidate();
+            $guard->login($active);
+            $request->session()->put([
+                'password_hash_web' => $guard->hashPasswordForCookie($active->getAuthPassword()),
+                'account_session_generation' => (int) $active->session_generation,
+            ]);
             $request->session()->regenerateToken();
 
-            return '/verify-email';
-        }
+            return '/profile?google=ok';
+        }, 3);
+    }
 
+    private function blockedSignIn(Request $request, Persona $persona): string
+    {
+        Auth::guard('web')->logout();
         $request->session()->invalidate();
-        $guard->login($persona);
-        $request->session()->put('password_hash_web', $guard->hashPasswordForCookie($persona->getAuthPassword()));
         $request->session()->regenerateToken();
+        $request->session()->flash('blocked_login_account', $persona->getKey());
 
-        return '/profile?google=ok';
+        return '/auth?google=blocked';
     }
 
     private function applyVerifiedGoogleEmail(Persona $persona, string $email): ?Persona
@@ -276,6 +313,9 @@ class GoogleOAuthController extends Controller
                 $active = (clone $account)->lockForUpdate()->first();
                 if (! $active) {
                     return null;
+                }
+                if (AccountRestrictions::block($active)) {
+                    return $active;
                 }
                 if ($active->epasts === null && ! Persona::forEmail($email)->exists()) {
                     $active->forceFill(['epasts' => $email])->save();

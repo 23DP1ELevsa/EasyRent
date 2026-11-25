@@ -9,6 +9,7 @@
           <div class="company-hero">
             <div>
               <h1>{{ company.name }}</h1>
+              <ReportButton v-if="user && vehicles[0] && !isOwnVehicle(vehicles[0])" target="user" :target-id="vehicles[0]?.sniedzejs?.persona?.persona_id" />
               <div class="text-body-2 opacity-80 mb-1">{{ company.address }}</div>
               <div class="text-body-2 opacity-80">{{ company.city }}</div>
               <div v-if="company.phone" class="text-body-2 mt-2">
@@ -253,6 +254,7 @@
                   >
                     {{ copy.edit }}
                   </v-btn>
+                  <ReportButton v-if="user && !isOwnVehicle(vehicle)" target="vehicle" :target-id="vehicle.transportlidzeklis_id" />
                 </div>
               </v-card-text>
             </v-card>
@@ -436,6 +438,7 @@
               :label="copy.vehicleFields.registrationNumber"
               variant="outlined"
             />
+            <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" />
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-btn
@@ -559,6 +562,10 @@
                     <span class="text-caption">{{ review.vertejums }}/5</span>
                   </div>
                   <div class="mt-2 text-body-2">{{ review.komentars || copy.reviewNoComment }}</div>
+                  <template v-if="user && Number(review.klients_id) !== Number(clientId)">
+                    <ReportButton target="review" :target-id="review.atsauksme_id" />
+                    <ReportButton target="user" :target-id="review.klients?.persona?.persona_id" />
+                  </template>
                 </v-card-text>
               </v-card>
             </div>
@@ -576,6 +583,8 @@
 </template>
 
 <script setup>
+import ReportButton from '@/components/ReportButton.vue'
+import VehiclePhotos from '@/components/VehiclePhotos.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLocale } from '@/stores/locale'

@@ -6,6 +6,7 @@ use App\Models\Persona;
 use App\Models\Klients;
 use App\Http\Middleware\RequireVerifiedEmail;
 use App\Support\EmailVerification;
+use App\Support\AccountRestrictions;
 use App\Support\GoogleOAuth;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -105,6 +106,7 @@ class AuthController extends Controller
                     'kontakttalrunis' => $data['kontakttalrunis'],
                     'bankas_konts' => $data['bankas_konts'],
                 ]);
+                $persona->forceFill(['preferred_locale' => app()->getLocale()])->save();
 
                 $relation = $persona->loma === 'klients' ? $persona->klients() : $persona->pakalpojumuSniedzejs();
                 $relation->create($roleFields);
@@ -164,6 +166,15 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $persona = $request->user('sanctum');
+        if ($persona && ($error = AccountRestrictions::authenticationError($request, $persona))) {
+            return $error;
+        }
+        if (! $persona && $request->hasSession() && ($blockedId = $request->session()->pull('blocked_login_account'))) {
+            $account = Persona::find($blockedId);
+            if ($account && ($block = AccountRestrictions::block($account))) {
+                return response()->json(AccountRestrictions::blockDetails($block), 403)->header('Cache-Control', 'no-store');
+            }
+        }
         if ($persona && ! $persona->hasVerifiedEmail() && ! $persona->mayCompleteGoogleProfile()) {
             return RequireVerifiedEmail::response();
         }
@@ -189,10 +200,12 @@ class AuthController extends Controller
             if (! hash_equals($persona->getAuthPassword(), $active->getAuthPassword())) {
                 abort(response()->json(['message' => __('app.invalidCredentials')], 422));
             }
+            AccountRestrictions::assertUnblocked($active);
             if (! $active->hasVerifiedEmail()) {
                 $verification->rememberPending($request, $active);
                 abort(RequireVerifiedEmail::response());
             }
+            $active->forceFill(['preferred_locale' => app()->getLocale()])->save();
             $active->tokens()->delete();
 
             return [$active, $active->createToken('frontend')->plainTextToken];

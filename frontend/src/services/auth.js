@@ -3,6 +3,7 @@ import { startLoading } from '@/stores/loading'
 import { getLocale } from '@/stores/locale'
 
 export const googlePending = shallowRef(null)
+export const blockedLogin = shallowRef(null)
 
 let csrfRequest
 let authRevision = 0
@@ -90,6 +91,7 @@ export function setAuthSession ({ token, persona }) {
 
   if (persona) {
     googlePending.value = null
+    blockedLogin.value = null
     localStorage.setItem('user', JSON.stringify(persona))
     window.dispatchEvent(new CustomEvent('user-updated', { detail: persona }))
   }
@@ -103,15 +105,15 @@ export function clearAuthSession ({ emitLogout = true } = {}) {
   window.dispatchEvent(new CustomEvent(emitLogout ? 'user-logged-out' : 'user-updated', { detail: null }))
 }
 
-export function syncCurrentUser ({ useBearer = true } = {}) {
-  const key = `${authRevision}:${useBearer}`
+export function syncCurrentUser ({ useBearer = true, allowStoredUser = true } = {}) {
+  const key = `${authRevision}:${useBearer}:${allowStoredUser}`
   if (!userRequests.has(key)) {
-    userRequests.set(key, fetchCurrentUser(useBearer).finally(() => userRequests.delete(key)))
+    userRequests.set(key, fetchCurrentUser(useBearer, allowStoredUser).finally(() => userRequests.delete(key)))
   }
   return userRequests.get(key)
 }
 
-async function fetchCurrentUser (useBearer) {
+async function fetchCurrentUser (useBearer, allowStoredUser) {
   const revision = authRevision
   const finish = startLoading()
   try {
@@ -120,13 +122,16 @@ async function fetchCurrentUser (useBearer) {
       return null
     }
     if (response.status === 401 || response.status === 403) {
-      if (useBearer) {
+      const result = response.status === 403 ? await response.json().catch(() => null) : null
+      if (revision !== authRevision) return null
+      if (result?.code === 'account_blocked') blockedLogin.value = result
+      if (useBearer || result?.code === 'account_blocked') {
         clearAuthSession({ emitLogout: false })
       }
       return null
     }
     if (!response.ok) {
-      return useBearer ? getStoredUser() : null
+      return useBearer && allowStoredUser ? getStoredUser() : null
     }
 
     const result = await response.json()
@@ -142,9 +147,9 @@ async function fetchCurrentUser (useBearer) {
       setAuthSession({ token: useBearer ? undefined : null, persona: result.persona })
       return result.persona
     }
-    return useBearer ? getStoredUser() : null
+    return useBearer && allowStoredUser ? getStoredUser() : null
   } catch {
-    return useBearer ? getStoredUser() : null
+    return useBearer && allowStoredUser ? getStoredUser() : null
   } finally {
     finish()
   }

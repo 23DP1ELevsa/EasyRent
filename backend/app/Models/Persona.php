@@ -8,6 +8,7 @@ use App\Support\EmailVerification;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -44,17 +45,27 @@ class Persona extends Authenticatable implements MustVerifyEmail
 
     protected $hidden = [
         'parole', 'google_id', 'profile_completed', 'deleted_at', 'email_verified_at', 'email_verification_password_reset_at',
+        'session_generation', 'preferred_locale',
     ];
 
     /** Acquire participant locks by primary key, in the same order for every booking write. */
-    public static function lockActiveAccounts(int ...$ids): void
+    public static function lockActiveAccounts(int ...$ids): array
     {
         $ids = array_unique($ids);
         sort($ids, SORT_NUMERIC);
 
+        $accounts = [];
         foreach ($ids as $id) {
-            abort_unless(static::whereKey($id)->lockForUpdate()->first(), 409, __('app.inactiveParticipant'));
+            $accounts[$id] = static::whereKey($id)->lockForUpdate()->first();
+            abort_unless($accounts[$id], 409, __('app.inactiveParticipant'));
         }
+
+        return $accounts;
+    }
+
+    public function restrictions(): HasMany
+    {
+        return $this->hasMany(LietotajaIerobezojums::class, 'persona_id');
     }
 
     public function getAuthPassword(): string
