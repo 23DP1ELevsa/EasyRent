@@ -10,7 +10,6 @@ use App\Models\Transportlidzeklis;
 use App\Support\AccountMail;
 use App\Support\TurnstileService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +20,7 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
+use Tests\Fixtures\VehicleImages;
 
 class AdministrationTest extends TestCase
 {
@@ -330,15 +330,13 @@ class AdministrationTest extends TestCase
         [$client, $owner, $vehicle] = $this->rental();
         $id = $vehicle->getKey();
         $path = "/api/transport/$id/photos";
-        $photoFile = UploadedFile::fake()->createWithContent('car.png', base64_decode(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKHsAAAAASUVORK5CYII='
-        ));
-        $photoId = $this->api($owner, 'POST', $path, ['photos' => [$photoFile]])->assertCreated()->json('0.foto_id');
+        $photoId = $this->api($owner, 'POST', $path, ['photos' => [VehicleImages::file(), VehicleImages::file('webp')]])
+            ->assertCreated()->json('0.foto_id');
         $this->api($client, 'GET', "$path/$photoId")->assertForbidden();
         $this->api(null, 'GET', "$path/$photoId")->assertUnauthorized();
         $this->api($admin, 'GET', "/api/admin/vehicles/$id/photos/$photoId")->assertOk()->assertHeader('Content-Type', 'image/png');
         $this->api($owner, 'DELETE', "$path/$photoId")->assertNoContent();
-        $this->api($admin, 'GET', "/api/admin/vehicles/$id/photos")->assertOk()->assertJsonCount(0);
+        $this->api($admin, 'GET', "/api/admin/vehicles/$id/photos")->assertOk()->assertJsonCount(1);
     }
 
     private function assertRating(Transportlidzeklis $vehicle, int $expected, int $count): void
@@ -386,6 +384,7 @@ class AdministrationTest extends TestCase
         return [
             'veids_id' => $vehicle->veids_id, 'marka' => 'Toyota', 'modelis' => 'Yaris', 'dienas_nomas_cena' => 35,
             'statuss' => 'pieejams', 'registracijas_numurs' => 'QA-NEW', 'atrumkarba' => '-', 'degvielas_veids' => '-',
+            'vaditaja_apliecibas_kategorija' => 'B', 'photos' => [VehicleImages::file()],
         ];
     }
 

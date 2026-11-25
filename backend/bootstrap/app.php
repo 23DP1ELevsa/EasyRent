@@ -8,6 +8,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Http\Exceptions\PostTooLargeException;
+use Illuminate\Support\Facades\App;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
@@ -29,6 +31,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontFlash(['turnstile_token']);
         $expectsJson = fn (Request $request) => $request->expectsJson() || $request->is('api/*');
         $exceptions->shouldRenderJsonWhen($expectsJson);
+        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
+            if ($request->is('api/transport', 'api/transport/*/photos', 'api/transport/*/photos/*')) {
+                App::setLocale($request->getPreferredLanguage(['lv', 'ru', 'en']));
+
+                return response()->json(['message' => __('vehicle.request_too_large')], 413);
+            }
+        });
         $exceptions->render(function (Throwable $exception, Request $request) use ($expectsJson) {
             if (! $expectsJson($request) || ! $request->is('api/*', 'oauth/*')) {
                 return null;

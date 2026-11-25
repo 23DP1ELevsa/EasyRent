@@ -78,6 +78,7 @@ let sequence = 0
 const pending = new Map()
 const failures = []
 const writes = []
+const photoReads = []
 const spentCaptchaTokens = new Set()
 let rejectContactOnce = false
 let showPickupReservations = false
@@ -130,6 +131,8 @@ const types = ['Automašīna', 'Motocikls', 'Kvadracikls', 'Laiva', 'Velosipēds
 const providerCoordinates = [[56.95, 24.1], [56.96, 24.12], [56.94, 24.09], [56.58, 21.08], [56.59, 21.09], [56.6, 21.1], [56.61, 21.11]]
 const pickupAddress = { address: 'Brīvības iela 10', city: 'Rīga', postalCode: 'LV-1010' }
 const fullPickupAddress = 'Brīvības iela 10, Rīga, LV-1010'
+const photoFixture = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGNkaGhgYGAAAASOAQIcpy90AAAAAElFTkSuQmCC'
+const publicPhotos = '/api/transport/1/public-photos'
 const vehicles = Array.from({ length: 12 }, (_, index) => ({
   transportlidzeklis_id: index + 1,
   sniedzejs_id: index < 6 ? 1 : index - 4,
@@ -142,6 +145,9 @@ const vehicles = Array.from({ length: 12 }, (_, index) => ({
   dienas_nomas_cena: 20 + index * 5,
   registracijas_numurs: `QA-${index + 1}`,
   statuss: index === 10 ? 'neaktivs' : (index === 11 ? 'aiznemts' : 'pieejams'),
+  vaditaja_apliecibas_kategorija: ({ 0: 'B', 1: 'A2', 3: 'NONE', 6: 'B' })[index] ?? null,
+  photos_count: index === 0 ? 2 : (index === 3 ? 1 : 0),
+  primary_photo_url: index === 0 ? `${publicPhotos}/21` : (index === 3 ? '/api/transport/4/public-photos/99' : null),
   atsauksmju_skaits: 3,
   videjais_vertejums: 4.7,
   rezervacijas: [],
@@ -195,6 +201,7 @@ socket.addEventListener('message', async event => {
       }
       let result = {}
       let responseCode = 200
+      let responseBody
       const responseHeaders = [{ name: 'Content-Type', value: 'application/json' }]
       if (request.method !== 'GET' && request.method !== 'OPTIONS') {
         const headers = new Headers(request.headers)
@@ -204,6 +211,7 @@ socket.addEventListener('message', async event => {
           body: request.postData,
           language: headers.get('accept-language'),
           authorization: headers.get('authorization'),
+          contentType: headers.get('content-type'),
         })
       }
       const challengedLogin = url.pathname === '/api/auth/login' && signIn.scenario === 'admin-login'
@@ -259,6 +267,16 @@ socket.addEventListener('message', async event => {
       } else if (url.pathname === '/api/admin/users/18/restrictions') {
         responseCode = 201
         result = { ierobezojums_id: 1 }
+      } else if (url.pathname === '/api/admin/vehicles') {
+        const incomplete = url.searchParams.get('missing_photos') === '1' || url.searchParams.get('missing_licence') === '1'
+        result = { last_page: 1, data: incomplete ? [vehicles[2]] : [vehicles[0], vehicles[2]] }
+      } else if (url.pathname === '/api/admin/vehicles/1') {
+        result = vehicles[0]
+      } else if (url.pathname === '/api/admin/vehicles/1/photos') {
+        result = [21, 22].map(foto_id => ({ foto_id }))
+      } else if (/^\/api\/admin\/vehicles\/1\/photos\/(21|22)$/.test(url.pathname)) {
+        responseHeaders[0].value = 'image/png'
+        responseBody = photoFixture
       } else if (url.pathname.startsWith('/api/admin/')) {
         result = { last_page: 1, data: [] }
       } else if (url.pathname === '/api/auth/verification/resend') {
@@ -362,9 +380,23 @@ socket.addEventListener('message', async event => {
       } else if (url.pathname === '/api/transport/veidi') {
         result = types
       } else if (url.pathname === '/api/transport') {
-        result = vehicles
+        if (request.method === 'POST') {
+          responseCode = 201
+          result = vehicles[0]
+        } else {
+          result = vehicles
+        }
+      } else if (url.pathname === publicPhotos) {
+        photoReads.push(url.pathname)
+        result = [21, 22].map(foto_id => ({ foto_id, url: `${publicPhotos}/${foto_id}` }))
+      } else if (url.pathname.startsWith(`${publicPhotos}/`) || /^\/api\/transport\/1\/photos\/(21|22)$/.test(url.pathname)) {
+        photoReads.push(url.pathname)
+        responseHeaders[0].value = 'image/png'
+        responseBody = photoFixture
+      } else if (url.pathname === '/api/transport/4/public-photos/99') {
+        responseCode = 404
       } else if (/^\/api\/transport\/\d+\/photos$/.test(url.pathname)) {
-        result = []
+        result = url.pathname === '/api/transport/1/photos' ? [21, 22].map(foto_id => ({ foto_id })) : []
       } else if (url.pathname.startsWith('/api/atsauksmes')) {
         result = []
       }
@@ -373,7 +405,7 @@ socket.addEventListener('message', async event => {
         responseCode,
         responseHeaders,
         ...(responseCode === 419 ? { responsePhrase: 'Page Expired' } : {}),
-        body: responseCode === 204 ? '' : Buffer.from(JSON.stringify(result)).toString('base64'),
+        body: responseCode === 204 ? '' : (responseBody ?? Buffer.from(JSON.stringify(result)).toString('base64')),
       })
     } catch (error) {
       failures.push(String(error))
@@ -521,6 +553,36 @@ try {
   assert.equal(await evaluate('document.querySelectorAll(".list-catalog .rental-vehicle").length'), 6)
   await click('.catalog-heading > .v-btn')
   assert.equal(await evaluate('document.querySelectorAll(".list-catalog .rental-vehicle").length'), 12)
+  const listingCards = '.list-catalog .rental-vehicle'
+  await waitFor(`document.querySelector('${listingCards} img')?.naturalWidth === 2`, 'The supplier cover image loads')
+  assert.ok(await evaluate(`document.querySelectorAll('${listingCards}')[2].textContent.includes('No photo') && document.querySelectorAll('${listingCards}')[2].textContent.includes('Not specified')`))
+  await waitFor(`document.querySelectorAll('${listingCards}')[3]?.textContent.includes('No photo')`, 'A failed photo fetch displays the placeholder')
+  assert.ok(await evaluate(`[...document.querySelectorAll('${listingCards} img')].every(img => img.loading === 'lazy' && !img.src.includes('cat-'))`))
+  assert.ok(!photoReads.includes(publicPhotos) && !photoReads.includes(`${publicPhotos}/22`), 'A catalog page loads just the cover')
+  await click(`${listingCards} .listing-photo`)
+  await waitFor('document.querySelector(".gallery-actions")?.textContent.includes("1 of 2")')
+  assert.ok(photoReads.includes(publicPhotos))
+  await click('.gallery-actions button[aria-label="Next photo"]')
+  await waitFor(`document.querySelector('.gallery-viewport img')?.getAttribute('src') === '${publicPhotos}/22'`)
+  await click('.gallery-actions button[aria-label="Zoom in"]')
+  assert.ok(await evaluate('!!document.querySelector(".gallery-viewport.is-zoomed")'))
+  await key('Escape')
+  await click('.toolbar-filter')
+  await click('.rental-slide-over .v-expansion-panel:last-child .v-expansion-panel-title')
+  await click('.rental-slide-over .licence-options button:nth-child(3)')
+  await click('.rental-slide-over .licence-options button:nth-child(6)')
+  assert.ok(await evaluate('document.querySelector(".slide-over-footer").textContent.includes("Show 3 results")'))
+  assert.equal(await evaluate(`document.querySelectorAll('${listingCards}').length`), 12, 'Licence choices stay in the draft')
+  await click('.slide-over-footer .v-btn:last-child')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('${listingCards} h3')].map(el => el.textContent)`), ['Toyota Corolla', 'Honda CB500', 'Brand 7 Touring'])
+  assert.equal(await evaluate('document.querySelector(".toolbar-filter .toolbar-count").textContent'), '2')
+  await click('.desktop-view-switch button:first-child')
+  assert.equal(await evaluate('document.querySelector(".workspace-stats > div:nth-child(2) strong").textContent'), '3', 'Map and list show the same three results')
+  await click('.desktop-view-switch button:nth-child(2)')
+  await click('.toolbar-filter')
+  await click('.slide-over-footer .v-btn:first-child')
+  await click('.slide-over-footer .v-btn:last-child')
+  assert.equal(await evaluate(`document.querySelectorAll('${listingCards}').length`), 12)
   const columns = await evaluate('getComputedStyle(document.querySelector(".list-catalog .vehicle-grid")).gridTemplateColumns.split(" ").length')
   assert.equal(columns, 4)
   await screenshot('desktop-list')
@@ -567,6 +629,16 @@ try {
     assert.equal(count, width >= 768 ? (width === 1024 ? 3 : 2) : 1)
   }
   await resize(390, 844)
+  await click(`${listingCards} .listing-photo`)
+  await waitFor('document.querySelector(".gallery-actions")?.textContent.includes("1 of 2")')
+  const galleryTouch = await evaluate('(() => { const r = document.querySelector(".gallery-viewport").getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2} })()')
+  await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [galleryTouch] })
+  await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...galleryTouch, x: galleryTouch.x - 100 }] })
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await waitFor('document.querySelector(".gallery-actions")?.textContent.includes("2 of 2")', 'The mobile swipe advances the gallery')
+  await key('Escape')
+  await send('Emulation.setTouchEmulationEnabled', { enabled: false })
   await screenshot('mobile-list')
   await click('.toolbar-filter')
   assert.equal(await evaluate('Math.round(document.querySelector(".rental-slide-over .v-overlay__content").getBoundingClientRect().width)'), 390)
@@ -616,12 +688,51 @@ try {
   await waitFor('!!document.querySelector(".toolbar-add")')
   await click('.toolbar-add')
   assert.equal(await evaluate('document.querySelectorAll(".provider-panel form").length'), 1, 'Providers only see the vehicle form')
-  assert.equal(await evaluate('document.querySelectorAll(".provider-panel .v-select").length'), 4, 'Vehicle fields use existing categories')
+  assert.equal(await evaluate('document.querySelectorAll(".provider-panel .v-select").length'), 5, 'The form includes a licence select')
+  assert.ok(await evaluate('document.querySelector(".provider-panel button[type=submit]").disabled'))
+  await evaluate(`document.querySelector('.provider-panel .driving-licence-select .v-field').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`)
+  await waitFor(`[...document.querySelectorAll('.v-menu.v-overlay--active .v-list-item-title')].some(el => el.textContent === 'B')`)
+  await evaluate(`[...document.querySelectorAll('.v-menu.v-overlay--active .v-list-item-title')].find(el => el.textContent === 'B').closest('.v-list-item').click()`)
+  assert.ok(await evaluate('document.querySelector(".provider-panel button[type=submit]").disabled'), 'A category alone is insufficient')
+  await evaluate(`(async () => {
+    const transfer = new DataTransfer()
+    for (const [width, height] of [[2400, 1200], [20, 10]]) {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').fillRect(0, 0, width, height)
+      const blob = await new Promise(resolve => canvas.toBlob(resolve))
+      transfer.items.add(new File([blob], width + '.png', { type: 'image/png' }))
+    }
+    document.querySelector('.photo-picker__drop').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }))
+  })()`)
+  await waitFor('document.querySelectorAll(".photo-picker__grid img")[1]?.naturalWidth === 20')
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".photo-picker__grid img")].map(el => [el.naturalWidth, el.naturalHeight])'), [[1600, 800], [20, 10]])
+  await click('.photo-picker__grid figure:nth-child(2) button[aria-label="Set as main photo"]')
+  await click('.photo-picker__grid figure:first-child button[aria-label="Delete photo"]')
+  assert.ok(await evaluate('document.querySelector(".photo-picker__grid button[aria-pressed=true]")'))
   await screenshot('provider-panel')
+  await evaluate(`(() => {
+    const fetch = window.fetch
+    window.fetch = (path, options) => {
+      if (path === '/api/transport' && options?.method === 'POST') {
+        const file = options.body.get('photos[]')
+        window.listingForm = { category: options.body.get('vaditaja_apliecibas_kategorija'), main: options.body.get('primary_photo_index'), type: file.type, bytes: file.size }
+      }
+      return fetch(path, options)
+    }
+  })()`)
+  await click('.provider-panel button[type=submit]')
+  await waitFor('window.listingForm && !document.querySelector(".photo-picker__grid")')
+  const listingForm = await evaluate('window.listingForm')
+  assert.deepEqual({ ...listingForm, bytes: undefined }, { category: 'B', main: '0', type: 'image/jpeg', bytes: undefined })
+  assert.ok(listingForm.bytes > 0 && listingForm.bytes < 1536 * 1024)
+  assert.match(writes.at(-1).contentType, /^multipart\/form-data; boundary=/)
   await key('Escape')
   await click('.list-catalog .rental-vehicle:first-child .rental-vehicle__actions .v-btn:last-child')
   assert.ok(await evaluate('document.querySelector(".v-dialog.v-overlay--active").textContent.includes("Edit vehicle")'), 'Owner edit action')
-  assert.equal(await evaluate('document.querySelectorAll(".v-dialog.v-overlay--active .v-select").length'), 4, 'Edit type, gearbox, fuel, and status fields')
+  assert.equal(await evaluate('document.querySelectorAll(".v-dialog.v-overlay--active .v-select").length'), 5)
+  await waitFor('document.querySelectorAll(".vehicle-photos .photo-preview").length === 2 && document.querySelector(".main-photo")?.textContent.includes("Main photo")')
   await click('.v-dialog.v-overlay--active .v-card-actions .v-btn')
   assert.ok(await evaluate('[...document.querySelectorAll(".v-dialog.v-overlay--active")].some(el => el.textContent.includes("Delete vehicle"))'), 'Delete confirmation remains available')
   await click('.v-dialog.v-overlay--active .v-card-actions .v-btn')
@@ -664,12 +775,17 @@ try {
   assert.ok(await evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'))
   await key('Escape')
   assert.equal(failures.length, 0, JSON.stringify(failures))
-  assert.equal(writes.length, 0, 'Read-only UI checks do not perform backend mutations')
+  assert.deepEqual(writes.map(write => [write.method, write.path]), [['POST', '/api/transport']])
   console.log('PASS: map markers/selection, 4/3/2/1-column grids, draft/apply/reset/Escape/outside click, focus, view persistence, details, provider forms/permissions, mobile sheets, LV/RU/EN, light/dark, no overflow or runtime exceptions.')
 
   await resize(390, 844)
   await send('Page.navigate', { url: `${base}/company/1` })
   await waitFor(`!!document.querySelector('.company-hero ${navigationTrigger}')`)
+  await click('.company-page .licence-options button:nth-child(12)')
+  assert.equal(await evaluate('document.querySelectorAll(".company-results .vehicle-card").length'), 1)
+  assert.ok(await evaluate('document.querySelector(".company-results .vehicle-card").textContent.includes("No licence required")'))
+  await click('.company-controls .toolbar-secondary-btn')
+  assert.equal(await evaluate('document.querySelectorAll(".company-results .vehicle-card").length'), 6)
   if (process.env.CATALOG_VERIFY_PWA === '1') await waitFor('!!navigator.serviceWorker.controller', 'Production service worker controls the company page')
   await click(`.company-hero ${navigationTrigger}`)
   await screenshot('navigation-mobile-dark')
@@ -1111,6 +1227,18 @@ try {
   const restrictionWrite = writes.findLast(write => write.path === '/api/admin/users/18/restrictions')
   assert.equal(restrictionWrite.authorization, 'Bearer admin-token')
   assert.equal(JSON.parse(restrictionWrite.body).iemesls, 'QA moderation reason')
+  await key('Escape')
+  await send('Page.navigate', { url: `${base}/admin/vehicles` })
+  await waitFor('document.querySelector(".records-table tbody")?.textContent.includes("Not specified")', 'The admin vehicle list displays legacy categories')
+  assert.ok(await evaluate('document.querySelector(".records-table thead").textContent.includes("Driving licence category")'))
+  await click('button[aria-label="View #1"]')
+  await waitFor('document.querySelector(".vehicle-photos .main-photo")?.textContent.includes("Main photo")')
+  assert.equal(await evaluate('document.querySelectorAll(".vehicle-photos .photo-preview").length'), 2)
+  assert.ok(await evaluate('!document.querySelector(".vehicle-photos .photo-form")'))
+  await key('Escape')
+  await send('Page.navigate', { url: `${base}/admin/vehicles?missing_photos=1&missing_licence=1` })
+  await waitFor('!!document.querySelector("button[aria-label=\'View #3\']") && !document.querySelector("button[aria-label=\'View #1\']")')
+  assert.ok(await evaluate('document.querySelector(".admin-filters").textContent.includes("Missing photos") && document.querySelector(".admin-filters").textContent.includes("Missing driving licence category")'))
 
   await resize(390, 844)
   await noOverflow()

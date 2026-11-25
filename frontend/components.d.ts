@@ -16,6 +16,8 @@ declare module 'vue' {
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AuthPage: typeof import('./src/components/AuthPage.vue')['default']
     BrandLogo: typeof import('./src/components/BrandLogo.vue')['default']
+    DrivingLicenceFilters: typeof import('./src/components/DrivingLicenceFilters.vue')['default']
+    DrivingLicenceSelect: typeof import('./src/components/DrivingLicenceSelect.vue')['default']
     HomePage: typeof import('./src/components/HomePage.vue')['default']
     LoadingScreen: typeof import('./src/components/LoadingScreen.vue')['default']
     MapViewSwitch: typeof import('./src/components/MapViewSwitch.vue')['default']
@@ -28,6 +30,10 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     TurnstileCaptcha: typeof import('./src/components/TurnstileCaptcha.vue')['default']
+    VehicleListingPhoto: typeof import('./src/components/VehicleListingPhoto.vue')['default']
+    VehiclePhoto: typeof import('./src/components/VehiclePhoto.vue')['default']
+    VehiclePhotoGallery: typeof import('./src/components/VehiclePhotoGallery.vue')['default']
+    VehiclePhotoPicker: typeof import('./src/components/VehiclePhotoPicker.vue')['default']
     VehiclePhotos: typeof import('./src/components/VehiclePhotos.vue')['default']
   }
 }

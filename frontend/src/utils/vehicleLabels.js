@@ -1,4 +1,7 @@
+import { computed } from 'vue'
 import { useLocale } from '@/stores/locale'
+
+const licenceCategories = ['AM', 'A1', 'A2', 'A', 'B1', 'B', 'BE', 'C', 'CE', 'D', 'DE', 'NONE', 'OTHER']
 
 const attributes = new Map([
   ['Automāts', 'vehicle.automatic'], ['Mehānika', 'vehicle.manual'],
@@ -32,5 +35,31 @@ export function useVehicleLabels () {
 
   const attributeOptions = values => values.map(value => ({ title: attributeLabel(value), value }))
 
-  return { attributeLabel, attributeOptions, typeLabel }
+  function licenceLabel (value) {
+    if (value === 'NONE') {
+      return t('vehicleLicence.none')
+    }
+    if (value === 'OTHER') {
+      return t('vehicleLicence.other')
+    }
+    return value || t('vehicleLicence.unspecified')
+  }
+
+  const licenceOptions = computed(() => licenceCategories.map(value => ({ title: licenceLabel(value), value })))
+  function listingNotice (vehicle) {
+    const needsLicence = !vehicle.vaditaja_apliecibas_kategorija
+    const needsPhoto = !vehicle.photos_count
+    if (needsLicence && needsPhoto) {
+      return t('vehiclePhotos.needBoth')
+    }
+    if (needsLicence) {
+      return t('vehicleLicence.required')
+    }
+    if (needsPhoto) {
+      return t('vehiclePhotos.needPhoto')
+    }
+    return ''
+  }
+
+  return { attributeLabel, attributeOptions, typeLabel, licenceLabel, licenceOptions, listingNotice }
 }

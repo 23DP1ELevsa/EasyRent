@@ -1,5 +1,9 @@
 export function createRentalFilters () {
-  return { q: '', typeId: null, companyId: null, gearbox: null, fuel: null, minPrice: null, maxPrice: null, onlyAvailable: false, nearby: false }
+  return { q: '', typeId: null, companyId: null, gearbox: null, fuel: null, minPrice: null, maxPrice: null, onlyAvailable: false, nearby: false, licenceCategories: [] }
+}
+
+export function matchesDrivingLicence (vehicle, categories) {
+  return !categories?.length || categories.includes(vehicle.vaditaja_apliecibas_kategorija)
 }
 
 export function normalizePriceFilter (value) {
@@ -24,8 +28,12 @@ export function activeRentalFilters (filters) {
     if (key === 'q') {
       return Boolean(filters.q?.trim())
     }
-    return Boolean(filters[key])
+    return key === 'licenceCategories' ? Boolean(filters[key]?.length) : Boolean(filters[key])
   })
+}
+
+export function countActiveRentalFilters (filters) {
+  return activeRentalFilters(filters).length + Math.max(0, (filters.licenceCategories?.length ?? 0) - 1)
 }
 
 export function pointsInMapBounds (points, bounds) {
@@ -73,6 +81,9 @@ export function filterRentalPoints (points, filters, { isAvailable, position = n
     const matchesPoint = [point.name, point.city, point.address].some(value => String(value || '').toLocaleLowerCase().includes(query))
     const vehicles = point.vehicles.filter(vehicle => {
       const price = Number(vehicle.dienas_nomas_cena)
+      if (!matchesDrivingLicence(vehicle, filters.licenceCategories)) {
+        return false
+      }
       if (filters.typeId && String(vehicle.veids_id) !== String(filters.typeId)) {
         return false
       }

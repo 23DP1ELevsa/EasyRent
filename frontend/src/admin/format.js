@@ -1,9 +1,11 @@
 import { useLocale } from '@/stores/locale'
+import { useVehicleLabels } from '@/utils/vehicleLabels'
 import { personName, vehicleName } from './sections'
 
 export function useAdminFormat () {
   const { t, getIntlLocale, formatPrice } = useLocale()
-  const label = (key, params) => t(`admin.${key}`, params)
+  const { licenceLabel } = useVehicleLabels()
+  const label = (key, params) => t(/^(vehicleLicence|vehiclePhotos)\./.test(key) ? key : `admin.${key}`, params)
   const status = value => label(`values.${value}`)
   const number = value => new Intl.NumberFormat(getIntlLocale()).format(value ?? 0)
   const date = (value, time = true) => {
@@ -14,6 +16,7 @@ export function useAdminFormat () {
   }
 
   function format (value, formatType = 'text') {
+    if (formatType === 'licence') return licenceLabel(value)
     if (value === null || value === undefined || value === '') return '—'
     switch (formatType) {
       case 'state': return status(value)

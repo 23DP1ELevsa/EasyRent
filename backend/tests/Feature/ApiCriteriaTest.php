@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
+use Tests\Fixtures\VehicleImages;
 use Tests\TestCase;
 
 class ApiCriteriaTest extends TestCase
@@ -209,16 +210,18 @@ class ApiCriteriaTest extends TestCase
             'dienas_nomas_cena' => 49.99,
             'statuss' => 'pieejams',
             'registracijas_numurs' => 'AB-1234',
+            'vaditaja_apliecibas_kategorija' => 'B',
+            'photos' => [VehicleImages::file()],
         ];
 
         Sanctum::actingAs($client);
 
-        $this->postJson('/api/transport', $payload)
+        $this->post('/api/transport', $payload, ['Accept' => 'application/json'])
             ->assertForbidden();
 
         Sanctum::actingAs($provider);
 
-        $this->postJson('/api/transport', $payload)
+        $this->post('/api/transport', $payload, ['Accept' => 'application/json'])
             ->assertCreated()
             ->assertJsonPath('sniedzejs_id', $provider->pakalpojumuSniedzejs->sniedzejs_id)
             ->assertJsonPath('marka', 'Volkswagen');

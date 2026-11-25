@@ -11,6 +11,7 @@ use App\Models\Persona;
 use App\Models\Rezervacija;
 use App\Models\TransportliedzieklsVeids;
 use App\Models\Transportlidzeklis;
+use App\Support\DrivingLicence;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -114,6 +115,8 @@ class AdminDataController extends Controller
             'visibility' => [Rule::in(['visible', 'hidden', 'archived'])],
             'category' => ['integer', 'min:1'],
             'persona_id' => ['integer', 'min:1'],
+            'missing_photos' => ['boolean'],
+            'missing_licence' => ['boolean'],
         ]);
         $query = $this->vehiclesQuery();
         if (isset($data['status'])) {
@@ -124,6 +127,12 @@ class AdminDataController extends Controller
         }
         if (isset($data['category'])) {
             $query->where('veids_id', $data['category']);
+        }
+        if (! empty($data['missing_photos'])) {
+            $query->doesntHave('photos');
+        }
+        if (! empty($data['missing_licence'])) {
+            $query->whereNull(DrivingLicence::FIELD);
         }
         match ($data['visibility'] ?? null) {
             'visible' => $query->listed(),

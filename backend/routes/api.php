@@ -29,6 +29,10 @@ Route::get('/health', function () {
 Route::post('/contact', [ContactController::class, 'send'])->middleware(['throttle:5,1', VerifyTurnstile::class.':contact']);
 Route::post('/support/invoice', [InvoiceRecoveryController::class, 'send'])->middleware(['throttle:5,1', VerifyTurnstile::class.':invoice_recovery']);
 
+Route::get('/transport/{id}/public-photos', [VehiclePhotoController::class, 'publicIndex'])->whereNumber('id');
+Route::get('/transport/{id}/public-photos/{photo}', [VehiclePhotoController::class, 'publicShow'])
+    ->whereNumber(['id', 'photo'])->name('transport.public-photos.show');
+
 Route::middleware(RequireCompletedProfile::class)->group(function () {
 
     Route::prefix('transport')->group(function () {
@@ -48,6 +52,8 @@ Route::middleware(['auth:sanctum', RequireActiveAccount::class, RequireVerifiedE
         Route::get('/{id}/photos', [VehiclePhotoController::class, 'index'])->whereNumber('id');
         Route::get('/{id}/photos/{photo}', [VehiclePhotoController::class, 'show'])->whereNumber(['id', 'photo']);
         Route::post('/{id}/photos', [VehiclePhotoController::class, 'store'])->middleware('throttle:10,1')->whereNumber('id');
+        Route::post('/{id}/photos/{photo}', [VehiclePhotoController::class, 'replace'])->middleware('throttle:10,1')->whereNumber(['id', 'photo']);
+        Route::patch('/{id}/photos/{photo}/primary', [VehiclePhotoController::class, 'makePrimary'])->whereNumber(['id', 'photo']);
         Route::delete('/{id}/photos/{photo}', [VehiclePhotoController::class, 'destroy'])->whereNumber(['id', 'photo']);
     });
 

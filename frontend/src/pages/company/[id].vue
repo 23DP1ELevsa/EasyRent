@@ -51,6 +51,7 @@
             <v-btn color="primary" variant="tonal" @click="showFilters = !showFilters">
               <v-icon start>{{ showFilters ? 'mdi-filter-minus' : 'mdi-filter-plus' }}</v-icon>
               {{ showFilters ? copy.closeFilters : copy.filters }}
+              <span v-if="activeVehicleFilterCount" class="company-filter-count">{{ activeVehicleFilterCount }}</span>
             </v-btn>
             <v-btn color="primary" variant="tonal" @click="showSorting = !showSorting">
               <v-icon start>{{ showSorting ? 'mdi-sort-variant-remove' : 'mdi-sort-variant' }}</v-icon>
@@ -82,6 +83,10 @@
                       :label="copy.filterLabels.type"
                       variant="outlined"
                     />
+                  </v-col>
+                  <v-col class="mb-4" cols="12">
+                    <h3 class="text-subtitle-2 mb-2">{{ t('vehicleLicence.category') }}</h3>
+                    <DrivingLicenceFilters v-model="vehicleFilters.licenceCategories" />
                   </v-col>
                   <v-col cols="12">
                     <v-select
@@ -183,13 +188,7 @@
               variant="outlined"
             >
               <div class="vehicle-card__visual">
-                <img
-                  alt=""
-                  height="704"
-                  loading="lazy"
-                  :src="getVehicleImage(vehicle)"
-                  width="944"
-                >
+                <VehicleListingPhoto :vehicle="vehicle" />
                 <v-chip class="vehicle-card__status" :color="isVehicleAvailable(vehicle) ? 'primary' : undefined" size="small" variant="flat">{{ isVehicleAvailable(vehicle) ? copy.available : copy.notAvailable }}</v-chip>
               </div>
               <v-card-text>
@@ -209,6 +208,7 @@
                     <span class="vehicle-detail-chip__value">{{ detail.value }}</span>
                   </div>
                 </div>
+                <p v-if="isOwnVehicle(vehicle) && listingNotice(vehicle)" class="vehicle-notice mb-2">{{ listingNotice(vehicle) }}</p>
                 <div class="vehicle-card__price">
                   {{ formatPrice(vehicle.dienas_nomas_cena) }} / {{ copy.perDay }}
                 </div>
@@ -389,6 +389,7 @@
           <v-card-title class="font-weight-bold">{{ copy.editVehicleTitle }}</v-card-title>
           <v-divider />
           <v-card-text class="pa-4">
+            <v-alert v-if="editNotice" class="mb-3" density="compact" type="info" variant="tonal">{{ editNotice }}</v-alert>
             <v-select
               v-model="editVehicle.veids_id"
               density="compact"
@@ -400,6 +401,7 @@
             />
             <v-text-field v-model="editVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
             <v-text-field v-model="editVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
+            <DrivingLicenceSelect v-model="editVehicle.vaditaja_apliecibas_kategorija" />
             <v-select
               v-model="editVehicle.atrumkarba"
               density="compact"
@@ -439,7 +441,7 @@
               :label="copy.vehicleFields.registrationNumber"
               variant="outlined"
             />
-            <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" />
+            <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" @changed="loadTransport({ quiet: true })" />
           </v-card-text>
           <v-card-actions class="px-4 pb-4">
             <v-btn
@@ -585,7 +587,10 @@
 
 <script setup>
 import AddressNavigation from '@/components/AddressNavigation.vue'
+import DrivingLicenceFilters from '@/components/DrivingLicenceFilters.vue'
+import DrivingLicenceSelect from '@/components/DrivingLicenceSelect.vue'
 import ReportButton from '@/components/ReportButton.vue'
+import VehicleListingPhoto from '@/components/VehicleListingPhoto.vue'
 import VehiclePhotos from '@/components/VehiclePhotos.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -594,13 +599,13 @@ import { AUTH_ROUTE, MAP_ROUTE } from '@/router/paths'
 import { useLoadingState } from '@/stores/loading'
 import { useNotifications } from '@/stores/notifications'
 import { apiFetch, syncCurrentUser } from '@/services/auth'
+import { countActiveRentalFilters, createRentalFilters, matchesDrivingLicence, normalizePriceFilter } from '@/utils/rentalFilters'
 import { useVehicleLabels } from '@/utils/vehicleLabels'
-import { getVehicleImage } from '@/utils/vehicleVisuals'
 
 const route = useRoute()
 const router = useRouter()
 const { t, getIntlLocale, getDatePickerLocale, formatPrice, formatRating } = useLocale()
-const { attributeLabel, attributeOptions, typeLabel } = useVehicleLabels()
+const { attributeLabel, attributeOptions, typeLabel, licenceLabel, listingNotice } = useVehicleLabels()
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Riga'
 const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
 const copy = computed(() => t('company'))
@@ -630,6 +635,11 @@ const editDialog = ref(false)
 const editLoading = ref(false)
 const editError = ref('')
 const editVehicle = ref({})
+const originalVehicleStatus = ref(null)
+const editNotice = computed(() => listingNotice({
+  ...editVehicle.value,
+  photos_count: transportItems.value.find(vehicle => vehicle.transportlidzeklis_id === editVehicle.value.transportlidzeklis_id)?.photos_count,
+}))
 const deleteVehicleLoading = ref(false)
 const deleteVehicleDialog = ref(false)
 const reviewDialog = ref(false)
@@ -909,15 +919,8 @@ const providerId = computed(() =>
 const showFilters = ref(true)
 const showSorting = ref(true)
 
-const vehicleFilters = ref({
-  q: '',
-  typeId: null,
-  gearbox: null,
-  fuel: null,
-  minPrice: null,
-  maxPrice: null,
-  onlyAvailable: false,
-})
+const vehicleFilters = ref(createRentalFilters())
+const activeVehicleFilterCount = computed(() => countActiveRentalFilters(vehicleFilters.value))
 
 const vehicleSorting = ref({
   sortBy: 'availability_desc',
@@ -972,9 +975,12 @@ const editGearboxOptions = computed(() => attributeOptions(['Automāts', 'Mehān
 const editFuelOptions = computed(() => attributeOptions(['Benzīns', 'Dīzelis', 'Elektro', '-']))
 
 const filteredSortedVehicles = computed(() => {
-  const q = vehicleFilters.value.q.trim().toLowerCase()
+  const q = (vehicleFilters.value.q || '').trim().toLowerCase()
+  const minPrice = normalizePriceFilter(vehicleFilters.value.minPrice)
+  const maxPrice = normalizePriceFilter(vehicleFilters.value.maxPrice)
 
   const filtered = vehicles.value.filter(vehicle => {
+    if (!matchesDrivingLicence(vehicle, vehicleFilters.value.licenceCategories)) return false
     if (q) {
       const haystack = `${vehicle.marka || ''} ${vehicle.modelis || ''}`.toLowerCase()
       if (!haystack.includes(q)) return false
@@ -993,10 +999,10 @@ const filteredSortedVehicles = computed(() => {
     }
 
     const price = Number(vehicle.dienas_nomas_cena || 0)
-    if (vehicleFilters.value.minPrice !== null && price < Number(vehicleFilters.value.minPrice)) {
+    if (minPrice !== null && price < minPrice) {
       return false
     }
-    if (vehicleFilters.value.maxPrice !== null && price > Number(vehicleFilters.value.maxPrice)) {
+    if (maxPrice !== null && price > maxPrice) {
       return false
     }
 
@@ -1120,6 +1126,7 @@ function normalizeVehicleField(value) {
 
 function buildVehicleDetails(vehicle) {
   return [
+    { label: t('vehicleLicence.category'), value: licenceLabel(vehicle.vaditaja_apliecibas_kategorija) },
     { label: copy.value.vehicleFields.gearbox, value: attributeLabel(normalizeVehicleField(vehicle?.atrumkarba)) },
     { label: copy.value.vehicleFields.fuel, value: attributeLabel(normalizeVehicleField(vehicle?.degvielas_veids)) },
     { label: copy.value.vehicleFields.registrationNumber, value: normalizeVehicleField(vehicle?.registracijas_numurs) },
@@ -1257,6 +1264,7 @@ function openEditVehicle(vehicle) {
   editVehicle.value = {
     transportlidzeklis_id: vehicle.transportlidzeklis_id,
     veids_id: vehicle.veids_id,
+    vaditaja_apliecibas_kategorija: vehicle.vaditaja_apliecibas_kategorija ?? null,
     marka: vehicle.marka,
     modelis: vehicle.modelis,
     atrumkarba: vehicle.atrumkarba || '-',
@@ -1265,11 +1273,18 @@ function openEditVehicle(vehicle) {
     statuss: vehicle.statuss,
     registracijas_numurs: vehicle.registracijas_numurs,
   }
+  originalVehicleStatus.value = vehicle.statuss
   editError.value = ''
   editDialog.value = true
 }
 
 async function saveVehicle() {
+  const category = editVehicle.value.vaditaja_apliecibas_kategorija
+  const unpublishing = editVehicle.value.statuss === 'neaktivs' && originalVehicleStatus.value !== 'neaktivs'
+  if (!category && !unpublishing) {
+    editError.value = t('vehicleLicence.required')
+    return
+  }
   editLoading.value = true
   editError.value = ''
 
@@ -1279,6 +1294,7 @@ async function saveVehicle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         veids_id: editVehicle.value.veids_id,
+        vaditaja_apliecibas_kategorija: category || undefined,
         marka: editVehicle.value.marka,
         modelis: editVehicle.value.modelis,
         atrumkarba: editVehicle.value.atrumkarba,
@@ -1444,15 +1460,7 @@ async function submitReview() {
 }
 
 function resetVehicleFilters() {
-  vehicleFilters.value = {
-    q: '',
-    typeId: null,
-    gearbox: null,
-    fuel: null,
-    minPrice: null,
-    maxPrice: null,
-    onlyAvailable: false,
-  }
+  vehicleFilters.value = createRentalFilters()
 }
 
 function resetVehicleSorting() {
@@ -1553,14 +1561,16 @@ function payLater() {
   paymentDialog.value = false
 }
 
-async function loadTransport() {
+async function loadTransport({ quiet = false } = {}) {
   if (!Number.isFinite(companyId.value) || companyId.value <= 0) {
     errorText.value = copy.value.invalidId
     return
   }
 
-  loading.value = true
-  errorText.value = ''
+  if (!quiet) {
+    loading.value = true
+    errorText.value = ''
+  }
 
   // Ielādē izvēlētās kompānijas transportu.
   try {
@@ -1568,19 +1578,19 @@ async function loadTransport() {
     const data = await response.json()
 
     if (!response.ok) {
-      errorText.value = data?.message || t('map.messages.loadTransportFailed')
+      if (!quiet) errorText.value = data?.message || t('map.messages.loadTransportFailed')
       return
     }
 
     transportItems.value = data
 
-    if (!vehicles.value.length) {
+    if (!quiet && !vehicles.value.length) {
       errorText.value = copy.value.notFound
     }
   } catch {
-    errorText.value = t('map.messages.loadTransportError')
+    if (!quiet) errorText.value = t('map.messages.loadTransportError')
   } finally {
-    loading.value = false
+    if (!quiet) loading.value = false
   }
 }
 
@@ -1660,9 +1670,11 @@ watch(availableEndTimeOptions, options => {
 .vehicles-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .vehicle-card { border: 1px solid var(--er-stroke) !important; border-radius: 26px; color: var(--er-text); background: var(--er-surface-strong); box-shadow: var(--er-shadow-sm); transition: transform .2s ease, box-shadow .2s ease; overflow: hidden; }
 .vehicle-card:hover { transform: translateY(-4px); box-shadow: var(--er-shadow-md); }
-.vehicle-card__visual { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--er-panel-soft); }
-.vehicle-card__visual img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s ease; }
-.vehicle-card:hover .vehicle-card__visual img { transform: scale(1.05); }
+.vehicle-card__visual { position: relative; overflow: hidden; background: var(--er-panel-soft); }
+.vehicle-card__visual :deep(img) { transition: transform .5s ease; }
+.vehicle-card:hover .vehicle-card__visual :deep(img) { transform: scale(1.05); }
+.vehicle-notice { color: rgb(var(--v-theme-warning)); font-size: .8rem; }
+.company-filter-count { margin-inline-start: 8px; font-weight: 700; }
 .vehicle-card__status { position: absolute; top: 16px; left: 16px; font-weight: 800; border-radius: 999px; }
 .vehicle-card :deep(.v-card-text) { padding: 20px; }
 .vehicle-card__name { font-family: var(--er-display-font); font-size: 1.25rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; margin-bottom: 8px; }
@@ -1698,9 +1710,9 @@ watch(availableEndTimeOptions, options => {
  .company-toolbar :deep(.v-btn) { flex: 0 1 auto; padding-inline: 14px; font-size: .75rem; }
  .company-results__heading { margin-bottom: 20px; }
  .company-results__heading h2 { font-size: 1.5rem; }
- .vehicle-card__visual { aspect-ratio: 16 / 10; }
+ .vehicle-card__visual { --vehicle-photo-ratio: 16 / 10; }
 }
-@media (prefers-reduced-motion: reduce) { .vehicle-card, .vehicle-card__visual img { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .vehicle-card, .vehicle-card__visual :deep(img) { transition: none; } }
 
 .rental-dialog__card :deep(.v-card-title) { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
 .rental-dialog__card :deep(.v-card-title .v-chip) { flex: 0 0 auto; }

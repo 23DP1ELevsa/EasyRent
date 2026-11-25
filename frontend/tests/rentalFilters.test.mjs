@@ -4,14 +4,16 @@ import admin from '../src/lang/admin.js'
 import en from '../src/lang/en.js'
 import lv from '../src/lang/lv.js'
 import ru from '../src/lang/ru.js'
-import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, normalizePriceFilter, pointsInMapBounds, sortRentalVehicles } from '../src/utils/rentalFilters.js'
+import vehicleListing from '../src/lang/vehicleListing.js'
+import { activeRentalFilters, countActiveRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, normalizePriceFilter, pointsInMapBounds, sortRentalVehicles } from '../src/utils/rentalFilters.js'
+import { getTransportTypeIcon, getVehicleImage } from '../src/utils/vehicleVisuals.js'
 
-const car = { transportlidzeklis_id: 1, marka: 'Toyota', modelis: 'Corolla', veids_id: 1, atrumkarba: 'Automāts', degvielas_veids: 'Elektro', dienas_nomas_cena: '50.00', statuss: 'pieejams' }
-const bike = { transportlidzeklis_id: 2, marka: 'Honda', modelis: 'CB500', veids_id: 2, atrumkarba: '-', degvielas_veids: 'Benzīns', dienas_nomas_cena: '20.00', statuss: 'aiznemts' }
+const car = { transportlidzeklis_id: 1, marka: 'Toyota', modelis: 'Corolla', veids_id: 1, atrumkarba: 'Automāts', degvielas_veids: 'Elektro', dienas_nomas_cena: '50.00', statuss: 'pieejams', vaditaja_apliecibas_kategorija: 'B' }
+const bike = { transportlidzeklis_id: 2, marka: 'Honda', modelis: 'CB500', veids_id: 2, atrumkarba: '-', degvielas_veids: 'Benzīns', dienas_nomas_cena: '20.00', statuss: 'aiznemts', vaditaja_apliecibas_kategorija: 'A2' }
 const points = [
   { id: 1, name: 'Riga Rent', city: 'Rīga', address: 'Brīvības 1', hasCoords: true, lat: 56.95, lng: 24.1, vehicles: [car, bike] },
-  { id: 2, name: 'Coast Rent', city: 'Liepāja', address: 'Jūras 1', hasCoords: true, lat: 56.51, lng: 21.01, vehicles: [{ ...car, transportlidzeklis_id: 3 }] },
-  { id: 3, name: 'No coordinates', city: 'Rīga', vehicles: [{ ...bike, transportlidzeklis_id: 4 }] },
+  { id: 2, name: 'Coast Rent', city: 'Liepāja', address: 'Jūras 1', hasCoords: true, lat: 56.51, lng: 21.01, vehicles: [{ ...car, transportlidzeklis_id: 3, vaditaja_apliecibas_kategorija: 'NONE' }] },
+  { id: 3, name: 'No coordinates', city: 'Rīga', vehicles: [{ ...bike, transportlidzeklis_id: 4, vaditaja_apliecibas_kategorija: null }] },
 ]
 const isAvailable = vehicle => vehicle.statuss === 'pieejams'
 const filter = (overrides = {}, options = {}) => filterRentalPoints(points, { ...createRentalFilters(), ...overrides }, { isAvailable, ...options })
@@ -40,6 +42,27 @@ test('draft preview and sorting never mutate the applied filters or API data', (
   assert.deepEqual(sortRentalVehicles([car, bike], 'price_asc', isAvailable, 'en').map(vehicle => vehicle.transportlidzeklis_id), [2, 1])
   assert.deepEqual(sortRentalVehicles([bike, car], 'availability_desc', isAvailable, 'en').map(vehicle => vehicle.transportlidzeklis_id), [1, 2])
   assert.equal(JSON.stringify(points), before)
+})
+
+test('licence categories use exact OR matches and preserve all other filter groups', () => {
+  assert.deepEqual(ids(filter({ licenceCategories: ['A2'] })), [2])
+  assert.deepEqual(ids(filter({ licenceCategories: ['A'] })), [])
+  assert.deepEqual(ids(filter({ licenceCategories: ['B', 'A2'] })), [1, 2])
+  assert.deepEqual(ids(filter({ licenceCategories: ['NONE'] })), [3])
+  assert.deepEqual(ids(filter({ licenceCategories: [] })), [1, 2, 3, 4])
+  assert.deepEqual(ids(filter({ licenceCategories: ['B', 'A2'], typeId: 1, fuel: 'Elektro', gearbox: 'Automāts', maxPrice: 50, onlyAvailable: true })), [1])
+  const applied = createRentalFilters()
+  const draft = { ...applied, licenceCategories: ['B', 'A2'], maxPrice: 50 }
+  assert.equal(countActiveRentalFilters(draft), 3)
+  assert.equal(countActiveRentalFilters(applied), 0)
+  assert.deepEqual(ids(filter(draft)), [1, 2])
+})
+
+test('vehicle visuals use the individual photo or a null placeholder source', () => {
+  assert.equal(getVehicleImage({ veids: { nosaukums: 'Motocikls' } }), null)
+  assert.equal(getVehicleImage({ primary_photo_url: '/api/transport/1/public-photos/2' }), '/api/transport/1/public-photos/2')
+  assert.equal(getTransportTypeIcon('Motocikls'), 'mdi-motorbike')
+  assert.deepEqual(Object.values(vehicleListing).map(locale => locale.vehiclePhotos.noPhoto), ['Nav fotoattēla', 'Нет фотографии', 'No photo'])
 })
 
 test('nearby uses a real 25km radius and resolved coordinates, never invented coordinates', () => {

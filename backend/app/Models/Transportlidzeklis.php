@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\DrivingLicence;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Transportlidzeklis extends Model
 {
@@ -23,6 +25,7 @@ class Transportlidzeklis extends Model
         'adrese',
         'statuss',
         'registracijas_numurs',
+        DrivingLicence::FIELD,
     ];
 
     protected $casts = [
@@ -35,6 +38,15 @@ class Transportlidzeklis extends Model
     {
         $query->whereNull('archived_at')->whereNull('moderation_hidden_at')
             ->whereHas('sniedzejs.persona', fn ($persona) => $persona->whereDoesntHave('restrictions', fn ($restrictions) => $restrictions->blocking()));
+    }
+
+    public function scopeWithPhotoSummary(Builder $query): void
+    {
+        $query->withCount('photos')->with([
+            'primaryPhoto' => fn ($photo) => $photo->select(
+                'transportlidzekla_foto.foto_id', 'transportlidzekla_foto.transportlidzeklis_id', 'transportlidzekla_foto.content_hash'
+            ),
+        ]);
     }
 
     public function bookingSnapshot(): array
@@ -61,6 +73,11 @@ class Transportlidzeklis extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(TransportlidzeklaFoto::class, 'transportlidzeklis_id');
+    }
+
+    public function primaryPhoto(): HasOne
+    {
+        return $this->photos()->one()->ofMany(['position' => 'min', 'foto_id' => 'min']);
     }
 
     public function atsauksmes(): HasMany

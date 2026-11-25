@@ -101,12 +101,20 @@
           </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
+      <v-expansion-panel value="licence">
+        <v-expansion-panel-title>
+          <span>{{ t('vehicleLicence.category') }}</span>
+          <span v-if="model.licenceCategories.length" class="filter-count">{{ model.licenceCategories.length }}</span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text><DrivingLicenceFilters v-model="model.licenceCategories" /></v-expansion-panel-text>
+      </v-expansion-panel>
     </v-expansion-panels>
   </div>
 </template>
 
 <script setup>
   import { computed, ref } from 'vue'
+  import DrivingLicenceFilters from '@/components/DrivingLicenceFilters.vue'
   import { useLocale } from '@/stores/locale'
   import { hasValidPriceRange, normalizePriceFilter } from '@/utils/rentalFilters'
   import { getTransportTypeIcon } from '@/utils/vehicleVisuals'

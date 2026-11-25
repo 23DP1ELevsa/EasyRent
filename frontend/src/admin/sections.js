@@ -37,10 +37,13 @@ export const sections = {
   },
   vehicles: {
     icon: 'mdi-car-outline', id: 'transportlidzeklis_id',
-    filters: [select('status', 'availability', availability), select('visibility', 'visibility', visibleStates), number('category', 'categoryId'), number('persona_id', 'userId')],
+    filters: [select('status', 'availability', availability), select('visibility', 'visibility', visibleStates), number('category', 'categoryId'), number('persona_id', 'userId'),
+      select('missing_photos', 'vehiclePhotos.missing', [{ value: '1', key: 'yes' }]),
+      select('missing_licence', 'vehicleLicence.missing', [{ value: '1', key: 'yes' }])],
     columns: [
       id('transportlidzeklis_id'), column('marka', 'vehicle', 'vehicle', 'marka', row => row),
       party('owner', 'owner', row => row.sniedzejs?.persona), column('veids', 'category', 'text', null, row => row.veids?.nosaukums),
+      column('vaditaja_apliecibas_kategorija', 'vehicleLicence.category', 'licence'),
       state('statuss', 'availability', 'statuss'), state('visibility', 'visibility', null, visibility), money('dienas_nomas_cena', 'price'),
     ],
   },

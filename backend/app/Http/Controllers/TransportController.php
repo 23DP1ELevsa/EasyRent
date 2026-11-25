@@ -9,9 +9,12 @@ use App\Models\TransportliedzieklsVeids;
 use App\Support\AccountRestrictions;
 use App\Models\Persona;
 use App\Models\Rezervacija;
+use App\Models\TransportlidzeklaFoto;
 use App\Models\Transportlidzeklis;
+use App\Support\DrivingLicence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class TransportController extends Controller
@@ -20,7 +23,12 @@ class TransportController extends Controller
     {
         Rezervacija::cleanupAvailability();
 
-        $query = Transportlidzeklis::listed()->with(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()])
+        $categories = $request->validate([
+            'licence_categories' => ['sometimes', 'array', 'list', 'max:'.count(DrivingLicence::CATEGORIES)],
+            'licence_categories.*' => ['required', 'string', Rule::in(DrivingLicence::CATEGORIES)],
+        ], DrivingLicence::messages('licence_categories.*'))['licence_categories'] ?? [];
+
+        $query = Transportlidzeklis::listed()->withPhotoSummary()->with(['sniedzejs.persona', 'veids', 'rezervacijas' => $this->availability()])
             ->withAvg(['atsauksmes as videjais_vertejums' => fn ($query) => $query->visible()], 'vertejums')
             ->withCount(['atsauksmes as atsauksmju_skaits' => fn ($query) => $query->visible()]);
         
@@ -40,8 +48,11 @@ class TransportController extends Controller
         if ($request->has('sniedzejs_id')) {
             $query->where('sniedzejs_id', $request->sniedzejs_id);
         }
+        if ($categories !== []) {
+            $query->whereIn(DrivingLicence::FIELD, $categories);
+        }
 
-        return response()->json($query->get()->each($this->exposePublicPickupLocation(...)))
+        return response()->json($query->get()->each($this->exposePublicVehicle(...)))
             ->header('Cache-Control', 'no-store');
     }
 
@@ -49,7 +60,7 @@ class TransportController extends Controller
     {
         Rezervacija::cleanupAvailability();
 
-        $transport = Transportlidzeklis::listed()->with([
+        $transport = Transportlidzeklis::listed()->withPhotoSummary()->with([
             'sniedzejs.persona',
             'veids',
             'rezervacijas' => $this->availability(),
@@ -63,13 +74,17 @@ class TransportController extends Controller
             return response()->json(['error' => __('app.notFound')], 404)->header('Cache-Control', 'no-store');
         }
 
-        $this->exposePublicPickupLocation($transport);
+        $this->exposePublicVehicle($transport);
 
         return response()->json($transport)->header('Cache-Control', 'no-store');
     }
 
-    private function exposePublicPickupLocation(Transportlidzeklis $transport): void
+    private function exposePublicVehicle(Transportlidzeklis $transport): void
     {
+        $photo = $transport->primaryPhoto;
+        $transport->setAttribute('primary_photo_url', $transport->statuss === 'neaktivs' ? null : $photo?->publicUrl());
+        $transport->unsetRelation('primaryPhoto');
+
         $provider = $transport->sniedzejs;
         if (!$provider) {
             $transport->makeHidden('adrese');
@@ -96,6 +111,7 @@ class TransportController extends Controller
             return $provider;
         }
 
+        AccountRestrictions::assertAllowed($request->user(), Restriction::LISTING);
         $data = $request->validate([
             'veids_id' => ['required', 'integer', 'exists:transportlidzekla_veids,veids_id'],
             'marka' => ['required', 'string', 'max:50'],
@@ -105,14 +121,31 @@ class TransportController extends Controller
             'dienas_nomas_cena' => ['required', 'numeric', 'min:0'],
             'statuss' => ['required', 'in:pieejams,aiznemts,neaktivs'],
             'registracijas_numurs' => ['required', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs'],
+            DrivingLicence::FIELD => ['required', 'string', Rule::in(DrivingLicence::CATEGORIES)],
+            'primary_photo_index' => ['sometimes', 'required', 'integer', 'min:0', 'max:'.(TransportlidzeklaFoto::LIMIT - 1)],
+        ] + TransportlidzeklaFoto::uploadRules(), DrivingLicence::messages() + TransportlidzeklaFoto::uploadMessages() + [
+            'primary_photo_index.*' => __('vehicle.primary_invalid'),
         ]);
 
-        AccountRestrictions::assertAllowed($request->user(), Restriction::LISTING);
+        $photos = $data['photos'];
+        $primaryIndex = (int) ($data['primary_photo_index'] ?? 0);
+        if (! isset($photos[$primaryIndex])) {
+            throw ValidationException::withMessages(['primary_photo_index' => __('vehicle.primary_invalid')]);
+        }
+        unset($data['photos'], $data['primary_photo_index']);
+
         $this->requireActiveCategory($data['veids_id']);
         $data['sniedzejs_id'] = $provider->sniedzejs_id;
         $data['adrese'] = $this->buildProviderAddress($provider);
 
         $transport = Transportlidzeklis::create($data);
+        foreach ($photos as $index => $file) {
+            $photo = $transport->photos()->make(TransportlidzeklaFoto::attributesFromUpload($file));
+            $photo->position = $index === $primaryIndex ? 0 : 1;
+            if (! $photo->save()) {
+                throw ValidationException::withMessages(['photos' => __('vehicle.photo_save_failed')]);
+            }
+        }
 
         return response()->json($transport->load(['sniedzejs.persona', 'veids']), 201);
     }
@@ -144,7 +177,8 @@ class TransportController extends Controller
             'dienas_nomas_cena' => ['sometimes', 'numeric', 'min:0'],
             'statuss' => ['sometimes', 'in:pieejams,aiznemts,neaktivs'],
             'registracijas_numurs' => ['sometimes', 'string', 'max:20', 'unique:transportlidzeklis,registracijas_numurs,' . $transport->transportlidzeklis_id . ',transportlidzeklis_id'],
-        ]);
+            DrivingLicence::FIELD => ['sometimes', 'required', 'string', Rule::in(DrivingLicence::CATEGORIES)],
+        ], DrivingLicence::messages());
 
         if ((int) $provider->sniedzejs_id !== (int) $transport->sniedzejs_id) {
             return response()->json(['message' => __('app.vehicleEditForbidden')], 403);
@@ -160,6 +194,19 @@ class TransportController extends Controller
         }
         if ($publishing || (isset($data['veids_id']) && (int) $data['veids_id'] !== (int) $transport->veids_id)) {
             $this->requireActiveCategory($data['veids_id'] ?? $transport->veids_id);
+        }
+
+        if ($publishing) {
+            $errors = [];
+            if (($data[DrivingLicence::FIELD] ?? $transport->{DrivingLicence::FIELD}) === null) {
+                $errors[DrivingLicence::FIELD] = __('vehicle.licence_required');
+            }
+            if (! $transport->photos()->exists()) {
+                $errors['photos'] = __('vehicle.photo_required');
+            }
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
         }
 
         $transport->update($data);

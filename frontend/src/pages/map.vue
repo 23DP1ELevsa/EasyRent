@@ -14,7 +14,7 @@
           variant="tonal"
           @click="openMapTools"
         >
-          {{ copy.filters }}<span v-if="activeFilterKeys.length > 0" class="toolbar-count">{{ activeFilterKeys.length }}</span>
+          {{ copy.filters }}<span v-if="activeFilterCount" class="toolbar-count">{{ activeFilterCount }}</span>
         </v-btn>
         <v-select
           v-model="sortOrder"
@@ -77,7 +77,7 @@
           color="primary"
           prepend-icon="mdi-tune-variant"
           @click="openMapTools"
-        >{{ copy.filters }}<span v-if="activeFilterKeys.length > 0" class="toolbar-count">{{ activeFilterKeys.length }}</span></v-btn>
+        >{{ copy.filters }}<span v-if="activeFilterCount" class="toolbar-count">{{ activeFilterCount }}</span></v-btn>
 
         <button
           :aria-label="copy.nearMe"
@@ -348,6 +348,7 @@
           />
           <v-text-field v-model="newVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
           <v-text-field v-model="newVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
+          <DrivingLicenceSelect v-model="newVehicle.vaditaja_apliecibas_kategorija" />
           <v-select
             v-model="newVehicle.atrumkarba"
             density="compact"
@@ -383,10 +384,22 @@
             :label="copy.vehicleFields.registrationNumber"
             variant="outlined"
           />
+          <section class="mb-3">
+            <h3 class="text-subtitle-2 font-weight-bold">{{ t('vehiclePhotos.title') }}</h3>
+            <p class="text-caption text-medium-emphasis mb-2">{{ t('vehiclePhotos.hint') }}</p>
+            <VehiclePhotoPicker
+              v-model="newPhotos"
+              v-model:primary="newPrimaryPhoto"
+              v-model:processing="processingNewPhotos"
+              :disabled="providerLoading"
+              select-primary
+            />
+          </section>
           <v-btn
             block
             class="mt-2"
             color="primary"
+            :disabled="!newPhotos.length || processingNewPhotos || !newVehicle.vaditaja_apliecibas_kategorija"
             :loading="providerLoading"
             type="submit"
           >
@@ -569,6 +582,7 @@
         <v-card-title class="font-weight-bold">{{ copy.editVehicleTitle }}</v-card-title>
         <v-divider />
         <v-card-text class="pa-4">
+          <v-alert v-if="editNotice" class="mb-3" density="compact" type="info" variant="tonal">{{ editNotice }}</v-alert>
           <v-select
             v-model="editVehicle.veids_id"
             density="compact"
@@ -580,6 +594,7 @@
           />
           <v-text-field v-model="editVehicle.marka" density="compact" :label="copy.vehicleFields.brand" variant="outlined" />
           <v-text-field v-model="editVehicle.modelis" density="compact" :label="copy.vehicleFields.model" variant="outlined" />
+          <DrivingLicenceSelect v-model="editVehicle.vaditaja_apliecibas_kategorija" />
           <v-select
             v-model="editVehicle.atrumkarba"
             density="compact"
@@ -615,7 +630,7 @@
             :label="copy.vehicleFields.registrationNumber"
             variant="outlined"
           />
-          <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" />
+          <VehiclePhotos v-if="editDialog && editVehicle.transportlidzeklis_id" :key="editVehicle.transportlidzeklis_id" :vehicle-id="editVehicle.transportlidzeklis_id" @changed="loadTransport({ quiet: true })" />
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-btn
@@ -762,6 +777,8 @@
   import AddressNavigation from '@/components/AddressNavigation.vue'
   import ReportButton from '@/components/ReportButton.vue'
   import VehiclePhotos from '@/components/VehiclePhotos.vue'
+  import VehiclePhotoPicker from '@/components/VehiclePhotoPicker.vue'
+  import DrivingLicenceSelect from '@/components/DrivingLicenceSelect.vue'
   import L from 'leaflet'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -776,13 +793,13 @@
   import { useLocale } from '@/stores/locale'
   import { useNotifications } from '@/stores/notifications'
   import { formatPublicAddress, toValidCoordinate } from '@/utils/addressNavigation'
-  import { activeRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, pointsInMapBounds, sortRentalVehicles } from '@/utils/rentalFilters'
+  import { activeRentalFilters, countActiveRentalFilters, createRentalFilters, filterRentalPoints, hasValidPriceRange, pointsInMapBounds, sortRentalVehicles } from '@/utils/rentalFilters'
   import { useVehicleLabels } from '@/utils/vehicleLabels'
   import 'leaflet/dist/leaflet.css'
 
   const router = useRouter()
   const { t, getIntlLocale, getDatePickerLocale, formatPrice, formatRating } = useLocale()
-  const { attributeLabel, attributeOptions, typeLabel } = useVehicleLabels()
+  const { attributeLabel, attributeOptions, typeLabel, licenceLabel, listingNotice } = useVehicleLabels()
   const { notifyError, notifySuccess, notifyWarning, notifyInfo } = useNotifications()
   const copy = computed(() => t('map'))
   const datePickerLocale = computed(() => getDatePickerLocale())
@@ -822,6 +839,7 @@
 
   const filters = ref(createRentalFilters())
   const activeFilterKeys = computed(() => activeRentalFilters(filters.value))
+  const activeFilterCount = computed(() => countActiveRentalFilters(filters.value))
   const filterOptions = computed(() => ({ typeOptions: typeOptions.value, companyOptions: companyOptions.value, gearboxOptions: publicGearboxOptions.value, fuelOptions: publicFuelOptions.value }))
   const sortOptions = computed(() => copy.value.sortOptions)
 
@@ -1137,8 +1155,9 @@
     },
   )
 
-  const newVehicle = ref({
+  const blankVehicle = () => ({
     veids_id: null,
+    vaditaja_apliecibas_kategorija: null,
     marka: '',
     modelis: '',
     atrumkarba: '-',
@@ -1147,6 +1166,15 @@
     dienas_nomas_cena: null,
     statuss: 'pieejams',
   })
+  const newVehicle = ref(blankVehicle())
+  const newPhotos = ref([])
+  const newPrimaryPhoto = ref(0)
+  const processingNewPhotos = ref(false)
+  const originalVehicleStatus = ref(null)
+  const editNotice = computed(() => listingNotice({
+    ...editVehicle.value,
+    photos_count: transportItems.value.find(vehicle => vehicle.transportlidzeklis_id === editVehicle.value.transportlidzeklis_id)?.photos_count,
+  }))
 
   const statusOptions = computed(() => attributeOptions(['pieejams', 'aiznemts', 'neaktivs']))
   const gearboxOptions = computed(() => attributeOptions(['Automāts', 'Mehānika', '-']))
@@ -1478,6 +1506,7 @@
     if (key === 'companyId') return companyOptions.value.find(option => option.value === value)?.title || copy.value.filterLabels.provider
     if (key === 'onlyAvailable') return copy.value.quickAvailable
     if (key === 'nearby') return copy.value.quickNearby
+    if (key === 'licenceCategories') return value.map(licenceLabel).join(', ')
     if (key === 'minPrice' || key === 'maxPrice') return `${copy.value.filterLabels[key]}: ${formatPrice(value)}`
     return `${copy.value.filterLabels[key]}: ${value}`
   }
@@ -1837,6 +1866,7 @@
     editVehicle.value = {
       transportlidzeklis_id: vehicle.transportlidzeklis_id,
       veids_id: vehicle.veids_id,
+      vaditaja_apliecibas_kategorija: vehicle.vaditaja_apliecibas_kategorija ?? null,
       marka: vehicle.marka,
       modelis: vehicle.modelis,
       atrumkarba: vehicle.atrumkarba || '-',
@@ -1845,11 +1875,18 @@
       statuss: vehicle.statuss,
       registracijas_numurs: vehicle.registracijas_numurs,
     }
+    originalVehicleStatus.value = vehicle.statuss
     editError.value = ''
     editDialog.value = true
   }
 
   async function saveVehicle () {
+    const category = editVehicle.value.vaditaja_apliecibas_kategorija
+    const unpublishing = editVehicle.value.statuss === 'neaktivs' && originalVehicleStatus.value !== 'neaktivs'
+    if (!category && !unpublishing) {
+      editError.value = t('vehicleLicence.required')
+      return
+    }
     editLoading.value = true
     editError.value = ''
     try {
@@ -1858,6 +1895,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           veids_id: editVehicle.value.veids_id,
+          vaditaja_apliecibas_kategorija: category || undefined,
           marka: editVehicle.value.marka,
           modelis: editVehicle.value.modelis,
           atrumkarba: editVehicle.value.atrumkarba,
@@ -1934,6 +1972,7 @@
   }
 
   async function submitVehicle () {
+    if (providerLoading.value || processingNewPhotos.value || !newPhotos.value.length || !newVehicle.value.vaditaja_apliecibas_kategorija) return
     providerLoading.value = true
     providerError.value = ''
     providerSuccess.value = ''
@@ -1945,40 +1984,23 @@
     }
 
     try {
-      const payload = {
-        veids_id: newVehicle.value.veids_id,
-        marka: newVehicle.value.marka,
-        modelis: newVehicle.value.modelis,
-        atrumkarba: newVehicle.value.atrumkarba || null,
-        degvielas_veids: newVehicle.value.degvielas_veids || null,
-        registracijas_numurs: newVehicle.value.registracijas_numurs,
-        dienas_nomas_cena: newVehicle.value.dienas_nomas_cena,
-        statuss: newVehicle.value.statuss,
-      }
+      const body = new FormData()
+      for (const [key, value] of Object.entries(newVehicle.value)) body.append(key, value ?? '')
+      for (const file of newPhotos.value) body.append('photos[]', file)
+      body.append('primary_photo_index', newPrimaryPhoto.value)
 
-      const response = await apiFetch(`/api/transport`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      const response = await apiFetch('/api/transport', { method: 'POST', body })
 
-      const result = await response.json()
       if (!response.ok) {
-        providerError.value = result?.message || copy.value.messages.addVehicleFailed
+        const result = await response.json().catch(() => null)
+        providerError.value = response.status < 500 && result?.message ? result.message : copy.value.messages.addVehicleFailed
         return
       }
 
       providerSuccess.value = copy.value.messages.vehicleAdded
-      newVehicle.value = {
-        veids_id: null,
-        marka: '',
-        modelis: '',
-        atrumkarba: '-',
-        degvielas_veids: '-',
-        registracijas_numurs: '',
-        dienas_nomas_cena: null,
-        statuss: 'pieejams',
-      }
+      newVehicle.value = blankVehicle()
+      newPhotos.value = []
+      newPrimaryPhoto.value = 0
       await loadTransport()
     } catch {
       providerError.value = copy.value.messages.addVehicleError
@@ -1988,21 +2010,23 @@
   }
 
   // Datu ielāde no API.
-  async function loadTransport () {
-    loading.value = true
-    errorText.value = ''
+  async function loadTransport ({ quiet = false } = {}) {
+    if (!quiet) {
+      loading.value = true
+      errorText.value = ''
+    }
     try {
       const response = await apiFetch(`/api/transport`)
       const data = await response.json()
       if (!response.ok) {
-        errorText.value = data?.message || copy.value.messages.loadTransportFailed
+        if (!quiet) errorText.value = data?.message || copy.value.messages.loadTransportFailed
         return
       }
       transportItems.value = data
     } catch {
-      errorText.value = copy.value.messages.loadTransportError
+      if (!quiet) errorText.value = copy.value.messages.loadTransportError
     } finally {
-      loading.value = false
+      if (!quiet) loading.value = false
     }
   }
 

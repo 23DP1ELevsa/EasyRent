@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\Process\Process;
+use Tests\Fixtures\VehicleImages;
 use Tests\TestCase;
 
 class AccountConcurrencyTest extends TestCase
@@ -120,7 +121,7 @@ class AccountConcurrencyTest extends TestCase
             'beigu_laiks' => now()->addDays(2)->toISOString(),
         ];
 
-        $this->assertModerationRace(
+        $this->assertConcurrentRequest(
             ['method' => 'POST', 'path' => '/api/rezervacijas', 'body' => $book, 'token' => $clientToken, 'wait_for_vehicle' => true],
             function (Process $worker) use ($vehicle, $adminToken, $vehicleId) {
                 $vehicle->newQuery()->whereKey($vehicleId)->lockForUpdate()->firstOrFail();
@@ -139,7 +140,7 @@ class AccountConcurrencyTest extends TestCase
             ->assertCreated()->json('rezervacija_id');
         $reason = ['duration' => 'indefinite', 'iemesls' => 'Concurrent restriction'];
 
-        $this->assertModerationRace(
+        $this->assertConcurrentRequest(
             ['method' => 'POST', 'path' => "/api/rezervacijas/$bookingId/pay", 'body' => [], 'token' => $clientToken],
             function (Process $worker) use ($client, $adminToken, $reason) {
                 Persona::lockActiveAccounts($client->getKey());
@@ -153,7 +154,7 @@ class AccountConcurrencyTest extends TestCase
         $this->assertDatabaseHas('rezervacija', ['rezervacija_id' => $bookingId, 'apmaksas_statuss' => 'neapmaksata']);
 
         $block = ['veids' => 'konta_blokesana'] + $reason;
-        $this->assertModerationRace(
+        $this->assertConcurrentRequest(
             ['method' => 'POST', 'path' => '/api/admin/users/'.$otherAdmin->getKey().'/restrictions', 'body' => $block, 'token' => $otherToken],
             function (Process $worker) use ($admin, $block, $adminToken) {
                 AdminChanges::lockAdministrators();
@@ -166,11 +167,53 @@ class AccountConcurrencyTest extends TestCase
         $this->assertSame(0, $otherAdmin->restrictions()->blocking()->count());
     }
 
-    private function assertModerationRace(array $request, \Closure $adminAction, int $status): void
+    #[Group('mysql-race')]
+    public function test_concurrent_photo_writes_keep_the_listing_between_one_and_four_photos(): void
+    {
+        $this->migrateDisposableDatabase();
+        $owner = $this->account('pakalpojumu_sniedzejs');
+        $type = TransportliedzieklsVeids::create(['nosaukums' => 'Auto', 'tips' => 'auto']);
+        $vehicle = $owner->pakalpojumuSniedzejs()->create([])->transportlidzekli()->create([
+            'veids_id' => $type->getKey(), 'marka' => 'BMW', 'modelis' => '320d', 'dienas_nomas_cena' => 40,
+            'adrese' => 'Rīga', 'statuss' => 'pieejams', 'registracijas_numurs' => 'QA-42',
+        ]);
+        $path = '/api/transport/'.$vehicle->getKey().'/photos';
+        $token = $owner->createToken('photo-race')->plainTextToken;
+        $headers = ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'];
+        $this->post($path, ['photos' => array_fill(0, 3, VehicleImages::file())], $headers)->assertCreated();
+
+        $this->assertConcurrentRequest(
+            ['method' => 'POST', 'path' => $path, 'token' => $token, 'body' => [], 'photo_upload' => true],
+            function (Process $worker) use ($owner, $path, $headers) {
+                Persona::whereKey($owner->getKey())->lockForUpdate()->firstOrFail();
+                $this->startBlockedRequest($worker);
+                $this->post($path, ['photos' => [VehicleImages::file()]], $headers)->assertCreated();
+            },
+            422
+        );
+        $ids = $vehicle->photos()->pluck('foto_id');
+        $this->assertCount(4, $ids);
+        foreach ($ids->take(2) as $photo) {
+            $this->deleteJson("$path/$photo", [], $headers)->assertNoContent();
+        }
+
+        $this->assertConcurrentRequest(
+            ['method' => 'DELETE', 'path' => "$path/{$ids[2]}", 'token' => $token, 'body' => []],
+            function (Process $worker) use ($owner, $path, $headers, $ids) {
+                Persona::whereKey($owner->getKey())->lockForUpdate()->firstOrFail();
+                $this->startBlockedRequest($worker);
+                $this->deleteJson("$path/{$ids[3]}", [], $headers)->assertNoContent();
+            },
+            422
+        );
+        $this->assertSame([$ids[2]], $vehicle->photos()->pluck('foto_id')->all());
+    }
+
+    private function assertConcurrentRequest(array $request, \Closure $whileBlocked, int $status): void
     {
         $worker = $this->worker($request, ['APP_ENV' => 'testing', 'APP_KEY' => config('app.key')]);
         try {
-            DB::transaction(fn () => $adminAction($worker));
+            DB::transaction(fn () => $whileBlocked($worker));
             $this->assertSame(0, $worker->wait(), $worker->getErrorOutput());
             $this->assertStringContainsString('STATUS='.$status, $worker->getOutput());
         } finally {
@@ -290,8 +333,14 @@ class AccountConcurrencyTest extends TestCase
             if (isset($data['referer'])) {
                 $server['HTTP_REFERER'] = $data['referer'];
             }
-            $request = Illuminate\Http\Request::create($data['path'], $data['method'],
-                cookies: $data['cookies'] ?? [], server: $server, content: json_encode($data['body'], JSON_THROW_ON_ERROR));
+            if ($data['photo_upload'] ?? false) {
+                $server['CONTENT_TYPE'] = 'multipart/form-data';
+                $request = Illuminate\Http\Request::create($data['path'], $data['method'],
+                    files: ['photos' => [Tests\Fixtures\VehicleImages::file()]], server: $server);
+            } else {
+                $request = Illuminate\Http\Request::create($data['path'], $data['method'],
+                    cookies: $data['cookies'] ?? [], server: $server, content: json_encode($data['body'], JSON_THROW_ON_ERROR));
+            }
             $response = $kernel->handle($request);
             $kernel->terminate($request, $response);
             echo 'STATUS='.$response->getStatusCode()."\n".$response->getContent();
